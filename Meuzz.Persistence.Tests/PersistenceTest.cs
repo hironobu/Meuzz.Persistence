@@ -71,7 +71,7 @@ namespace Meuzz.Persistence.Tests
     public class PersistenceTest
     {
         private Connection _connection;
-        private ObjectRepository<Player, int> _repository;
+        private ObjectRepository<Player> _repository;
 
         public PersistenceTest()
         {
@@ -88,7 +88,7 @@ namespace Meuzz.Persistence.Tests
                 INSERT INTO Characters VALUES (2, 'bbbb', 1);
                 INSERT INTO Characters VALUES (3, 'cccc', 2);
             ");
-            _repository = new ObjectRepository<Player, int>(_connection, new SqliteSqlBuilder<Player>(), new SqliteFormatter(), new SqliteCollator());
+            _repository = new ObjectRepository<Player>(_connection, new SqliteSqlBuilder<Player>(), new SqliteFormatter(), new SqliteCollator());
 
             Console.WriteLine("OK");
         }
@@ -120,9 +120,8 @@ namespace Meuzz.Persistence.Tests
         public void TestWhereEqualsAndIncludes()
         {
             var t = new Player() { Characters = null };
-            var q = _repository.Where((x) => x.Age == 10)
+            var objs = _repository.Where((x) => x.Age == 10)
                 .Joins(x => x.Characters, (l, r) => r.Player.Id == l.Id);
-            var objs = q;
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);

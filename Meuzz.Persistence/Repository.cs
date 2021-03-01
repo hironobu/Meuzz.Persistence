@@ -50,6 +50,11 @@ namespace Meuzz.Persistence
         }*/
     }
 
+    public class ObjectRepository<T> : ObjectRepository<T, object> where T: class, new()
+    {
+        public ObjectRepository(Connection conn, SqlBuilder<T> builder, SqlFormatter formatter, SqlCollator collator) : base(conn, builder, formatter, collator) { }
+    }
+
     public class ObjectRepository<T, I> : ObjectRepositoryBase where T : class, new()
     {
         private SqlBuilder<T> _sqlBuilder;
