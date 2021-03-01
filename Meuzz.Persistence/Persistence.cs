@@ -6,38 +6,12 @@ using System.Reflection;
 
 namespace Meuzz.Persistence
 {
-    public class TypeInfo
+    public class ParamInfo
     {
-        public IEnumerable<string> GetColumnsFromType(Type t)
-        {
-            return TypeInfoDict[t].Select(x => x.ColumnName);
-        }
-
-        public IDictionary<Type, ColumnInfo[]> TypeInfoDict { get; set; } = new Dictionary<Type, ColumnInfo[]>();
-        private IDictionary<string, string> _aliasingProperties = new Dictionary<string, string>();
-
         private IDictionary<string, Type> _parameters = new Dictionary<string, Type>();
-        private IDictionary<string, MemberInfo> _memberInfos = new Dictionary<string, MemberInfo>();
         private string _defaultParameterKey = null;
 
-        public IDictionary<string, string> MakeColumnAliasingDictionary(string paramKey, IEnumerable<string> props)
-        {
-            var propKeys = props.Select(x => $"{paramKey}.{x}");
-            foreach (var k in propKeys)
-            {
-                if (!_aliasingProperties.ContainsKey(k))
-                {
-                    _aliasingProperties.Add($"_c{_aliasingProperties.Count()}", k);
-                }
-            }
-
-            return _aliasingProperties.Where(x => propKeys.Contains(x.Value)).ToDictionary(x => x.Key, x => x.Value);
-        }
-
-        public string GetOriginalColumnName(string c)
-        {
-            return _aliasingProperties[c];
-        }
+        private IDictionary<string, MemberInfo> _memberInfos = new Dictionary<string, MemberInfo>();
 
         public void ResetParameters()
         {
@@ -71,10 +45,69 @@ namespace Meuzz.Persistence
             return _parameters[key];
         }
 
+
         public MemberInfo GetMemberInfoByKey(string key)
         {
             return _memberInfos[key];
         }
+
+
+        public string GetDefaultParameterKey()
+        {
+            return _defaultParameterKey;
+        }
+
+
+        public (string, string) GetBindingByKey(string key)
+        {
+            return (_bindings[key][0], _bindings[key][1]);
+        }
+
+        public void SetBindingByKey(string key, string foreignKey, string primaryKey)
+        {
+            _bindings.Add(key, new string[] { foreignKey, primaryKey });
+        }
+
+        private IDictionary<string, string[]> _bindings = new Dictionary<string, string[]>();
+
+
+    }
+
+
+    public class ColumnAliasingInfo
+    {
+        private IDictionary<string, string> _aliasingProperties = new Dictionary<string, string>();
+
+        public IDictionary<string, string> MakeColumnAliasingDictionary(string paramKey, IEnumerable<string> props)
+        {
+            var propKeys = props.Select(x => $"{paramKey}.{x}");
+            foreach (var k in propKeys)
+            {
+                if (!_aliasingProperties.ContainsKey(k))
+                {
+                    _aliasingProperties.Add($"_c{_aliasingProperties.Count()}", k);
+                }
+            }
+
+            return _aliasingProperties.Where(x => propKeys.Contains(x.Value)).ToDictionary(x => x.Key, x => x.Value);
+        }
+
+        public string GetOriginalColumnName(string c)
+        {
+            return _aliasingProperties[c];
+        }
+
+    }
+
+
+    public class TypeInfo
+    {
+        public IEnumerable<string> GetColumnsFromType(Type t)
+        {
+            return TypeInfoDict[t].Select(x => x.ColumnName);
+        }
+
+        public IDictionary<Type, ColumnInfoEntry[]> TypeInfoDict { get; set; } = new Dictionary<Type, ColumnInfoEntry[]>();
 
         private string GetShortColumnName(string fcol)
         {
@@ -112,31 +145,25 @@ namespace Meuzz.Persistence
             return "id";
         }
 
-
-        public (string, string) GetBindingByKey(string key)
-        {
-            return (_bindings[key][0], _bindings[key][1]);
-        }
-
-        public void SetBindingByKey(string key, string foreignKey, string primaryKey)
-        {
-            _bindings.Add(key, new string[] { foreignKey, primaryKey });
-        }
-
-        private IDictionary<string, string[]> _bindings = new Dictionary<string, string[]>();
-
-
         public TypeInfo ForStatement()
         {
             return new TypeInfo() { TypeInfoDict = this.TypeInfoDict };
         }
 
-        public string GetDefaultParameterKey()
+
+        [Obsolete("MIGHT BE HERE")]
+        public string GetTableNameFromClassName(Type t)
         {
-            return _defaultParameterKey;
+            var attr = t.GetCustomAttribute<PersistentClassAttribute>();
+            if (attr == null || attr.TableName == null)
+            {
+                return StringUtils.Camel2Snake(t.Name);
+            }
+            return attr.TableName;
         }
 
-        public class ColumnInfo
+
+        public class ColumnInfoEntry
         {
             public string ColumnName;
             public MemberInfo MemberInfo;

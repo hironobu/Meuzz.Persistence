@@ -144,7 +144,7 @@ namespace Meuzz.Persistence
         public override SelectStatement<T> BuildSelect(Expression expression, Func<SelectStatement<T>, IEnumerable<T>> f, TypeInfo typeInfo)
         {
             var root = BuildElement(null, expression);
-            return new SelectStatement<T>(root, typeInfo) { OnExecute = f };
+            return new SelectStatement<T>(root, typeInfo.ForStatement()) { OnExecute = f };
         }
 
         public override string FormatStatement(SqlElement stmt)

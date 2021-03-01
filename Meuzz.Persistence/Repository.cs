@@ -37,13 +37,13 @@ namespace Meuzz.Persistence
 
             if (!_typeInfo.TypeInfoDict.TryGetValue(t, out var cattr))
             {
-                var colinfos = new List<TypeInfo.ColumnInfo>();
+                var colinfos = new List<TypeInfo.ColumnInfoEntry>();
                 var rset = _connection.Execute($"PRAGMA table_info('{GetTableNameFromClassName(t)}')");
                 var classprops = t.GetProperties().ToList();
                 foreach (var result in rset.Results)
                 {
                     var prop = _typeInfo.GetPropertyFromColumnName(t, result["name"].ToString());
-                    colinfos.Add(new TypeInfo.ColumnInfo() { ColumnName = result["name"].ToString(), MemberInfo = prop });
+                    colinfos.Add(new TypeInfo.ColumnInfoEntry() { ColumnName = result["name"].ToString(), MemberInfo = prop });
                     classprops.Remove(prop);
                 }
 
@@ -97,6 +97,9 @@ namespace Meuzz.Persistence
             _connection = conn;
             _sqlBuilder = builder;
             _formatter = formatter;
+
+            _connection.Open();
+            LoadTableInfoForType(typeof(T));
         }
 
         public T Find(I id)
@@ -108,11 +111,9 @@ namespace Meuzz.Persistence
         {
             return _sqlBuilder.BuildSelect(f, (stmt) =>
             {
-                LoadTableInfoForType(typeof(T));
-
                 var sql = _formatter.Format(stmt);
                 var rset = _connection.Execute(sql);
-                return PopulateObjects(typeof(T), rset, stmt.TypeInfo);
+                return PopulateObjects(typeof(T), rset, stmt.TypeInfo, stmt.ParamInfo, stmt.ColumnAliasingInfo);
             }, _typeInfo);
         }
 
@@ -126,11 +127,11 @@ namespace Meuzz.Persistence
             return new T();
         }
 
-        private IEnumerable<T> PopulateObjects(Type t, Connection.ResultSet rset, TypeInfo typeInfo)
+        private IEnumerable<T> PopulateObjects(Type t, Connection.ResultSet rset, TypeInfo typeInfo, ParamInfo paramInfo, ColumnAliasingInfo columnAliasingInfo)
         {
             var rows = rset.Results.Select(x =>
             {
-                var kvs = x.Select(c => (typeInfo.GetOriginalColumnName(c.Key).Split('.'), c.Value));
+                var kvs = x.Select(c => (columnAliasingInfo.GetOriginalColumnName(c.Key).Split('.'), c.Value));
                 var d = new Dictionary<string, object>();
                 foreach (var (kk, v) in kvs)
                 {
@@ -162,7 +163,7 @@ namespace Meuzz.Persistence
                 foreach (var (k, v) in row)
                 {
                     var d = v as Dictionary<string, object>;
-                    var tt = typeInfo.GetParameterTypeByKey(k);
+                    var tt = paramInfo.GetParameterTypeByKey(k);
                     var pk = typeInfo.GetPrimaryKey(tt);
 
                     Dictionary<object, object> dd = null;
@@ -189,25 +190,25 @@ namespace Meuzz.Persistence
                 return new List<T>();
             }
 
-            var defaultKey = typeInfo.GetDefaultParameterKey();
-            var defaultType = typeInfo.GetParameterTypeByKey(defaultKey);
+            var defaultKey = paramInfo.GetDefaultParameterKey();
+            var defaultType = paramInfo.GetParameterTypeByKey(defaultKey);
 
             var joinedKey = "t";
 
             var primaryResults = resultDict[defaultKey].Select(x => (T)PopulateObject(defaultType, (x.Value as IDictionary<string, object>).Keys, (x.Value as IDictionary<string, object>).Values, typeInfo));
             var results = primaryResults;
             if (resultDict.ContainsKey(joinedKey)) {
-                results = LoadJoinedObjects(primaryResults, resultDict[joinedKey], defaultType, joinedKey, typeInfo);
+                results = LoadJoinedObjects(primaryResults, resultDict[joinedKey], defaultType, joinedKey, typeInfo, paramInfo);
             }
             return results;
         }
 
-        private IEnumerable<T> LoadJoinedObjects(IEnumerable<T> primaryResults, IDictionary<object, object> joinedResults, Type defaultType, string joinedKey, TypeInfo typeInfo)
+        private IEnumerable<T> LoadJoinedObjects(IEnumerable<T> primaryResults, IDictionary<object, object> joinedResults, Type defaultType, string joinedKey, TypeInfo typeInfo, ParamInfo paramInfo)
         {
-            var (foreignKey, primaryKey) = typeInfo.GetBindingByKey(joinedKey);
+            var (foreignKey, primaryKey) = paramInfo.GetBindingByKey(joinedKey);
 
-            var joinedType = typeInfo.GetParameterTypeByKey(joinedKey);
-            var joinedMemberInfo = typeInfo.GetMemberInfoByKey(joinedKey);
+            var joinedType = paramInfo.GetParameterTypeByKey(joinedKey);
+            var joinedMemberInfo = paramInfo.GetMemberInfoByKey(joinedKey);
             Func<dynamic, Func<dynamic, bool>> joiningCondition = (dynamic lval) => (dynamic r) => r[foreignKey] == lval;
 
             var primaryKeyProperty = defaultType.GetProperty(StringUtils.Snake2Camel(primaryKey, true));

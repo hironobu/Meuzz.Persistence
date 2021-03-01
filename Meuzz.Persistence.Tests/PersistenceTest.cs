@@ -76,7 +76,6 @@ namespace Meuzz.Persistence.Tests
         public PersistenceTest()
         {
             _connection = new SqliteConnectionImpl("dummy.sqlite");
-            _repository = new ObjectRepository<Player, int>(_connection, new SqliteSqlBuilder<Player>(), new SqliteFormatter());
             _connection.Open();
 
             _connection.Execute(@"
@@ -89,6 +88,7 @@ namespace Meuzz.Persistence.Tests
                 INSERT INTO Characters VALUES (2, 'bbbb', 1);
                 INSERT INTO Characters VALUES (3, 'cccc', 2);
             ");
+            _repository = new ObjectRepository<Player, int>(_connection, new SqliteSqlBuilder<Player>(), new SqliteFormatter());
 
             Console.WriteLine("OK");
         }
@@ -96,23 +96,23 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestWhereEquals()
         {
-            var objs = _repository.Where((x) => x.Name == "aaa").Execute();
+            var objs = _repository.Where((x) => x.Name == "aaa");
             Assert.Single(objs);
-            var objs2 = _repository.Where((x) => x.Age == 10).Execute();
+            var objs2 = _repository.Where((x) => x.Age == 10);
             Assert.Equal(2, objs2.Count());
         }
 
         [Fact]
         public void TestWhereNotEquals()
         {
-            var objs = _repository.Where((x) => x.Name != "aaa").Execute();
+            var objs = _repository.Where((x) => x.Name != "aaa");
             Assert.Equal(2, objs.Count());
         }
 
         [Fact]
         public void TestWhereAnd()
         {
-            var objs = _repository.Where((x) => x.Name == "aaa" && x.Age != 10).Execute();
+            var objs = _repository.Where((x) => x.Name == "aaa" && x.Age != 10);
             Assert.Empty(objs);
         }
 
@@ -122,7 +122,7 @@ namespace Meuzz.Persistence.Tests
             var t = new Player() { Characters = null };
             var q = _repository.Where((x) => x.Age == 10)
                 .Joins(x => x.Characters, (l, r) => r.Player.Id == l.Id);
-            var objs = q.Execute();
+            var objs = q;
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);

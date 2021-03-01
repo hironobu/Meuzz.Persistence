@@ -18,63 +18,34 @@ namespace Meuzz.Persistence
         {
         }
 
-        private T PickupElement<T>(SqlElement element, Func<SqlElement, bool> matcher, Func<SqlElement, SqlElement> nextElement) where T : SqlElement
+        private TableRef GetTableRef(SqlParameterElement pe, TypeInfo typeInfo)
         {
-            var current = element;
+            var table = typeInfo.GetTableNameFromClassName(pe.Type);
+            var paramname = pe.ParamKey.ToLower();
 
-            while (current != null)
-            {
-                if (matcher(current))
-                {
-                    return current as T;
-                }
-
-                current = nextElement(current);
-            }
-
-            return null;
+            return new TableRef() { Name = table, Parameter = paramname };
         }
 
         public override string Format(SqlStatement statement)
         {
-            var element = statement.Root;
-            var selectElement = PickupElement<SqlBinaryElement>(element, x => x is SqlBinaryElement && (x as SqlBinaryElement).Verb == SqlElementVerbs.Lambda, x => (x as SqlBinaryElement).Left);
-            var parameter = selectElement.Right as SqlParameterElement;
-            var parameters = new List<SqlParameterElement>() { };
-            var conditions = selectElement.Left;
+            var sb = new StringBuilder();
 
-            parameter.ParamKey = statement.TypeInfo.RegisterParameter(parameter.ParamKey, parameter.Type, null);
-
-            var joinings = new List<SqlJoinElement>();
-            var current = element;
-            while (current != null)
+            if (statement is SqlSelectStatement selectStatement)
             {
-                current = PickupElement<SqlJoinElement>(current, x => x is SqlJoinElement, x => (x as SqlJoinElement)?.Left);
-                if (current is SqlJoinElement picked)
+                var parameter = selectStatement.Parameters.First();
+
+                sb.Append($"SELECT {string.Join(", ", GetColumnsToString(selectStatement.Parameters.ToArray(), statement.TypeInfo, selectStatement.ColumnAliasingInfo))}");
+
+                sb.Append($" FROM {GetTableRef(parameter, statement.TypeInfo)}");
+
+                foreach (var je in selectStatement.Relations)
                 {
-                    joinings.Add(picked);
-                    parameters.Add(picked.Right as SqlParameterElement);
-                    current = picked.Left;
-
-                    var px = (picked.Right as SqlParameterElement);
-                    px.ParamKey = statement.TypeInfo.RegisterParameter(px.ParamKey, px.Type, picked.MemberInfo);
+                    var pe = je.Right as SqlParameterElement;
+                    sb.Append($" LEFT JOIN {GetTableRef(pe, statement.TypeInfo)} ON {GetTableRef(parameter, statement.TypeInfo).Parameter}.{je.PrimaryKey ?? statement.TypeInfo.GetPrimaryKey(parameter.Type)} = {GetTableRef(pe, statement.TypeInfo).Parameter}.{je.ForeignKey}");
                 }
+                sb.Append($" WHERE {FormatElement(selectStatement.Conditions, statement.TypeInfo)}");
+
             }
-            joinings.Reverse();
-            parameters.Reverse();
-            parameters.Insert(0, parameter);
-
-            var sb = new StringBuilder($"SELECT {string.Join(", ", GetColumnsToString(parameters.ToArray(), statement.TypeInfo))}");
-
-            sb.Append($" FROM {GetTable(parameters.First())}");
-
-            foreach (var je in joinings)
-            {
-                sb.Append($" LEFT JOIN {GetTable(je.Right as SqlParameterElement)} ON {GetTable(parameter).Parameter}.{je.PrimaryKey ?? statement.TypeInfo.GetPrimaryKey(parameter.Type)} = {GetTable(je.Right as SqlParameterElement).Parameter}.{je.ForeignKey}");
-                statement.TypeInfo.SetBindingByKey(GetTable(je.Right as SqlParameterElement).Parameter, je.ForeignKey, je.PrimaryKey ?? statement.TypeInfo.GetPrimaryKey(parameter.Type));
-            }
-            sb.Append($" WHERE {FormatElement(conditions, statement.TypeInfo)}");
-
             return sb.ToString();
         }
 
@@ -131,31 +102,12 @@ namespace Meuzz.Persistence
             }
         }
 
-        [Obsolete("NOT TO BE HERE")]
-        private string GetTableNameFromClassName(Type t)
-        {
-            var attr = t.GetCustomAttribute<PersistentClassAttribute>();
-            if (attr == null || attr.TableName == null)
-            {
-                return StringUtils.Camel2Snake(t.Name);
-            }
-            return attr.TableName;
-        }
-
-        private TableReference GetTable(SqlParameterElement pe)
-        {
-            var table = GetTableNameFromClassName(pe.Type);
-            var paramname = pe.ParamKey.ToLower();
-
-            return new TableReference() { Name = table, Parameter = paramname };
-        }
-
-        private string[] GetColumnsToString(SqlParameterElement[] pes, TypeInfo typeInfo)
+        private string[] GetColumnsToString(SqlParameterElement[] pes, TypeInfo typeInfo, ColumnAliasingInfo caInfo)
         {
             return pes.Select(x =>
             {
                 var props = typeInfo.GetColumnsFromType(x.Type);
-                var aliasedDict = typeInfo.MakeColumnAliasingDictionary(x.ParamKey, props);
+                var aliasedDict = caInfo.MakeColumnAliasingDictionary(x.ParamKey, props);
                 return string.Join(", ", aliasedDict.Select(x => $"{x.Value} AS {x.Key}"));
             }).ToArray();
         }
@@ -166,7 +118,7 @@ namespace Meuzz.Persistence
         }
 
 
-        class TableReference
+        public class TableRef
         {
             public string Name;
             public string Parameter;
@@ -176,10 +128,11 @@ namespace Meuzz.Persistence
                 return $"{Name} {Parameter}";
             }
 
-            public static implicit operator string(TableReference tableRef)
+            public static implicit operator string(TableRef tableRef)
             {
                 return tableRef.ToString();
             }
         }
+
     }
 }
