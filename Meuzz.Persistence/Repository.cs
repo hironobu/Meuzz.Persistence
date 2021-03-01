@@ -54,12 +54,14 @@ namespace Meuzz.Persistence
     {
         private SqlBuilder<T> _sqlBuilder;
         private SqlFormatter _formatter;
+        private SqlCollator _collator;
 
-        public ObjectRepository(Connection conn, SqlBuilder<T> builder, SqlFormatter formatter)
+        public ObjectRepository(Connection conn, SqlBuilder<T> builder, SqlFormatter formatter, SqlCollator collator)
         {
             _connection = conn;
             _sqlBuilder = builder;
             _formatter = formatter;
+            _collator = collator;
 
             _connection.Open();
             LoadTableInfoForType(typeof(T));
@@ -74,9 +76,9 @@ namespace Meuzz.Persistence
         {
             return _sqlBuilder.BuildSelect(f, (stmt) =>
             {
-                var sql = _formatter.Format(stmt);
-                var rset = _connection.Execute(sql);
-                return PopulateObjects(typeof(T), rset, stmt.ParamInfo, stmt.ColumnAliasingInfo);
+                var sql = _formatter.Format(stmt, out var context);
+                var rset = _connection.Execute(sql, context);
+                return PopulateObjects(rset, stmt.ParamInfo, context);
             });
         }
 
@@ -90,11 +92,12 @@ namespace Meuzz.Persistence
             return new T();
         }
 
-        private IEnumerable<T> PopulateObjects(Type t, Connection.ResultSet rset, ParamInfo paramInfo, ColumnAliasingInfo columnAliasingInfo)
+        private IEnumerable<T> PopulateObjects(Connection.ResultSet rset, ParamInfo paramInfo, SqlConnectionContext context)
         {
             var rows = rset.Results.Select(x =>
             {
-                var kvs = x.Select(c => (columnAliasingInfo.GetOriginalColumnName(c.Key).Split('.'), c.Value));
+                var xx = _collator.Collate(x, context);
+                var kvs = xx.Select(c => (c.Key.Split('.'), c.Value));
                 var d = new Dictionary<string, object>();
                 foreach (var (kk, v) in kvs)
                 {
@@ -126,7 +129,7 @@ namespace Meuzz.Persistence
                 foreach (var (k, v) in row)
                 {
                     var d = v as Dictionary<string, object>;
-                    var tt = paramInfo.GetParameterTypeByKey(k);
+                    var tt = paramInfo.GetParameterTypeByParamName(k);
                     var pk = tt.GetPrimaryKey();
 
                     Dictionary<object, object> dd = null;
@@ -153,25 +156,25 @@ namespace Meuzz.Persistence
                 return new List<T>();
             }
 
-            var defaultKey = paramInfo.GetDefaultParameterKey();
-            var defaultType = paramInfo.GetParameterTypeByKey(defaultKey);
+            var defaultParamName = paramInfo.GetDefaultParamName();
+            var defaultType = paramInfo.GetParameterTypeByParamName(defaultParamName);
 
-            var joinedKey = "t";
+            var joinedParamName = "t";
 
-            var primaryResults = resultDict[defaultKey].Select(x => (T)PopulateObject(defaultType, (x.Value as IDictionary<string, object>).Keys, (x.Value as IDictionary<string, object>).Values));
+            var primaryResults = resultDict[defaultParamName].Select(x => (T)PopulateObject(defaultType, (x.Value as IDictionary<string, object>).Keys, (x.Value as IDictionary<string, object>).Values));
             var results = primaryResults;
-            if (resultDict.ContainsKey(joinedKey)) {
-                results = LoadJoinedObjects(primaryResults, resultDict[joinedKey], defaultType, joinedKey, paramInfo);
+            if (resultDict.ContainsKey(joinedParamName)) {
+                results = LoadJoinedObjects(primaryResults, resultDict[joinedParamName], defaultType, joinedParamName, paramInfo);
             }
             return results;
         }
 
-        private IEnumerable<T> LoadJoinedObjects(IEnumerable<T> primaryResults, IDictionary<object, object> joinedResults, Type defaultType, string joinedKey, ParamInfo paramInfo)
+        private IEnumerable<T> LoadJoinedObjects(IEnumerable<T> primaryResults, IDictionary<object, object> joinedResults, Type defaultType, string joinedParamName, ParamInfo paramInfo)
         {
-            var (foreignKey, primaryKey) = paramInfo.GetBindingByKey(joinedKey);
+            var (foreignKey, primaryKey) = paramInfo.GetBindingByParamName(joinedParamName);
 
-            var joinedType = paramInfo.GetParameterTypeByKey(joinedKey);
-            var joinedMemberInfo = paramInfo.GetMemberInfoByKey(joinedKey);
+            var joinedType = paramInfo.GetParameterTypeByParamName(joinedParamName);
+            var joinedMemberInfo = paramInfo.GetMemberInfoByParamName(joinedParamName);
             Func<dynamic, Func<dynamic, bool>> joiningCondition = (dynamic lval) => (dynamic r) => r[foreignKey] == lval;
 
             var primaryKeyProperty = defaultType.GetProperty(StringUtils.Snake2Camel(primaryKey, true));

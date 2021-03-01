@@ -9,7 +9,7 @@ namespace Meuzz.Persistence
     public class ParamInfo
     {
         private IDictionary<string, Type> _parameters = new Dictionary<string, Type>();
-        private string _defaultParameterKey = null;
+        private string _defaultParamName = null;
 
         private IDictionary<string, MemberInfo> _memberInfos = new Dictionary<string, MemberInfo>();
 
@@ -30,7 +30,7 @@ namespace Meuzz.Persistence
             _parameters.Add(k, t);
             if (memberInfo == null)
             {
-                _defaultParameterKey = k;
+                _defaultParamName = k;
             }
             else
             {
@@ -40,25 +40,25 @@ namespace Meuzz.Persistence
             return k;
         }
 
-        public Type GetParameterTypeByKey(string key)
+        public Type GetParameterTypeByParamName(string key)
         {
             return _parameters[key];
         }
 
 
-        public MemberInfo GetMemberInfoByKey(string key)
+        public MemberInfo GetMemberInfoByParamName(string key)
         {
             return _memberInfos[key];
         }
 
 
-        public string GetDefaultParameterKey()
+        public string GetDefaultParamName()
         {
-            return _defaultParameterKey;
+            return _defaultParamName;
         }
 
 
-        public (string, string) GetBindingByKey(string key)
+        public (string, string) GetBindingByParamName(string key)
         {
             return (_bindings[key][0], _bindings[key][1]);
         }
@@ -78,9 +78,9 @@ namespace Meuzz.Persistence
     {
         private IDictionary<string, string> _aliasingProperties = new Dictionary<string, string>();
 
-        public IDictionary<string, string> MakeColumnAliasingDictionary(string paramKey, IEnumerable<string> props)
+        public IDictionary<string, string> MakeColumnAliasingDictionary(string paramName, IEnumerable<string> props)
         {
-            var propKeys = props.Select(x => $"{paramKey}.{x}");
+            var propKeys = props.Select(x => $"{paramName}.{x}");
             foreach (var k in propKeys)
             {
                 if (!_aliasingProperties.ContainsKey(k))

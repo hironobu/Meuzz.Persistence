@@ -82,7 +82,7 @@ namespace Meuzz.Persistence
             var parameters = new List<SqlParameterElement>() { };
             var conditions = selectElement.Left;
 
-            parameter.ParamKey = ParamInfo.RegisterParameter(parameter.ParamKey, parameter.Type, null);
+            parameter.Name = ParamInfo.RegisterParameter(parameter.Name, parameter.Type, null);
 
             var joinings = new List<SqlJoinElement>();
             var current = element;
@@ -96,7 +96,7 @@ namespace Meuzz.Persistence
                     current = picked.Left;
 
                     var px = (picked.Right as SqlParameterElement);
-                    px.ParamKey = ParamInfo.RegisterParameter(px.ParamKey, px.Type, picked.MemberInfo);
+                    px.Name = ParamInfo.RegisterParameter(px.Name, px.Type, picked.MemberInfo);
                 }
             }
             joinings.Reverse();
@@ -105,7 +105,7 @@ namespace Meuzz.Persistence
 
             foreach (var je in joinings)
             {
-                var paramname = (je.Right as SqlParameterElement).ParamKey.ToLower();
+                var paramname = (je.Right as SqlParameterElement).Name.ToLower();
                 ParamInfo.SetBindingByKey(paramname, je.ForeignKey, je.PrimaryKey ?? parameter.Type.GetPrimaryKey());
             }
 
@@ -212,12 +212,12 @@ namespace Meuzz.Persistence
     public class SqlParameterElement : SqlElement
     {
         public Type Type;
-        public string ParamKey { get; set; }
+        public string Name { get; set; }
 
         public SqlParameterElement(Type type, string key)
         {
             Type = type;
-            ParamKey = key;
+            Name = key.ToLower();
         }
     }
 

@@ -6,6 +6,17 @@ using Microsoft.Data.Sqlite;
 
 namespace Meuzz.Persistence
 {
+
+    public abstract class SqlConnectionContext
+    {
+
+    }
+
+    public class SqliteConnectionContext : SqlConnectionContext
+    {
+        public ColumnAliasingInfo ColumnAliasingInfo { get; } = new ColumnAliasingInfo();
+    }
+
     public abstract class Connection : IDisposable
     {
         private bool _disposed = false;
@@ -17,7 +28,7 @@ namespace Meuzz.Persistence
 
         public abstract void Open();
 
-        public abstract ResultSet Execute(string sql);
+        public abstract ResultSet Execute(string sql, SqlConnectionContext context = null);
 
         public abstract void Close();
 
@@ -58,7 +69,7 @@ namespace Meuzz.Persistence
             _connection.Open();
         }
 
-        public override ResultSet Execute(string sql)
+        public override ResultSet Execute(string sql, SqlConnectionContext context)
         {
             var cmd = _connection.CreateCommand();
             cmd.CommandText = sql.ToString();

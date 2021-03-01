@@ -88,7 +88,7 @@ namespace Meuzz.Persistence.Tests
                 INSERT INTO Characters VALUES (2, 'bbbb', 1);
                 INSERT INTO Characters VALUES (3, 'cccc', 2);
             ");
-            _repository = new ObjectRepository<Player, int>(_connection, new SqliteSqlBuilder<Player>(), new SqliteFormatter());
+            _repository = new ObjectRepository<Player, int>(_connection, new SqliteSqlBuilder<Player>(), new SqliteFormatter(), new SqliteCollator());
 
             Console.WriteLine("OK");
         }

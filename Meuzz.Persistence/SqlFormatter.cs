@@ -9,7 +9,7 @@ namespace Meuzz.Persistence
 {
     public abstract class SqlFormatter
     {
-        public abstract string Format(SqlStatement statement);
+        public abstract string Format(SqlStatement statement, out SqlConnectionContext context);
     }
 
     public class SqliteFormatter : SqlFormatter
@@ -18,34 +18,29 @@ namespace Meuzz.Persistence
         {
         }
 
-        private TableRef GetTableRef(SqlParameterElement pe)
-        {
-            var table = pe.Type.GetTableNameFromClassName();
-            var paramname = pe.ParamKey.ToLower();
-
-            return new TableRef() { Name = table, Parameter = paramname };
-        }
-
-        public override string Format(SqlStatement statement)
+        public override string Format(SqlStatement statement, out SqlConnectionContext context)
         {
             var sb = new StringBuilder();
+            var sqliteContext = new SqliteConnectionContext();
 
             if (statement is SqlSelectStatement selectStatement)
             {
                 var parameter = selectStatement.Parameters.First();
 
-                sb.Append($"SELECT {string.Join(", ", GetColumnsToString(selectStatement.Parameters.ToArray(), selectStatement.ColumnAliasingInfo))}");
+                sb.Append($"SELECT {string.Join(", ", GetColumnsToString(selectStatement.Parameters.ToArray(), sqliteContext.ColumnAliasingInfo))}");
 
-                sb.Append($" FROM {GetTableRef(parameter)}");
+                sb.Append($" FROM {parameter.Type.GetTableNameFromClassName()} {parameter.Name}");
 
                 foreach (var je in selectStatement.Relations)
                 {
                     var pe = je.Right as SqlParameterElement;
-                    sb.Append($" LEFT JOIN {GetTableRef(pe)} ON {GetTableRef(parameter).Parameter}.{je.PrimaryKey ?? parameter.Type.GetPrimaryKey()} = {GetTableRef(pe).Parameter}.{je.ForeignKey}");
+                    sb.Append($" LEFT JOIN {pe.Type.GetTableNameFromClassName()} {pe.Name} ON {parameter.Name}.{je.PrimaryKey ?? parameter.Type.GetPrimaryKey()} = {pe.Name}.{je.ForeignKey}");
                 }
                 sb.Append($" WHERE {FormatElement(selectStatement.Conditions)}");
 
             }
+
+            context = sqliteContext;
             return sb.ToString();
         }
 
@@ -94,7 +89,7 @@ namespace Meuzz.Persistence
             }
             else if (element is SqlParameterElement pe)
             {
-                return pe.ParamKey;
+                return pe.Name;
             }
             else
             {
@@ -107,7 +102,7 @@ namespace Meuzz.Persistence
             return pes.Select(x =>
             {
                 var props = x.Type.GetColumnsFromType();
-                var aliasedDict = caInfo.MakeColumnAliasingDictionary(x.ParamKey, props);
+                var aliasedDict = caInfo.MakeColumnAliasingDictionary(x.Name, props);
                 return string.Join(", ", aliasedDict.Select(x => $"{x.Value} AS {x.Key}"));
             }).ToArray();
         }
@@ -116,23 +111,5 @@ namespace Meuzz.Persistence
         {
             return $"'{s}'";
         }
-
-
-        public class TableRef
-        {
-            public string Name;
-            public string Parameter;
-
-            public override string ToString()
-            {
-                return $"{Name} {Parameter}";
-            }
-
-            public static implicit operator string(TableRef tableRef)
-            {
-                return tableRef.ToString();
-            }
-        }
-
     }
 }
