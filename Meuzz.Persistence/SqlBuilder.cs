@@ -66,7 +66,7 @@ namespace Meuzz.Persistence
         }
 
 
-        public abstract SelectStatement<T> BuildSelect(Expression expression, Func<SelectStatement<T>, IEnumerable<T>> f, TypeInfo typeInfo);
+        public abstract SelectStatement<T> BuildSelect(Expression expression, Func<SelectStatement<T>, IEnumerable<T>> f);
         // public abstract SqlStatement BuildSelectAndInclude<T>(Expression expression, Expression expression2);
 
         public string GetColumnNameFromProperty(MemberInfo mi)
@@ -141,10 +141,10 @@ namespace Meuzz.Persistence
             Table = GetTableNameFromType(typeof(T));
         }
 
-        public override SelectStatement<T> BuildSelect(Expression expression, Func<SelectStatement<T>, IEnumerable<T>> f, TypeInfo typeInfo)
+        public override SelectStatement<T> BuildSelect(Expression expression, Func<SelectStatement<T>, IEnumerable<T>> f)
         {
             var root = BuildElement(null, expression);
-            return new SelectStatement<T>(root, typeInfo.ForStatement()) { OnExecute = f };
+            return new SelectStatement<T>(root) { OnExecute = f };
         }
 
         public override string FormatStatement(SqlElement stmt)

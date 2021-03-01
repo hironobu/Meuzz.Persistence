@@ -11,9 +11,9 @@ namespace Meuzz.Persistence
     {
         protected Connection _connection = null;
 
-        protected object PopulateObject(Type t, IEnumerable<string> cols, IEnumerable<object> vals, TypeInfo typeInfo)
+        protected object PopulateObject(Type t, IEnumerable<string> cols, IEnumerable<object> vals)
         {
-            var props = cols.Select(c => typeInfo.GetPropertyFromColumnName(t, c)).Where(x => x != null).ToArray<PropertyInfo>();
+            var props = cols.Select(c => t.GetPropertyFromColumnName(c)).Where(x => x != null).ToArray<PropertyInfo>();
 
             var bindings = props.Zip(vals, (k, v) => Expression.Bind(k, Expression.Constant(
                 Convert.ChangeType(v, k.PropertyType))));
@@ -27,41 +27,15 @@ namespace Meuzz.Persistence
             return func();
         }
 
-        // private IDictionary<Type, ColumnInfo[]> _typeInfo = new Dictionary<Type, ColumnInfo[]>();
-        protected TypeInfo _typeInfo = new TypeInfo();
-
         protected void LoadTableInfoForType(Type t)
         {
             if (t.GetCustomAttribute<PersistentClassAttribute>() == null)
                 return;
 
-            if (!_typeInfo.TypeInfoDict.TryGetValue(t, out var cattr))
+            t.MakeTypePersistent((t) =>
             {
-                var colinfos = new List<TypeInfo.ColumnInfoEntry>();
-                var rset = _connection.Execute($"PRAGMA table_info('{GetTableNameFromClassName(t)}')");
-                var classprops = t.GetProperties().ToList();
-                foreach (var result in rset.Results)
-                {
-                    var prop = _typeInfo.GetPropertyFromColumnName(t, result["name"].ToString());
-                    colinfos.Add(new TypeInfo.ColumnInfoEntry() { ColumnName = result["name"].ToString(), MemberInfo = prop });
-                    classprops.Remove(prop);
-                }
-
-                _typeInfo.TypeInfoDict[t] = colinfos.ToArray();
-
-                foreach (var prop in t.GetProperties())
-                {
-                    if (prop.PropertyType.IsGenericType)
-                    {
-                        LoadTableInfoForType(prop.PropertyType.GetGenericArguments()[0]);
-                    }
-                    else
-                    {
-                        LoadTableInfoForType(prop.PropertyType);
-                    }
-
-                }
-            }
+                return _connection.Execute($"PRAGMA table_info('{t}')").Results.Select(x => x["name"].ToString()).ToArray();
+            });
         }
         /*
         private IEnumerable<Type> GetTypesWithHelpAttribute(Assembly assembly, Type targetAttribute)
@@ -74,17 +48,6 @@ namespace Meuzz.Persistence
                 }
             }
         }*/
-
-        [Obsolete("NOT TO BE HERE")]
-        private string GetTableNameFromClassName(Type t)
-        {
-            var attr = t.GetCustomAttribute<PersistentClassAttribute>();
-            if (attr == null || attr.TableName == null)
-            {
-                return StringUtils.Camel2Snake(t.Name);
-            }
-            return attr.TableName;
-        }
     }
 
     public class ObjectRepository<T, I> : ObjectRepositoryBase where T : class, new()
@@ -113,8 +76,8 @@ namespace Meuzz.Persistence
             {
                 var sql = _formatter.Format(stmt);
                 var rset = _connection.Execute(sql);
-                return PopulateObjects(typeof(T), rset, stmt.TypeInfo, stmt.ParamInfo, stmt.ColumnAliasingInfo);
-            }, _typeInfo);
+                return PopulateObjects(typeof(T), rset, stmt.ParamInfo, stmt.ColumnAliasingInfo);
+            });
         }
 
         public T Create()
@@ -127,7 +90,7 @@ namespace Meuzz.Persistence
             return new T();
         }
 
-        private IEnumerable<T> PopulateObjects(Type t, Connection.ResultSet rset, TypeInfo typeInfo, ParamInfo paramInfo, ColumnAliasingInfo columnAliasingInfo)
+        private IEnumerable<T> PopulateObjects(Type t, Connection.ResultSet rset, ParamInfo paramInfo, ColumnAliasingInfo columnAliasingInfo)
         {
             var rows = rset.Results.Select(x =>
             {
@@ -164,7 +127,7 @@ namespace Meuzz.Persistence
                 {
                     var d = v as Dictionary<string, object>;
                     var tt = paramInfo.GetParameterTypeByKey(k);
-                    var pk = typeInfo.GetPrimaryKey(tt);
+                    var pk = tt.GetPrimaryKey();
 
                     Dictionary<object, object> dd = null;
                     if (!resultDict.TryGetValue(k, out var val))
@@ -195,15 +158,15 @@ namespace Meuzz.Persistence
 
             var joinedKey = "t";
 
-            var primaryResults = resultDict[defaultKey].Select(x => (T)PopulateObject(defaultType, (x.Value as IDictionary<string, object>).Keys, (x.Value as IDictionary<string, object>).Values, typeInfo));
+            var primaryResults = resultDict[defaultKey].Select(x => (T)PopulateObject(defaultType, (x.Value as IDictionary<string, object>).Keys, (x.Value as IDictionary<string, object>).Values));
             var results = primaryResults;
             if (resultDict.ContainsKey(joinedKey)) {
-                results = LoadJoinedObjects(primaryResults, resultDict[joinedKey], defaultType, joinedKey, typeInfo, paramInfo);
+                results = LoadJoinedObjects(primaryResults, resultDict[joinedKey], defaultType, joinedKey, paramInfo);
             }
             return results;
         }
 
-        private IEnumerable<T> LoadJoinedObjects(IEnumerable<T> primaryResults, IDictionary<object, object> joinedResults, Type defaultType, string joinedKey, TypeInfo typeInfo, ParamInfo paramInfo)
+        private IEnumerable<T> LoadJoinedObjects(IEnumerable<T> primaryResults, IDictionary<object, object> joinedResults, Type defaultType, string joinedKey, ParamInfo paramInfo)
         {
             var (foreignKey, primaryKey) = paramInfo.GetBindingByKey(joinedKey);
 
@@ -222,7 +185,7 @@ namespace Meuzz.Persistence
                     var cond = joiningCondition(primaryKeyProperty.GetValue(x));
                     var ts = joinedResults.Values
                         .Where(cond)
-                        .Select(y => PopulateObject(joinedType, (y as IDictionary<string, object>).Keys, (y as IDictionary<string, object>).Values, typeInfo)).ToArray();
+                        .Select(y => PopulateObject(joinedType, (y as IDictionary<string, object>).Keys, (y as IDictionary<string, object>).Values)).ToArray();
                     var ts2 =
                         typeof(Enumerable)
                             .GetMethod("Cast")

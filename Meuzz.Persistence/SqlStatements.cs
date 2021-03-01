@@ -9,14 +9,12 @@ namespace Meuzz.Persistence
     public class SqlStatement
     {
         public SqlElement Root { get; set; }
-        public TypeInfo TypeInfo { get; set; }
 
         public ParamInfo ParamInfo { get; set; } = new ParamInfo();
 
-        public SqlStatement(SqlElement root, TypeInfo typeInfo)
+        public SqlStatement(SqlElement root)
         {
             Root = root;
-            TypeInfo = typeInfo.ForStatement();
         }
     }
 
@@ -29,7 +27,7 @@ namespace Meuzz.Persistence
 
         public abstract SqlElement Conditions { get;  }
 
-        public SqlSelectStatement(SqlElement root, TypeInfo typeInfo) : base(root, typeInfo) { }
+        public SqlSelectStatement(SqlElement root) : base(root) { }
 
         [Obsolete]
         public ColumnAliasingInfo ColumnAliasingInfo { get; } = new ColumnAliasingInfo();
@@ -47,7 +45,7 @@ namespace Meuzz.Persistence
     {
         public Func<SelectStatement<T>, IEnumerable<T>> OnExecute = null;
 
-        public SelectStatement(SqlElement root, TypeInfo typeInfo) : base(root, typeInfo)
+        public SelectStatement(SqlElement root) : base(root)
         {
             FinishBuild();
         }
@@ -63,7 +61,7 @@ namespace Meuzz.Persistence
 
         protected virtual JoinedSelectStatement<Joined<T, T2>, T, T2> BuildJoins<T2>(MemberInfo memberInfo, string foreignKey, string primaryKey, Expression<Func<T, T2, bool>> cond) where T2 : class
         {
-            return new JoinedSelectStatement<Joined<T, T2>, T, T2>(this, memberInfo, foreignKey, primaryKey, cond, this.TypeInfo) { OnExecute = this.OnExecute };
+            return new JoinedSelectStatement<Joined<T, T2>, T, T2>(this, memberInfo, foreignKey, primaryKey, cond) { OnExecute = this.OnExecute };
         }
 
         IEnumerator<T> IEnumerable<T>.GetEnumerator()
@@ -108,7 +106,7 @@ namespace Meuzz.Persistence
             foreach (var je in joinings)
             {
                 var paramname = (je.Right as SqlParameterElement).ParamKey.ToLower();
-                ParamInfo.SetBindingByKey(paramname, je.ForeignKey, je.PrimaryKey ?? TypeInfo.GetPrimaryKey(parameter.Type));
+                ParamInfo.SetBindingByKey(paramname, je.ForeignKey, je.PrimaryKey ?? parameter.Type.GetPrimaryKey());
             }
 
             _parameters = parameters.ToArray();
@@ -150,13 +148,13 @@ namespace Meuzz.Persistence
         // public string ForeignKey = null;
         // public string PrimaryKey = null;
 
-        public JoinedSelectStatement(SelectStatement<T> statement, MemberInfo memberInfo, string foreignKey, string primaryKey, Expression<Func<T, T1, bool>> conditions, TypeInfo typeInfo) : base(MakeSqlJoinElement(statement.Root, memberInfo, foreignKey, primaryKey, conditions), typeInfo)
+        public JoinedSelectStatement(SelectStatement<T> statement, MemberInfo memberInfo, string foreignKey, string primaryKey, Expression<Func<T, T1, bool>> conditions) : base(MakeSqlJoinElement(statement.Root, memberInfo, foreignKey, primaryKey, conditions))
         {
         }
 
         protected override JoinedSelectStatement<Joined<T, T2>, T, T2> BuildJoins<T2>(MemberInfo memberInfo, string foreignKey, string primaryKey, Expression<Func<T, T2, bool>> cond) where T2 : class
         {
-            return new JoinedSelectStatement<Joined<T, T2>, T, T2>(this, memberInfo, foreignKey, primaryKey, cond, this.TypeInfo) { OnExecute = this.OnExecute };
+            return new JoinedSelectStatement<Joined<T, T2>, T, T2>(this, memberInfo, foreignKey, primaryKey, cond) { OnExecute = this.OnExecute };
         }
 
         private static SqlElement MakeSqlJoinElement(SqlElement root, MemberInfo memberInfo, string foreignKey, string primaryKey, Expression<Func<T, T1, bool>> cond)

@@ -18,9 +18,9 @@ namespace Meuzz.Persistence
         {
         }
 
-        private TableRef GetTableRef(SqlParameterElement pe, TypeInfo typeInfo)
+        private TableRef GetTableRef(SqlParameterElement pe)
         {
-            var table = typeInfo.GetTableNameFromClassName(pe.Type);
+            var table = pe.Type.GetTableNameFromClassName();
             var paramname = pe.ParamKey.ToLower();
 
             return new TableRef() { Name = table, Parameter = paramname };
@@ -34,51 +34,51 @@ namespace Meuzz.Persistence
             {
                 var parameter = selectStatement.Parameters.First();
 
-                sb.Append($"SELECT {string.Join(", ", GetColumnsToString(selectStatement.Parameters.ToArray(), statement.TypeInfo, selectStatement.ColumnAliasingInfo))}");
+                sb.Append($"SELECT {string.Join(", ", GetColumnsToString(selectStatement.Parameters.ToArray(), selectStatement.ColumnAliasingInfo))}");
 
-                sb.Append($" FROM {GetTableRef(parameter, statement.TypeInfo)}");
+                sb.Append($" FROM {GetTableRef(parameter)}");
 
                 foreach (var je in selectStatement.Relations)
                 {
                     var pe = je.Right as SqlParameterElement;
-                    sb.Append($" LEFT JOIN {GetTableRef(pe, statement.TypeInfo)} ON {GetTableRef(parameter, statement.TypeInfo).Parameter}.{je.PrimaryKey ?? statement.TypeInfo.GetPrimaryKey(parameter.Type)} = {GetTableRef(pe, statement.TypeInfo).Parameter}.{je.ForeignKey}");
+                    sb.Append($" LEFT JOIN {GetTableRef(pe)} ON {GetTableRef(parameter).Parameter}.{je.PrimaryKey ?? parameter.Type.GetPrimaryKey()} = {GetTableRef(pe).Parameter}.{je.ForeignKey}");
                 }
-                sb.Append($" WHERE {FormatElement(selectStatement.Conditions, statement.TypeInfo)}");
+                sb.Append($" WHERE {FormatElement(selectStatement.Conditions)}");
 
             }
             return sb.ToString();
         }
 
 
-        protected string FormatElement(SqlElement element, TypeInfo typeInfo)
+        protected string FormatElement(SqlElement element)
         {
             if (element is SqlBinaryElement bine)
             {
                 switch (bine.Verb)
                 {
                     case SqlElementVerbs.And:
-                        return $"({FormatElement(bine.Left, typeInfo)}) AND ({FormatElement(bine.Right, typeInfo)})";
+                        return $"({FormatElement(bine.Left)}) AND ({FormatElement(bine.Right)})";
                     case SqlElementVerbs.Or:
-                        return $"({FormatElement(bine.Left, typeInfo)}) OR ({FormatElement(bine.Right, typeInfo)})";
+                        return $"({FormatElement(bine.Left)}) OR ({FormatElement(bine.Right)})";
                     case SqlElementVerbs.Lt:
-                        return $"({FormatElement(bine.Left, typeInfo)}) < ({FormatElement(bine.Right, typeInfo)})";
+                        return $"({FormatElement(bine.Left)}) < ({FormatElement(bine.Right)})";
                     case SqlElementVerbs.Lte:
-                        return $"({FormatElement(bine.Left, typeInfo)}) <= ({FormatElement(bine.Right, typeInfo)})";
+                        return $"({FormatElement(bine.Left)}) <= ({FormatElement(bine.Right)})";
                     case SqlElementVerbs.Gt:
-                        return $"({FormatElement(bine.Left, typeInfo)}) > ({FormatElement(bine.Right, typeInfo)})";
+                        return $"({FormatElement(bine.Left)}) > ({FormatElement(bine.Right)})";
                     case SqlElementVerbs.Gte:
-                        return $"({FormatElement(bine.Left, typeInfo)}) >= ({FormatElement(bine.Right, typeInfo)})";
+                        return $"({FormatElement(bine.Left)}) >= ({FormatElement(bine.Right)})";
                     case SqlElementVerbs.Eq:
-                        return $"({FormatElement(bine.Left, typeInfo)}) = ({FormatElement(bine.Right, typeInfo)})";
+                        return $"({FormatElement(bine.Left)}) = ({FormatElement(bine.Right)})";
                     case SqlElementVerbs.Ne:
-                        return $"({FormatElement(bine.Left, typeInfo)}) != ({FormatElement(bine.Right, typeInfo)})";
+                        return $"({FormatElement(bine.Left)}) != ({FormatElement(bine.Right)})";
 
                     case SqlElementVerbs.MemberAccess:
-                        return $"{FormatElement(bine.Left, typeInfo)}.{FormatElement(bine.Right, typeInfo)}";
+                        return $"{FormatElement(bine.Left)}.{FormatElement(bine.Right)}";
 
                     case SqlElementVerbs.Lambda:
                         // return $"{FormatElementToString(bine.Left)}";
-                        return $"{FormatElement(bine.Left, typeInfo)}";
+                        return $"{FormatElement(bine.Left)}";
 
                     default:
                         throw new NotImplementedException();
@@ -102,11 +102,11 @@ namespace Meuzz.Persistence
             }
         }
 
-        private string[] GetColumnsToString(SqlParameterElement[] pes, TypeInfo typeInfo, ColumnAliasingInfo caInfo)
+        private string[] GetColumnsToString(SqlParameterElement[] pes, ColumnAliasingInfo caInfo)
         {
             return pes.Select(x =>
             {
-                var props = typeInfo.GetColumnsFromType(x.Type);
+                var props = x.Type.GetColumnsFromType();
                 var aliasedDict = caInfo.MakeColumnAliasingDictionary(x.ParamKey, props);
                 return string.Join(", ", aliasedDict.Select(x => $"{x.Value} AS {x.Key}"));
             }).ToArray();

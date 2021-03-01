@@ -100,21 +100,59 @@ namespace Meuzz.Persistence
     }
 
 
-    public class TypeInfo
+    public static class TypeInfoExtensions
     {
-        public IEnumerable<string> GetColumnsFromType(Type t)
+        public static IEnumerable<string> GetColumnsFromType(this Type t)
         {
             return TypeInfoDict[t].Select(x => x.ColumnName);
         }
 
-        public IDictionary<Type, ColumnInfoEntry[]> TypeInfoDict { get; set; } = new Dictionary<Type, ColumnInfoEntry[]>();
+        private static IDictionary<Type, ColumnInfoEntry[]> TypeInfoDict { get; set; } = new Dictionary<Type, ColumnInfoEntry[]>();
 
-        private string GetShortColumnName(string fcol)
+        public static bool IsPersistent(this Type t)
+        {
+            return TypeInfoDict.TryGetValue(t, out var _);
+        }
+
+        public static void MakeTypePersistent(this Type t, Func<string, string[]> tableInfoGetter)
+        {
+            if (!t.IsPersistent())
+            {
+                var colinfos = new List<ColumnInfoEntry>();
+                // var rset = _connection.Execute($"PRAGMA table_info('{GetTableNameFromClassName(t)}')");
+                var classprops = t.GetProperties().ToList();
+                // foreach (var result in rset.Results)
+                foreach (var tableName in tableInfoGetter(GetTableNameFromClassName(t)))
+                {
+                    // var tableName = result["name"].ToString();
+                    var prop = t.GetPropertyFromColumnName(tableName);
+                    colinfos.Add(new ColumnInfoEntry() { ColumnName = tableName, MemberInfo = prop });
+                    classprops.Remove(prop);
+                }
+
+                TypeInfoDict[t] = colinfos.ToArray();
+
+                foreach (var prop in t.GetProperties())
+                {
+                    if (prop.PropertyType.IsGenericType)
+                    {
+                        prop.PropertyType.GetGenericArguments()[0].MakeTypePersistent(tableInfoGetter);
+                    }
+                    else
+                    {
+                        prop.PropertyType.MakeTypePersistent(tableInfoGetter);
+                    }
+                }
+
+            }
+        }
+
+        private static string GetShortColumnName(string fcol)
         {
             return fcol.Split('.').Last();
         }
 
-        public PropertyInfo GetPropertyFromColumnName(Type t, string fcol)
+        public static PropertyInfo GetPropertyFromColumnName(this Type t, string fcol)
         {
             var c = GetShortColumnName(fcol).ToLower();
             foreach (var p in t.GetProperties())
@@ -135,7 +173,7 @@ namespace Meuzz.Persistence
             return null;
         }
 
-        public string GetPrimaryKey(Type t)
+        public static string GetPrimaryKey(this Type t)
         {
             var attr = t.GetCustomAttribute<PersistentClassAttribute>();
             if (attr != null && attr.PrimaryKey != null)
@@ -145,14 +183,8 @@ namespace Meuzz.Persistence
             return "id";
         }
 
-        public TypeInfo ForStatement()
-        {
-            return new TypeInfo() { TypeInfoDict = this.TypeInfoDict };
-        }
-
-
         [Obsolete("MIGHT BE HERE")]
-        public string GetTableNameFromClassName(Type t)
+        public static string GetTableNameFromClassName(this Type t)
         {
             var attr = t.GetCustomAttribute<PersistentClassAttribute>();
             if (attr == null || attr.TableName == null)
