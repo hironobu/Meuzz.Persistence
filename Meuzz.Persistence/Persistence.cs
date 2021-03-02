@@ -118,9 +118,9 @@ namespace Meuzz.Persistence
 
     public static class TypeInfoExtensions
     {
-        public static IEnumerable<string> GetColumnsFromType(this Type t)
+        public static IEnumerable<ColumnInfoEntry> GetTableInfoFromType(this Type t)
         {
-            return TypeInfoDict[t].Select(x => x.ColumnName);
+            return TypeInfoDict[t];
         }
 
         private static IDictionary<Type, ColumnInfoEntry[]> TypeInfoDict { get; set; } = new Dictionary<Type, ColumnInfoEntry[]>();
@@ -130,7 +130,7 @@ namespace Meuzz.Persistence
             return TypeInfoDict.TryGetValue(t, out var _);
         }
 
-        public static void MakeTypePersistent(this Type t, Func<string, string[]> tableInfoGetter)
+        public static void MakeTypePersistent(this Type t, Func<string, string[]> tableInfoGetter, Func<string, IDictionary<string, object>[]> foreignKeyInfoGetter)
         {
             if (!t.IsPersistent())
             {
@@ -138,11 +138,28 @@ namespace Meuzz.Persistence
                 // var rset = _connection.Execute($"PRAGMA table_info('{GetTableNameFromClassName(t)}')");
                 var classprops = t.GetProperties().ToList();
                 // foreach (var result in rset.Results)
-                foreach (var tableName in tableInfoGetter(GetTableNameFromClassName(t)))
+                var tableName = GetTableName(t);
+                // var pkinfos = new List<ColumnInfoEntry>();
+                var fkdict = new Dictionary<string, object>();
+                foreach (var fke in foreignKeyInfoGetter(tableName))
+                {
+                    var foreignKey = fke["from"] as string;
+                    var primaryKey = fke["to"];
+                    var primaryTableName = fke["table"];
+
+                    fkdict[foreignKey] = new Dictionary<string, object>()
+                    {
+                        { "PrimaryKey", primaryKey },
+                        { "PrimaryTableName", primaryTableName }
+                    };
+                }
+
+                foreach (var col in tableInfoGetter(tableName))
                 {
                     // var tableName = result["name"].ToString();
-                    var prop = t.GetPropertyFromColumnName(tableName);
-                    colinfos.Add(new ColumnInfoEntry() { ColumnName = tableName, MemberInfo = prop });
+                    var prop = t.GetPropertyFromColumnName(col);
+                    var fke = fkdict.ContainsKey(col) ? fkdict[col] as IDictionary<string, object> : null;
+                    colinfos.Add(new ColumnInfoEntry() { ColumnName = col, MemberInfo = prop, BindingTo = fke != null ? fke["PrimaryTableName"] as string : null, BindingToPrimaryKey = fke != null ? fke["PrimaryKey"] as string: null });
                     classprops.Remove(prop);
                 }
 
@@ -152,11 +169,11 @@ namespace Meuzz.Persistence
                 {
                     if (prop.PropertyType.IsGenericType)
                     {
-                        prop.PropertyType.GetGenericArguments()[0].MakeTypePersistent(tableInfoGetter);
+                        prop.PropertyType.GetGenericArguments()[0].MakeTypePersistent(tableInfoGetter, foreignKeyInfoGetter);
                     }
                     else
                     {
-                        prop.PropertyType.MakeTypePersistent(tableInfoGetter);
+                        prop.PropertyType.MakeTypePersistent(tableInfoGetter, foreignKeyInfoGetter);
                     }
                 }
 
@@ -199,8 +216,7 @@ namespace Meuzz.Persistence
             return "id";
         }
 
-        [Obsolete("MIGHT BE HERE")]
-        public static string GetTableNameFromClassName(this Type t)
+        public static string GetTableName(this Type t)
         {
             var attr = t.GetCustomAttribute<PersistentClassAttribute>();
             if (attr == null || attr.TableName == null)
@@ -215,6 +231,8 @@ namespace Meuzz.Persistence
         {
             public string ColumnName;
             public MemberInfo MemberInfo;
+            public string BindingTo;
+            public string BindingToPrimaryKey;
         }
     }
 

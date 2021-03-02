@@ -261,15 +261,19 @@ namespace Meuzz.Persistence
             }
 
             var bindingspec = BindingSpec.New(memberInfo.DeclaringType, condexp);
-            if (bindingspec != null)
-            {
-            }
-            else
+            if (bindingspec == null)
             {
                 var hasmany = memberInfo.GetCustomAttribute<HasManyAttribute>();
                 if (hasmany != null)
                 {
                     bindingspec = new BindingSpec(hasmany.ForeignKey, hasmany.PrimaryKey ?? "id");
+                }
+                else
+                {
+                    var primaryTable = memberInfo.DeclaringType.GetTableName();
+                    var foreignTableInfo = t.GetTableInfoFromType();
+                    var matched = foreignTableInfo.Where(x => x.BindingTo == primaryTable).First();
+                    bindingspec = new BindingSpec(matched.ColumnName.ToLower(), matched.BindingToPrimaryKey.ToLower());
                 }
             }
 

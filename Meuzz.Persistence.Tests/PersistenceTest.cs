@@ -79,11 +79,13 @@ namespace Meuzz.Persistence.Tests
             _connection.Open();
 
             _connection.Execute(@"
-                CREATE TABLE Players (ID integer AUTO_INCREMENT, NAME text, AGE integer, PLAY_TIME integer);
+                CREATE TABLE Players (ID integer AUTO_INCREMENT PRIMARY KEY, NAME text, AGE integer, PLAY_TIME integer);
+                CREATE TABLE Characters (ID integer AUTO_INCREMENT PRIMARY KEY, NAME text, PLAYER_ID integer, FOREIGN KEY (PLAYER_ID) REFERENCES Players(ID));
+            ");
+            _connection.Execute(@"
                 INSERT INTO Players VALUES (1, 'aaa', 10, 100);
                 INSERT INTO Players VALUES (2, 'bbb', 20, 200);
                 INSERT INTO Players VALUES (3, 'ccc', 10, 200);
-                CREATE TABLE Characters (ID integer AUTO_INCREMENT, NAME text, PLAYER_ID integer);
                 INSERT INTO Characters VALUES (1, 'aaaa', 1);
                 INSERT INTO Characters VALUES (2, 'bbbb', 1);
                 INSERT INTO Characters VALUES (3, 'cccc', 2);

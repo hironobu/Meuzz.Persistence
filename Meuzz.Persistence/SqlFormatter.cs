@@ -29,13 +29,13 @@ namespace Meuzz.Persistence
 
                 sb.Append($"SELECT {string.Join(", ", GetColumnsToString(selectStatement.Parameters.ToArray(), sqliteContext.ColumnAliasingInfo))}");
 
-                sb.Append($" FROM {parameter.Type.GetTableNameFromClassName()} {parameter.Name}");
+                sb.Append($" FROM {parameter.Type.GetTableName()} {parameter.Name}");
 
                 foreach (var je in selectStatement.Relations)
                 {
                     var jpe = je.Right as SqlParameterElement;
                     // sb.Append($" LEFT JOIN {pe.Type.GetTableNameFromClassName()} {pe.Name} ON {parameter.Name}.{je.PrimaryKey ?? parameter.Type.GetPrimaryKey()} = {pe.Name}.{je.ForeignKey}");
-                    sb.Append($" LEFT JOIN {jpe.Type.GetTableNameFromClassName()} {jpe.Name} ON {MakeJoiningCondition(parameter, je)}");
+                    sb.Append($" LEFT JOIN {jpe.Type.GetTableName()} {jpe.Name} ON {MakeJoiningCondition(parameter, je)}");
                 }
                 sb.Append($" WHERE {FormatElement(selectStatement.Conditions)}");
 
@@ -108,8 +108,8 @@ namespace Meuzz.Persistence
         {
             return pes.Select(x =>
             {
-                var props = x.Type.GetColumnsFromType();
-                var aliasedDict = caInfo.MakeColumnAliasingDictionary(x.Name, props);
+                var cols = x.Type.GetTableInfoFromType().Select(x => x.ColumnName);
+                var aliasedDict = caInfo.MakeColumnAliasingDictionary(x.Name, cols);
                 return string.Join(", ", aliasedDict.Select(x => $"{x.Value} AS {x.Key}"));
             }).ToArray();
         }

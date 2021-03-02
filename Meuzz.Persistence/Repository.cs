@@ -34,7 +34,11 @@ namespace Meuzz.Persistence
 
             t.MakeTypePersistent((t) =>
             {
+                //TODO: for sqlite only
                 return _connection.Execute($"PRAGMA table_info('{t}')").Results.Select(x => x["name"].ToString()).ToArray();
+            }, (t) =>
+            {
+                return _connection.Execute($"PRAGMA foreign_key_list('{t}')").Results.ToArray();
             });
         }
         /*
