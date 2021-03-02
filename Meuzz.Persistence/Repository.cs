@@ -128,7 +128,7 @@ namespace Meuzz.Persistence
             });
             // return rows.Select(x => (T)PopulateObject(t, (x["x"] as IDictionary<string, object>).Keys, (x["x"] as IDictionary<string, object>).Values, typeInfo));
 
-            var resultDict = new Dictionary<string, Dictionary<object, object>>();
+            var resultDict = new Dictionary<string, IDictionary<object, IDictionary<string, object>>>();
             foreach (var row in rows)
             {
                 foreach (var (k, v) in row)
@@ -137,15 +137,15 @@ namespace Meuzz.Persistence
                     var tt = paramInfo.GetParameterTypeByParamName(k);
                     var pk = tt.GetPrimaryKey();
 
-                    Dictionary<object, object> dd = null;
+                    IDictionary<object, IDictionary<string, object>> dd = null;
                     if (!resultDict.TryGetValue(k, out var val))
                     {
-                        dd = new Dictionary<object, object>();
+                        dd = new Dictionary<object, IDictionary<string, object>>();
                         resultDict[k] = dd;
                     }
                     else
                     {
-                        dd = val as Dictionary<object, object>;
+                        dd = val as IDictionary<object, IDictionary<string, object>>;
                     }
 
                     var pkval = d[pk];
@@ -174,15 +174,11 @@ namespace Meuzz.Persistence
             return results;
         }
 
-        private IEnumerable<T> LoadJoinedObjects(IEnumerable<T> primaryResults, IDictionary<object, object> joinedResults, Type defaultType, string joinedParamName, ParamInfo paramInfo)
+        private IEnumerable<T> LoadJoinedObjects(IEnumerable<T> primaryResults, IDictionary<object, IDictionary<string, object>> joinedResults, Type defaultType, string joinedParamName, ParamInfo paramInfo)
         {
-            var (foreignKey, primaryKey) = paramInfo.GetBindingByParamName(joinedParamName);
-
             var joinedType = paramInfo.GetParameterTypeByParamName(joinedParamName);
             var joinedMemberInfo = paramInfo.GetMemberInfoByParamName(joinedParamName);
-            Func<dynamic, Func<dynamic, bool>> joiningCondition = (dynamic lval) => (dynamic r) => r[foreignKey] == lval;
-
-            var primaryKeyProperty = defaultType.GetProperty(StringUtils.Snake2Camel(primaryKey, true));
+            var joiningCondition = paramInfo.GetJoiningConditionByParamName(joinedParamName);
 
             IEnumerable<T> results = null;
 
@@ -190,10 +186,9 @@ namespace Meuzz.Persistence
             {
                 results = primaryResults.Select(x =>
                 {
-                    var cond = joiningCondition(primaryKeyProperty.GetValue(x));
                     var ts = joinedResults.Values
-                        .Where(cond)
-                        .Select(y => PopulateObject(joinedType, (y as IDictionary<string, object>).Keys, (y as IDictionary<string, object>).Values)).ToArray();
+                        .Where(joiningCondition(x))
+                        .Select(y => PopulateObject(joinedType, y.Keys, y.Values)).ToArray();
                     var ts2 =
                         typeof(Enumerable)
                             .GetMethod("Cast")

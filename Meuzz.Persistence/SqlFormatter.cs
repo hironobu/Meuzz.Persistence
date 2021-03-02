@@ -33,8 +33,9 @@ namespace Meuzz.Persistence
 
                 foreach (var je in selectStatement.Relations)
                 {
-                    var pe = je.Right as SqlParameterElement;
-                    sb.Append($" LEFT JOIN {pe.Type.GetTableNameFromClassName()} {pe.Name} ON {parameter.Name}.{je.PrimaryKey ?? parameter.Type.GetPrimaryKey()} = {pe.Name}.{je.ForeignKey}");
+                    var jpe = je.Right as SqlParameterElement;
+                    // sb.Append($" LEFT JOIN {pe.Type.GetTableNameFromClassName()} {pe.Name} ON {parameter.Name}.{je.PrimaryKey ?? parameter.Type.GetPrimaryKey()} = {pe.Name}.{je.ForeignKey}");
+                    sb.Append($" LEFT JOIN {jpe.Type.GetTableNameFromClassName()} {jpe.Name} ON {MakeJoiningCondition(parameter, je)}");
                 }
                 sb.Append($" WHERE {FormatElement(selectStatement.Conditions)}");
 
@@ -42,6 +43,12 @@ namespace Meuzz.Persistence
 
             context = sqliteContext;
             return sb.ToString();
+        }
+
+        private string MakeJoiningCondition(SqlParameterElement parameter, SqlJoinElement je)
+        {
+            var pe = je.Right as SqlParameterElement;
+            return $"{parameter.Name}.{je.PrimaryKey ?? parameter.Type.GetPrimaryKey()} = {pe.Name}.{je.ForeignKey}";
         }
 
 

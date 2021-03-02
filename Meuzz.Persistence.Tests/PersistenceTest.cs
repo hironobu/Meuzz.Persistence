@@ -121,7 +121,7 @@ namespace Meuzz.Persistence.Tests
         {
             var t = new Player() { Characters = null };
             var objs = _repository.Where((x) => x.Age == 10)
-                .Joins(x => x.Characters, (l, r) => r.Player.Id == l.Id);
+                .Joins(x => x.Characters, (l, r) => l.Id == r.Player.Id);
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);

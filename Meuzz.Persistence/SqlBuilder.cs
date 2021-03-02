@@ -60,7 +60,7 @@ namespace Meuzz.Persistence
             var attr = t.GetCustomAttribute<PersistentClassAttribute>();
             if (attr == null || attr.TableName == null)
             {
-                return StringUtils.Camel2Snake(t.Name);
+                return StringUtils.ToSnake(t.Name);
             }
             return attr.TableName;
         }
@@ -74,7 +74,7 @@ namespace Meuzz.Persistence
             var attr = mi.GetCustomAttribute<PersistentPropertyAttribute>();
             if (attr == null || attr.Column == null)
             {
-                return StringUtils.Camel2Snake(mi.Name);
+                return StringUtils.ToSnake(mi.Name);
             }
 
             return attr.Column;

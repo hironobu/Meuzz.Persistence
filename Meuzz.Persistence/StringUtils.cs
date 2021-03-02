@@ -6,7 +6,7 @@ namespace Meuzz.Persistence
 {
     public class StringUtils
     {
-        public static string Camel2Snake(string s, bool toupper = false)
+        public static string ToSnake(string s, bool toupper = false)
         {
             if (s == null) throw new ArgumentNullException("s");
 
@@ -14,7 +14,7 @@ namespace Meuzz.Persistence
             for (int i = 0; i < s.Length; i++)
             {
                 var c = s[i];
-                if (i > 0 && 'A' <= c && c <= 'Z')
+                if (i > 0 && 'A' <= c && c <= 'Z' && s[i - 1] != '_')
                 {
                     ret.Append('_');
                 }
@@ -24,7 +24,7 @@ namespace Meuzz.Persistence
             return ret.ToString();
         }
 
-        public static string Snake2Camel(string s, bool upperCamel = false)
+        public static string ToCamel(string s, bool upperCamel = false)
         {
             if (s == null) throw new ArgumentNullException("s");
 

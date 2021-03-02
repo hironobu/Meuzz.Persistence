@@ -40,15 +40,15 @@ namespace Meuzz.Persistence
             return k;
         }
 
-        public Type GetParameterTypeByParamName(string key)
+        public Type GetParameterTypeByParamName(string name)
         {
-            return _parameters[key];
+            return _parameters[name];
         }
 
 
-        public MemberInfo GetMemberInfoByParamName(string key)
+        public MemberInfo GetMemberInfoByParamName(string name)
         {
-            return _memberInfos[key];
+            return _memberInfos[name];
         }
 
 
@@ -58,19 +58,35 @@ namespace Meuzz.Persistence
         }
 
 
-        public (string, string) GetBindingByParamName(string key)
+        public (string, string, Func<dynamic, dynamic, bool>) GetBindingByParamName(string name)
         {
-            return (_bindings[key][0], _bindings[key][1]);
+            return (_bindings[name][0] as string, _bindings[name][1] as string, _bindings[name][2] as Func<dynamic, dynamic, bool>);
         }
 
-        public void SetBindingByKey(string key, string foreignKey, string primaryKey)
+        public void SetBindingByKey(string name, string foreignKey, string primaryKey, Func<dynamic, dynamic, bool> condfunc)
         {
-            _bindings.Add(key, new string[] { foreignKey, primaryKey });
+            _bindings.Add(name, new object[] { foreignKey, primaryKey, condfunc });
         }
 
-        private IDictionary<string, string[]> _bindings = new Dictionary<string, string[]>();
+        private IDictionary<string, object[]> _bindings = new Dictionary<string, object[]>();
 
+        public Func<dynamic, Func<dynamic, bool>> GetJoiningConditionByParamName(string name)
+        {/*
+            var (foreignKey, primaryKey, condfunc) = GetBindingByParamName(name);
+            Func<Func<dynamic, dynamic>, Func<dynamic, dynamic>, Func<dynamic, dynamic, bool>, Func<dynamic, Func<dynamic, bool>>> joiningConditionMaker = (Func<dynamic, dynamic> f, Func<dynamic, dynamic> g, Func<dynamic, dynamic, bool> ev) => (dynamic x) => (dynamic y) => ev(f(x), g(y)); // propertyGetter(defaultType, primaryKey)(l) == dictionaryGetter(foreignKey)(r);
 
+            Func<dynamic, dynamic, bool> evaluator = (x, y) =>
+            {
+                return x == y;
+            };
+            Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) => x.GetType().GetProperty(StringUtils.Snake2Camel(prop, true)).GetValue(x);
+            Func<string, Func<dynamic, dynamic>> dictionaryGetter = (string key) => (dynamic x) => x[key];
+
+            return joiningConditionMaker(propertyGetter(primaryKey), dictionaryGetter(foreignKey), evaluator);*/
+
+            var (foreignKey, primaryKey, condfunc) = GetBindingByParamName(name);
+            return (x) => (y) => condfunc(x, y);
+        }
     }
 
 
@@ -157,7 +173,7 @@ namespace Meuzz.Persistence
             var c = GetShortColumnName(fcol).ToLower();
             foreach (var p in t.GetProperties())
             {
-                var cc = StringUtils.Camel2Snake(p.Name).ToLower();
+                var cc = StringUtils.ToSnake(p.Name).ToLower();
                 var ppa = p.GetCustomAttribute<PersistentPropertyAttribute>();
                 if (ppa != null && ppa.Column != null)
                 {
@@ -189,7 +205,7 @@ namespace Meuzz.Persistence
             var attr = t.GetCustomAttribute<PersistentClassAttribute>();
             if (attr == null || attr.TableName == null)
             {
-                return StringUtils.Camel2Snake(t.Name);
+                return StringUtils.ToSnake(t.Name);
             }
             return attr.TableName;
         }
