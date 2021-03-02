@@ -48,7 +48,7 @@ namespace Meuzz.Persistence
         private string MakeJoiningCondition(SqlParameterElement parameter, SqlJoinElement je)
         {
             var pe = je.Right as SqlParameterElement;
-            return $"{parameter.Name}.{je.PrimaryKey ?? parameter.Type.GetPrimaryKey()} = {pe.Name}.{je.ForeignKey}";
+            return $"{parameter.Name}.{je.BindingSpec.PrimaryKey ?? parameter.Type.GetPrimaryKey()} {je.BindingSpec.Comparator} {pe.Name}.{je.BindingSpec.ForeignKey}";
         }
 
 

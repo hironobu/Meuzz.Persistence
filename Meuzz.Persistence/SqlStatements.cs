@@ -42,61 +42,152 @@ namespace Meuzz.Persistence
         public T1 Right = null;
     }
 
-    public class SelectStatement<T> : SqlSelectStatement, IEnumerable<T> where T : class
+    public class BindingSpec
     {
-        public Func<SelectStatement<T>, IEnumerable<T>> OnExecute = null;
+        public string PrimaryKey = null;
+        public string ForeignKey = null;
+        public string[] Parameters = null;
+        public Func<dynamic, dynamic, bool> Conditions = null;
+        public string Comparator = null;
 
-        public SelectStatement(SqlElement root) : base(root)
+        public BindingSpec()
         {
-            FinishBuild();
         }
 
-        public virtual JoinedSelectStatement<Joined<T, T2>, T, T2> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new()
+        public BindingSpec(string fk, string pk)
         {
-            var lambdaBody = (propexp as LambdaExpression).Body;
-
-            return this.BuildJoins<T2>((lambdaBody as MemberExpression).Member, cond);
+            ForeignKey = fk;
+            PrimaryKey = pk ?? "id";
+            Comparator = "=";
+            Conditions = MakeDefaultFunc(ForeignKey, PrimaryKey);
         }
 
-        protected virtual JoinedSelectStatement<Joined<T, T2>, T, T2> BuildJoins<T2>(MemberInfo memberInfo, Expression<Func<T, T2, bool>> cond) where T2 : class
+        private static Func<dynamic, dynamic, bool> MakeDefaultFunc(string foreignKey, string primaryKey)
         {
-            var newroot = MakeSqlJoinElement(this.Root, memberInfo, cond);
+            Func<Func<dynamic, dynamic, bool>, Func<dynamic, dynamic>, Func<dynamic, dynamic>, Func<dynamic, dynamic, bool>> joiningConditionMaker
+                = (Func<dynamic, dynamic, bool> eval, Func<dynamic, dynamic> f, Func<dynamic, dynamic> g) => (dynamic x, dynamic y) => eval(f(x), g(y));
+            Func<dynamic, dynamic, bool> eq = (x, y) => x == y;
+            Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).GetValue(x);
+            Func<string, Func<dynamic, dynamic>> dictionaryGetter = (string key) => (dynamic x) => x[key];
 
-            return new JoinedSelectStatement<Joined<T, T2>, T, T2>(newroot, memberInfo, cond) { OnExecute = this.OnExecute };
+            return joiningConditionMaker(eq, propertyGetter(primaryKey), dictionaryGetter(foreignKey));
         }
 
-
-        private static SqlElement MakeSqlJoinElement<T2>(SqlElement root, MemberInfo memberInfo, Expression<Func<T, T2, bool>> condexp)
+        private static dynamic Evaluate(JoinCondFuncElement el, ConditionContext context)
         {
-            var propinfo = (memberInfo.MemberType == MemberTypes.Property) ? (memberInfo as PropertyInfo) : null;
-            var t = propinfo.PropertyType;
-            if (t.IsGenericType)
+            Func<dynamic, string, dynamic> propertyGetter = (dynamic x, string prop) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).GetValue(x);
+            Func<dynamic, string, dynamic> dictionaryGetter = (dynamic x, string key) => x[StringUtils.ToSnake(key)];
+
+            var arr = el.Evaluate().ToArray();
+            var obj = arr.First();
+            var propkeys = arr.Skip(1).Select(x => x.Name);
+            var prop = string.Join("_", propkeys);
+
+            Type t = obj.GetType();
+            if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Dictionary<,>))
             {
-                t = t.GetGenericArguments()[0];
-            }
-
-            string foreignKey = null, primaryKey = null;
-            Func<dynamic, dynamic, bool> conditions = null;
-
-            var bindingspec = MakeBindingSpec(memberInfo.DeclaringType, condexp);
-            if (bindingspec != null)
-            {
-                foreignKey = bindingspec.ForeignKey;
-                primaryKey = bindingspec.PrimaryKey;
-                conditions = bindingspec.Conditions;
+                return dictionaryGetter(obj, prop);
             }
             else
             {
-                var hasmany = memberInfo.GetCustomAttribute<HasManyAttribute>();
-                if (hasmany != null)
-                {
-                    foreignKey = hasmany.ForeignKey;
-                    primaryKey = hasmany.PrimaryKey ?? "id";
-                    conditions = MakeDefaultFunc(foreignKey, primaryKey);
-                }
+                return propertyGetter(obj, prop);
+            }
+        }
+
+        private static (Func<dynamic, dynamic>, Type, string, string[]) MakeConditionFunc_(Expression exp)
+        {
+            // Func<dynamic, dynamic, dynamic> memberAccess = (x, y) => new object[] { x, y };
+
+            switch (exp)
+            {
+                case LambdaExpression lme:
+                    return MakeConditionFunc_(lme.Body);
+
+                case MemberExpression me:
+                    var (f, t, n, path) = MakeConditionFunc_(me.Expression);
+                    var member = me.Member;
+                    return ((x) => new JoinCondFuncElement(f(x), member), t, n, path.Concat(new string[] { member.Name }).ToArray());
+
+                case ParameterExpression pe:
+                    return ((x) => x, pe.Type, pe.Name, new string[] { });
+
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+
+
+        public static BindingSpec New(Type t, Expression exp, ConditionContext context = null)
+        {
+            Func<Func<dynamic, dynamic>, Func<dynamic, dynamic>, Func<dynamic, dynamic, bool>, Func<dynamic, dynamic, bool>> conditionFuncMaker = (Func<dynamic, dynamic> f, Func<dynamic, dynamic> g, Func<dynamic, dynamic, bool> ev) => (dynamic x, dynamic y) => ev(f(x), g(y)); // propertyGetter(defaultType, primaryKey)(l) == dictionaryGetter(foreignKey)(r);
+            if (exp == null)
+            {
+                return null;
             }
 
-            return new SqlJoinElement(root, new SqlParameterElement(t, "t"), propinfo, foreignKey, primaryKey, conditions);
+            if (context == null)
+            {
+                context = new ConditionContext();
+            }
+
+            switch (exp)
+            {
+                case LambdaExpression lme:
+                    context.PrimaryType = t;
+                    context.Parameters = lme.Parameters.Select(x => x.Name).ToArray();
+                    return New(t, lme.Body, context);
+
+                case BinaryExpression bine:
+                    Func<Func<dynamic, dynamic, bool>, dynamic, dynamic, bool> evaluator = (f, x, y) => f(Evaluate(x, context), Evaluate(y, context));
+
+                    var (le, lty, ls, lpath) = MakeConditionFunc_(bine.Left);
+                    var (re, rty, rs, rpath) = MakeConditionFunc_(bine.Right);
+
+                    var fs = new Func<dynamic, dynamic>[context.Parameters.Length];
+                    fs[Array.IndexOf(context.Parameters, ls)] = le;
+                    fs[Array.IndexOf(context.Parameters, rs)] = re;
+
+                    var primaryKey = StringUtils.ToSnake(string.Join("_", lty == context.PrimaryType ? lpath : rpath));
+                    var foreignKey = StringUtils.ToSnake(string.Join("_", lty != context.PrimaryType ? lpath : rpath));
+
+                    switch (bine.NodeType)
+                    {
+                        case ExpressionType.Equal:
+                            Func<dynamic, dynamic, bool> eq = (x, y) => x == y;
+                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Comparator = "=", Conditions = (x, y) => evaluator(eq, fs[0](x), fs[1](y)) };
+
+                        case ExpressionType.NotEqual:
+                            Func<dynamic, dynamic, bool> ne = (x, y) => x != y;
+                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Comparator = "!=", Conditions = (x, y) => evaluator(ne, fs[0](x), fs[1](y)) };
+
+                        case ExpressionType.LessThan:
+                            Func<dynamic, dynamic, bool> lt = (x, y) => x < y;
+                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Comparator = "<", Conditions = (x, y) => evaluator(lt, fs[0](x), fs[1](y)) };
+
+                        case ExpressionType.LessThanOrEqual:
+                            Func<dynamic, dynamic, bool> lte = (x, y) => x <= y;
+                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Comparator = "<=", Conditions = (x, y) => evaluator(lte, fs[0](x), fs[1](y)) };
+
+                        case ExpressionType.GreaterThan:
+                            Func<dynamic, dynamic, bool> gt = (x, y) => x > y;
+                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Comparator = ">", Conditions = (x, y) => evaluator(gt, fs[0](x), fs[1](y)) };
+
+                        case ExpressionType.GreaterThanOrEqual:
+                            Func<dynamic, dynamic, bool> gte = (x, y) => x >= y;
+                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Comparator = ">=", Conditions = (x, y) => evaluator(gte, fs[0](x), fs[1](y)) };
+                    }
+                    break;
+
+            }
+
+            throw new NotImplementedException();
+        }
+
+        public class ConditionContext
+        {
+            public Type PrimaryType = null;
+            public string[] Parameters = null;
+            public MemberInfo MemberInfo = null;
         }
 
         public class JoinCondFuncElement
@@ -134,156 +225,57 @@ namespace Meuzz.Persistence
                 return ret.ToArray();
             }
         }
+    }
 
-        private static dynamic Evaluate(JoinCondFuncElement el, BindingConditionContext context)
+    public class SelectStatement<T> : SqlSelectStatement, IEnumerable<T> where T : class
+    {
+        public Func<SelectStatement<T>, IEnumerable<T>> OnExecute = null;
+
+        public SelectStatement(SqlElement root) : base(root)
         {
-            Func<dynamic, string, dynamic> propertyGetter = (dynamic x, string prop) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).GetValue(x);
-            Func<dynamic, string, dynamic> dictionaryGetter = (dynamic x, string key) => x[StringUtils.ToSnake(key)];
+            FinishBuild();
+        }
 
-            var arr = el.Evaluate().ToArray();
-            var obj = arr.First();
-            var propkeys = arr.Skip(1).Select(x => x.Name);
-            var prop = string.Join("_", propkeys);
+        public virtual JoinedSelectStatement<Joined<T, T2>, T, T2> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new()
+        {
+            var lambdaBody = (propexp as LambdaExpression).Body;
 
-            Type t = obj.GetType();
-            if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Dictionary<,>))
+            return this.BuildJoins<T2>((lambdaBody as MemberExpression).Member, cond);
+        }
+
+        protected virtual JoinedSelectStatement<Joined<T, T2>, T, T2> BuildJoins<T2>(MemberInfo memberInfo, Expression<Func<T, T2, bool>> cond) where T2 : class
+        {
+            var newroot = MakeSqlJoinElement(this.Root, memberInfo, cond);
+
+            return new JoinedSelectStatement<Joined<T, T2>, T, T2>(newroot, memberInfo, cond) { OnExecute = this.OnExecute };
+        }
+
+
+        private static SqlElement MakeSqlJoinElement<T2>(SqlElement root, MemberInfo memberInfo, Expression<Func<T, T2, bool>> condexp)
+        {
+            var propinfo = (memberInfo.MemberType == MemberTypes.Property) ? (memberInfo as PropertyInfo) : null;
+            var t = propinfo.PropertyType;
+            if (t.IsGenericType)
             {
-                return dictionaryGetter(obj, prop);
+                t = t.GetGenericArguments()[0];
+            }
+
+            var bindingspec = BindingSpec.New(memberInfo.DeclaringType, condexp);
+            if (bindingspec != null)
+            {
             }
             else
             {
-                return propertyGetter(obj, prop);
+                var hasmany = memberInfo.GetCustomAttribute<HasManyAttribute>();
+                if (hasmany != null)
+                {
+                    bindingspec = new BindingSpec(hasmany.ForeignKey, hasmany.PrimaryKey ?? "id");
+                }
             }
+
+            return new SqlJoinElement(root, new SqlParameterElement(t, "t"), propinfo, bindingspec);
         }
 
-        private static Func<dynamic, dynamic, bool> MakeDefaultFunc(string foreignKey, string primaryKey)
-        {
-            Func<Func<dynamic, dynamic, bool>, Func<dynamic, dynamic>, Func<dynamic, dynamic>, Func<dynamic, dynamic, bool>> joiningConditionMaker
-                = (Func<dynamic, dynamic, bool> eval, Func<dynamic, dynamic> f, Func<dynamic, dynamic> g) => (dynamic x, dynamic y) => eval(f(x), g(y));
-            Func<dynamic, dynamic, bool> eq = (x, y) => x == y;
-            Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).GetValue(x);
-            Func<string, Func<dynamic, dynamic>> dictionaryGetter = (string key) => (dynamic x) => x[key];
-
-            return joiningConditionMaker(eq, propertyGetter(primaryKey), dictionaryGetter(foreignKey));
-        }
-
-        /*private static dynamic MemberAccessor(dynamic x, dynamic y)
-        {
-            Type t = x.GetType();
-            if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Dictionary<,>))
-            {
-                var k = (y as MemberInfo).Name;
-                return x.ContainsKey(y) ? x[StringUtils.Camel2Snake(k)] : new JoinCondFuncElement(x, y);
-            }
-            else
-            {
-                var k = (y as MemberInfo).Name;
-                return t.GetProperty(StringUtils.Snake2Camel(k, true)).GetValue(x);
-            }
-        }*/
-
-        public class BindingConditionContext
-        {
-            public Type PrimaryType = null;
-            public string[] Parameters = null;
-            public MemberInfo MemberInfo = null;
-        }
-
-        private static (Func<dynamic, dynamic>, Type, string, string[]) MakeConditionFunc_(Expression exp)
-        {
-            // Func<dynamic, dynamic, dynamic> memberAccess = (x, y) => new object[] { x, y };
-
-            switch (exp)
-            {
-                case LambdaExpression lme:
-                    return MakeConditionFunc_(lme.Body);
-
-                case MemberExpression me:
-                    var (f, t, n, path) = MakeConditionFunc_(me.Expression);
-                    var member = me.Member;
-                    return ((x) => new JoinCondFuncElement(f(x), member), t, n, path.Concat(new string[] { member.Name }).ToArray() );
-
-                case ParameterExpression pe:
-                    return ((x) => x, pe.Type, pe.Name, new string[] { });
-
-                default:
-                    throw new NotImplementedException();
-            }
-        }
-
-        public class BindingSpec
-        {
-            public string PrimaryKey = null;
-            public string ForeignKey = null;
-            public string[] Parameters = null;
-            public Func<dynamic, dynamic, bool> Conditions = null;
-        }
-
-        private static BindingSpec MakeBindingSpec(Type t, Expression exp, BindingConditionContext context = null)
-        {
-            Func<Func<dynamic, dynamic>, Func<dynamic, dynamic>, Func<dynamic, dynamic, bool>, Func<dynamic, dynamic, bool>> conditionFuncMaker = (Func<dynamic, dynamic> f, Func<dynamic, dynamic> g, Func<dynamic, dynamic, bool> ev) => (dynamic x, dynamic y) => ev(f(x), g(y)); // propertyGetter(defaultType, primaryKey)(l) == dictionaryGetter(foreignKey)(r);
-            if (exp == null)
-            {
-                return null;
-            }
-
-            if (context == null)
-            {
-                context = new BindingConditionContext();
-            }
-
-            switch (exp)
-            {
-                case LambdaExpression lme:
-                    context.PrimaryType = t;
-                    context.Parameters = lme.Parameters.Select(x => x.Name).ToArray();
-                    return MakeBindingSpec(t, lme.Body, context);
-
-                case BinaryExpression bine:
-                    Func<Func<dynamic, dynamic, bool>, dynamic, dynamic, bool> evaluator = (f, x, y) => f(Evaluate(x, context), Evaluate(y, context));
-
-                    var (le, lty, ls, lpath) = MakeConditionFunc_(bine.Left);
-                    var (re, rty, rs, rpath) = MakeConditionFunc_(bine.Right);
-
-                    var fs = new Func<dynamic, dynamic>[context.Parameters.Length];
-                    fs[Array.IndexOf(context.Parameters, ls)] = le;
-                    fs[Array.IndexOf(context.Parameters, rs)] = re;
-
-                    var primaryKey = StringUtils.ToSnake(string.Join("_", lty == context.PrimaryType ? lpath : rpath));
-                    var foreignKey = StringUtils.ToSnake(string.Join("_", lty != context.PrimaryType ? lpath : rpath));
-
-                    switch (bine.NodeType)
-                    {
-                        case ExpressionType.Equal:
-                            Func<dynamic, dynamic, bool> eq = (x, y) => x == y;
-                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Conditions = (x, y) => evaluator(eq, fs[0](x), fs[1](y)) };
-
-                        case ExpressionType.NotEqual:
-                            Func<dynamic, dynamic, bool> ne = (x, y) => x != y;
-                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Conditions = (x, y) => evaluator(ne, fs[0](x), fs[1](y)) };
-
-                        case ExpressionType.LessThan:
-                            Func<dynamic, dynamic, bool> lt = (x, y) => x < y;
-                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Conditions = (x, y) => evaluator(lt, fs[0](x), fs[1](y)) };
-
-                        case ExpressionType.LessThanOrEqual:
-                            Func<dynamic, dynamic, bool> lte = (x, y) => x <= y;
-                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Conditions = (x, y) => evaluator(lte, fs[0](x), fs[1](y)) };
-
-                        case ExpressionType.GreaterThan:
-                            Func<dynamic, dynamic, bool> gt = (x, y) => x > y;
-                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Conditions = (x, y) => evaluator(gt, fs[0](x), fs[1](y)) };
-
-                        case ExpressionType.GreaterThanOrEqual:
-                            Func<dynamic, dynamic, bool> gte = (x, y) => x >= y;
-                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Conditions = (x, y) => evaluator(gte, fs[0](x), fs[1](y)) };
-                    }
-                    break;
-
-            }
-
-            throw new NotImplementedException();
-        }
 
         IEnumerator<T> IEnumerable<T>.GetEnumerator()
         {
@@ -327,8 +319,8 @@ namespace Meuzz.Persistence
             foreach (var je in joinings)
             {
                 var paramname = (je.Right as SqlParameterElement).Name.ToLower();
-                var condfunc = je.Conditions;
-                ParamInfo.SetBindingByKey(paramname, je.ForeignKey, je.PrimaryKey ?? parameter.Type.GetPrimaryKey(), condfunc);
+                var condfunc = je.BindingSpec.Conditions;
+                ParamInfo.SetBindingByKey(paramname, je.BindingSpec.ForeignKey, je.BindingSpec.PrimaryKey ?? parameter.Type.GetPrimaryKey(), condfunc);
             }
 
             _parameters = parameters.ToArray();
@@ -408,17 +400,19 @@ namespace Meuzz.Persistence
 
     public class SqlJoinElement : SqlBinaryElement
     {
-        public string ForeignKey { get; set; } = null;
-        public string PrimaryKey { get; set; } = null;
+        // public string ForeignKey { get; set; } = null;
+        // public string PrimaryKey { get; set; } = null;
         public MemberInfo MemberInfo = null;
-        public Func<dynamic, dynamic, bool> Conditions = null;
+        // public Func<dynamic, dynamic, bool> Conditions = null;
+        public BindingSpec BindingSpec = null;
 
-        public SqlJoinElement(SqlElement left, SqlElement right, MemberInfo memberInfo, string foreignKey, string primaryKey, Func<dynamic, dynamic, bool> cond) : base(SqlElementVerbs.Join, left, right)
+        public SqlJoinElement(SqlElement left, SqlElement right, MemberInfo memberInfo, BindingSpec bindingSpec) : base(SqlElementVerbs.Join, left, right)
         {
-            ForeignKey = foreignKey;
-            PrimaryKey = primaryKey;
+            //ForeignKey = foreignKey;
+            //PrimaryKey = primaryKey;
             MemberInfo = memberInfo;
-            Conditions = cond;
+            // Conditions = cond;
+            BindingSpec = bindingSpec;
         }
     }
 
