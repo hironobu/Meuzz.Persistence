@@ -168,12 +168,15 @@ namespace Meuzz.Persistence
             var defaultParamName = paramInfo.GetDefaultParamName();
             var defaultType = paramInfo.GetParameterTypeByParamName(defaultParamName);
 
-            var joinedParamName = "t";
-
             var primaryResults = resultDict[defaultParamName].Select(x => (T)PopulateObject(defaultType, (x.Value as IDictionary<string, object>).Keys, (x.Value as IDictionary<string, object>).Values));
+
             var results = primaryResults;
-            if (resultDict.ContainsKey(joinedParamName)) {
-                results = LoadJoinedObjects(primaryResults, resultDict[joinedParamName], defaultType, joinedParamName, paramInfo);
+            foreach (var (k, v) in resultDict.Where(x => x.Key != defaultParamName))
+            {
+                if (resultDict.ContainsKey(k))
+                {
+                    results = LoadJoinedObjects(results, resultDict[k], defaultType, k, paramInfo);
+                }
             }
             return results;
         }
@@ -182,7 +185,7 @@ namespace Meuzz.Persistence
         {
             var joinedType = paramInfo.GetParameterTypeByParamName(joinedParamName);
             var joinedMemberInfo = paramInfo.GetMemberInfoByParamName(joinedParamName);
-            var joiningCondition = paramInfo.GetJoiningConditionByParamName(joinedParamName);
+            var (foreignKey, primaryKey, joiningCondition) = paramInfo.GetJoiningConditionByParamName(joinedParamName);
 
             IEnumerable<T> results = null;
 
@@ -192,7 +195,13 @@ namespace Meuzz.Persistence
                 {
                     var ts = joinedResults.Values
                         .Where(joiningCondition(x))
-                        .Select(y => PopulateObject(joinedType, y.Keys, y.Values)).ToArray();
+                        .Select(y =>
+                        {
+                            // var foreignPropertyInfo = joinedType.GetPropertyFromColumnName(foreignKey, true);
+                            var obj = PopulateObject(joinedType, y.Keys, y.Values);
+                            // foreignPropertyInfo.SetValue(obj, x);
+                            return obj;
+                        }).ToArray();
                     var ts2 =
                         typeof(Enumerable)
                             .GetMethod("Cast")

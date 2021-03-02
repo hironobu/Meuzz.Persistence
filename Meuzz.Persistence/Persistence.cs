@@ -70,7 +70,7 @@ namespace Meuzz.Persistence
 
         private IDictionary<string, object[]> _bindings = new Dictionary<string, object[]>();
 
-        public Func<dynamic, Func<dynamic, bool>> GetJoiningConditionByParamName(string name)
+        public (string, string, Func<dynamic, Func<dynamic, bool>>) GetJoiningConditionByParamName(string name)
         {/*
             var (foreignKey, primaryKey, condfunc) = GetBindingByParamName(name);
             Func<Func<dynamic, dynamic>, Func<dynamic, dynamic>, Func<dynamic, dynamic, bool>, Func<dynamic, Func<dynamic, bool>>> joiningConditionMaker = (Func<dynamic, dynamic> f, Func<dynamic, dynamic> g, Func<dynamic, dynamic, bool> ev) => (dynamic x) => (dynamic y) => ev(f(x), g(y)); // propertyGetter(defaultType, primaryKey)(l) == dictionaryGetter(foreignKey)(r);
@@ -85,7 +85,7 @@ namespace Meuzz.Persistence
             return joiningConditionMaker(propertyGetter(primaryKey), dictionaryGetter(foreignKey), evaluator);*/
 
             var (foreignKey, primaryKey, condfunc) = GetBindingByParamName(name);
-            return (x) => (y) => condfunc(x, y);
+            return (foreignKey, primaryKey, (x) => (y) => condfunc(x, y));
         }
     }
 
@@ -185,7 +185,7 @@ namespace Meuzz.Persistence
             return fcol.Split('.').Last();
         }
 
-        public static PropertyInfo GetPropertyFromColumnName(this Type t, string fcol)
+        public static PropertyInfo GetPropertyFromColumnName(this Type t, string fcol, bool usingPk = false)
         {
             var c = GetShortColumnName(fcol).ToLower();
             foreach (var p in t.GetProperties())
@@ -197,7 +197,7 @@ namespace Meuzz.Persistence
                     cc = ppa.Column.ToLower();
                 }
 
-                if (cc == c)
+                if (cc == c || (usingPk && $"{cc}_{p.PropertyType.GetPrimaryKey().ToLower()}" == c))
                 {
                     return p;
                 }
