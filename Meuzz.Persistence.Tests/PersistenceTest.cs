@@ -127,6 +127,17 @@ namespace Meuzz.Persistence.Tests
             Assert.Empty(objs.ElementAt(1).Characters);
         }
 
+        [Fact]
+        public void TestWhereEqualsAndIncludesByHasMany()
+        {
+            var t = new Player() { Characters = null };
+            var objs = _repository.Where((x) => x.Age == 10)
+                .Joins(x => x.Characters);
+            Assert.Equal(2, objs.Count());
+            Assert.Equal(2, objs.ElementAt(0).Characters.Count());
+            Assert.Empty(objs.ElementAt(1).Characters);
+        }
+
         /*[Fact]
         public void TestWherePropertyTree()
         {

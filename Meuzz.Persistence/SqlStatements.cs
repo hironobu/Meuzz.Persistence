@@ -78,19 +78,22 @@ namespace Meuzz.Persistence
             string foreignKey = null, primaryKey = null;
             Func<dynamic, dynamic, bool> conditions = null;
 
-            var hasmany = memberInfo.GetCustomAttribute<HasManyAttribute>();
-            if (hasmany != null)
+            var bindingspec = MakeBindingSpec(memberInfo.DeclaringType, condexp);
+            if (bindingspec != null)
             {
-                foreignKey = hasmany.ForeignKey;
-                primaryKey = hasmany.PrimaryKey;
-                conditions = MakeDefaultFunc(foreignKey, primaryKey);
-            }
-            else
-            {
-                var bindingspec = MakeBindingSpec(memberInfo.DeclaringType, condexp);
                 foreignKey = bindingspec.ForeignKey;
                 primaryKey = bindingspec.PrimaryKey;
                 conditions = bindingspec.Conditions;
+            }
+            else
+            {
+                var hasmany = memberInfo.GetCustomAttribute<HasManyAttribute>();
+                if (hasmany != null)
+                {
+                    foreignKey = hasmany.ForeignKey;
+                    primaryKey = hasmany.PrimaryKey ?? "id";
+                    conditions = MakeDefaultFunc(foreignKey, primaryKey);
+                }
             }
 
             return new SqlJoinElement(root, new SqlParameterElement(t, "t"), propinfo, foreignKey, primaryKey, conditions);
@@ -219,6 +222,10 @@ namespace Meuzz.Persistence
         private static BindingSpec MakeBindingSpec(Type t, Expression exp, BindingConditionContext context = null)
         {
             Func<Func<dynamic, dynamic>, Func<dynamic, dynamic>, Func<dynamic, dynamic, bool>, Func<dynamic, dynamic, bool>> conditionFuncMaker = (Func<dynamic, dynamic> f, Func<dynamic, dynamic> g, Func<dynamic, dynamic, bool> ev) => (dynamic x, dynamic y) => ev(f(x), g(y)); // propertyGetter(defaultType, primaryKey)(l) == dictionaryGetter(foreignKey)(r);
+            if (exp == null)
+            {
+                return null;
+            }
 
             if (context == null)
             {
