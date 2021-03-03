@@ -62,6 +62,92 @@ namespace Meuzz.Persistence
                 }
             }
         }
+
+
+        protected virtual SqlElement BuildElement(SqlElement parent, Expression expression)
+        {
+            switch (expression)
+            {
+                case LambdaExpression mce:
+                    var p = mce.Parameters.First<ParameterExpression>();
+                    var pel = BuildElement(parent, p) as SqlParameterElement;
+                    pel.Name = ParamInfo.RegisterParameter(pel.Name, pel.Type, true);
+                    return MakeSqlElement(mce.NodeType, BuildElement(parent, mce.Body), pel);
+
+                case BinaryExpression be:
+                    var lstr = BuildElement(parent, be.Left);
+                    var rstr = BuildElement(parent, be.Right);
+                    // return $"[{be.NodeType} <{lstr}> <{rstr}>]";
+                    return MakeSqlElement(be.NodeType, lstr, rstr);
+
+                case ParameterExpression pe:
+                    // var mstr = GetColumnNameFromProperty(pe.);
+                    return MakeSqlElement(pe);
+
+                //case Property pie:
+                //    return $"<P <{pie.ToString()}>>"
+                case MemberExpression me:
+                    return MakeSqlElement(me.NodeType, BuildElement(parent, me.Expression), MakeSqlElement(me));
+
+                case ConstantExpression ce:
+                    return MakeSqlElement(ce);
+
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+
+        protected SqlElement MakeSqlElement(Expression exp)
+        {
+            switch (exp)
+            {
+                case ParameterExpression pe:
+                    return new SqlParameterElement(pe.Type, pe.Name);
+                case ConstantExpression ce:
+                    return new SqlConstantElement(ce.Value);
+                case MemberExpression me:
+                    return new SqlLeafElement(me.Member.GetColumnName());
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+
+        protected SqlElement MakeSqlElement(ExpressionType type, SqlElement x, SqlElement y)
+        {
+            switch (type)
+            {
+                case ExpressionType.AndAlso:
+                    return new SqlBinaryElement(SqlElementVerbs.And, x, y);
+
+                case ExpressionType.NotEqual:
+                    return new SqlBinaryElement(SqlElementVerbs.Ne, x, y);
+
+                case ExpressionType.Equal:
+                    return new SqlBinaryElement(SqlElementVerbs.Eq, x, y);
+
+                case ExpressionType.GreaterThan:
+                    return new SqlBinaryElement(SqlElementVerbs.Gt, x, y);
+
+                case ExpressionType.GreaterThanOrEqual:
+                    return new SqlBinaryElement(SqlElementVerbs.Gte, x, y);
+
+                case ExpressionType.LessThan:
+                    return new SqlBinaryElement(SqlElementVerbs.Lt, x, y);
+
+                case ExpressionType.LessThanOrEqual:
+                    return new SqlBinaryElement(SqlElementVerbs.Lte, x, y);
+
+                case ExpressionType.MemberAccess:
+                    return new SqlBinaryElement(SqlElementVerbs.MemberAccess, x, y);
+
+                case ExpressionType.Lambda:
+                    return new SqlBinaryElement(SqlElementVerbs.Lambda, x, y);
+
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+
     }
 
     public class Joined<T0, T1>
@@ -322,6 +408,11 @@ namespace Meuzz.Persistence
         public SelectStatement() : base()
         {
         }
+        public virtual SelectStatement<T> Where(Expression<Func<T, bool>> cond)
+        {
+            this.Root = BuildElement(this.Root, cond);
+            return this;
+        }
 
         public virtual SelectStatement<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new()
         {
@@ -335,7 +426,7 @@ namespace Meuzz.Persistence
             return this;
         }
 
-        public void RegisterBindingSpec(BindingSpec bindingSpec)
+        private void RegisterBindingSpec(BindingSpec bindingSpec)
         {
             bindingSpec.ForeignParamName = ParamInfo.RegisterParameter(bindingSpec.ForeignParamName, bindingSpec.ForeignType, false);
             SetBindingSpecByParamName(bindingSpec);
@@ -351,97 +442,6 @@ namespace Meuzz.Persistence
         {
             return OnExecute(this).GetEnumerator();
         }
-
-        public SelectStatement<T> Where(Expression<Func<T, bool>> cond)
-        {
-            this.Root = BuildElement(this.Root, cond);
-            return this;
-        }
-
-        public virtual SqlElement BuildElement(SqlElement parent, Expression expression)
-        {
-            switch (expression)
-            {
-                case LambdaExpression mce:
-                    var p = mce.Parameters.First<ParameterExpression>();
-                    var pel = BuildElement(parent, p) as SqlParameterElement;
-                    pel.Name = ParamInfo.RegisterParameter(pel.Name, pel.Type, true);
-                    return MakeSqlElement(mce.NodeType, BuildElement(parent, mce.Body), pel);
-
-                case BinaryExpression be:
-                    var lstr = BuildElement(parent, be.Left);
-                    var rstr = BuildElement(parent, be.Right);
-                    // return $"[{be.NodeType} <{lstr}> <{rstr}>]";
-                    return MakeSqlElement(be.NodeType, lstr, rstr);
-
-                case ParameterExpression pe:
-                    // var mstr = GetColumnNameFromProperty(pe.);
-                    return MakeSqlElement(pe);
-
-                //case Property pie:
-                //    return $"<P <{pie.ToString()}>>"
-                case MemberExpression me:
-                    return MakeSqlElement(me.NodeType, BuildElement(parent, me.Expression), MakeSqlElement(me));
-
-                case ConstantExpression ce:
-                    return MakeSqlElement(ce);
-
-                default:
-                    throw new NotImplementedException();
-            }
-        }
-
-        protected SqlElement MakeSqlElement(Expression exp)
-        {
-            switch (exp)
-            {
-                case ParameterExpression pe:
-                    return new SqlParameterElement(pe.Type, pe.Name);
-                case ConstantExpression ce:
-                    return new SqlConstantElement(ce.Value);
-                case MemberExpression me:
-                    return new SqlLeafElement(me.Member.GetColumnName());
-                default:
-                    throw new NotImplementedException();
-            }
-        }
-
-        protected SqlElement MakeSqlElement(ExpressionType type, SqlElement x, SqlElement y)
-        {
-            switch (type)
-            {
-                case ExpressionType.AndAlso:
-                    return new SqlBinaryElement(SqlElementVerbs.And, x, y);
-
-                case ExpressionType.NotEqual:
-                    return new SqlBinaryElement(SqlElementVerbs.Ne, x, y);
-
-                case ExpressionType.Equal:
-                    return new SqlBinaryElement(SqlElementVerbs.Eq, x, y);
-
-                case ExpressionType.GreaterThan:
-                    return new SqlBinaryElement(SqlElementVerbs.Gt, x, y);
-
-                case ExpressionType.GreaterThanOrEqual:
-                    return new SqlBinaryElement(SqlElementVerbs.Gte, x, y);
-
-                case ExpressionType.LessThan:
-                    return new SqlBinaryElement(SqlElementVerbs.Lt, x, y);
-
-                case ExpressionType.LessThanOrEqual:
-                    return new SqlBinaryElement(SqlElementVerbs.Lte, x, y);
-
-                case ExpressionType.MemberAccess:
-                    return new SqlBinaryElement(SqlElementVerbs.MemberAccess, x, y);
-
-                case ExpressionType.Lambda:
-                    return new SqlBinaryElement(SqlElementVerbs.Lambda, x, y);
-
-                default:
-                    throw new NotImplementedException();
-            }
-        }
-
 
         // private SqlElement _conditions = null;
         // public override SqlElement Conditions { get => _conditions; }
