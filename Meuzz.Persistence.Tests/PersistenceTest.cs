@@ -156,7 +156,6 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestWhereEqualsAndIncludes()
         {
-            var t = new Player() { Characters = null };
             var objs = _repository.Where((x) => x.Age == 10)
                 .Joins(x => x.Characters, (l, r) => l.Id == r.Player.Id)
                 .Joins(x => x.LastCharacters, (l, r) => l.Id == r.LastPlayer.Id);
@@ -172,7 +171,6 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestWhereEqualsAndIncludesByHasMany()
         {
-            var t = new Player() { Characters = null };
             var objs = _repository.Where((x) => x.Age == 10)
                 .Joins(x => x.Characters);
             Assert.Equal(2, objs.Count());
@@ -183,7 +181,6 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestWhereEqualsAndIncludesByHasManyOnPlayer2()
         {
-            var t = new Player2() { Characters = null };
             var objs = _repository.Where((x) => x.Age == 10)
                 .Joins(x => x.Characters)
                 .Joins(x => x.LastCharacters);
