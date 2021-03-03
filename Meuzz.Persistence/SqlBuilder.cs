@@ -6,7 +6,7 @@ using System.Reflection;
 
 namespace Meuzz.Persistence
 {
-    public abstract class SqlBuilder<T> where T : class
+    public abstract class SqlBuilderBase
     {
         public virtual SqlElement BuildElement(SqlStatement statement, SqlElement parent, Expression expression)
         {
@@ -41,31 +41,6 @@ namespace Meuzz.Persistence
             }
         }
 
-        protected string GetTableNameFromType(Type t)
-        {
-            var attr = t.GetCustomAttribute<PersistentClassAttribute>();
-            if (attr == null || attr.TableName == null)
-            {
-                return StringUtils.ToSnake(t.Name);
-            }
-            return attr.TableName;
-        }
-
-
-        public abstract SelectStatement<T> BuildSelect(Expression expression, Func<SelectStatement<T>, IEnumerable<T>> f);
-        // public abstract SqlStatement BuildSelectAndInclude<T>(Expression expression, Expression expression2);
-
-        public string GetColumnNameFromProperty(MemberInfo mi)
-        {
-            var attr = mi.GetCustomAttribute<PersistentPropertyAttribute>();
-            if (attr == null || attr.Column == null)
-            {
-                return StringUtils.ToSnake(mi.Name);
-            }
-
-            return attr.Column;
-        }
-
         protected SqlElement MakeSqlElement(Expression exp)
         {
             switch (exp)
@@ -75,8 +50,7 @@ namespace Meuzz.Persistence
                 case ConstantExpression ce:
                     return new SqlConstantElement(ce.Value);
                 case MemberExpression me:
-                    var mstr2 = GetColumnNameFromProperty(me.Member);
-                    return new SqlLeafElement(mstr2.ToLower());
+                    return new SqlLeafElement(me.Member.GetColumnName());
                 default:
                     throw new NotImplementedException();
             }
@@ -119,17 +93,22 @@ namespace Meuzz.Persistence
         }
     }
 
+    public abstract class SqlBuilder<T> : SqlBuilderBase where T : class
+    {
+        public abstract SelectStatement<T> BuildSelect(Expression expression);
+    }
+
     public class SqliteSqlBuilder<T> : SqlBuilder<T> where T : class
     {
         private string Table = null;
         public SqliteSqlBuilder()
         {
-            Table = GetTableNameFromType(typeof(T));
+            Table = typeof(T).GetTableName();
         }
 
-        public override SelectStatement<T> BuildSelect(Expression expression, Func<SelectStatement<T>, IEnumerable<T>> f)
+        public override SelectStatement<T> BuildSelect(Expression expression)
         {
-            var statement = new SelectStatement<T>(null) { OnExecute = f };
+            var statement = new SelectStatement<T>();
             statement.Root = BuildElement(statement, null, expression);
             return statement;
         }

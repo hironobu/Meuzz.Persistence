@@ -114,7 +114,6 @@ namespace Meuzz.Persistence
 
     }
 
-
     public static class TypeInfoExtensions
     {
         public static IEnumerable<ColumnInfoEntry> GetTableInfoFromType(this Type t)
@@ -235,6 +234,21 @@ namespace Meuzz.Persistence
         }
     }
 
+
+    public static class MemberInfoExtensions
+    {
+        public static string GetColumnName(this MemberInfo mi)
+        {
+            var attr = mi.GetCustomAttribute<PersistentPropertyAttribute>();
+            if (attr == null || attr.Column == null)
+            {
+                return StringUtils.ToSnake(mi.Name);
+            }
+
+            return attr.Column.ToLower();
+        }
+
+    }
 
     [AttributeUsage(AttributeTargets.Class)]
     public class PersistentClassAttribute : Attribute

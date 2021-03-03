@@ -83,12 +83,14 @@ namespace Meuzz.Persistence
 
         public SelectStatement<T> Where(Expression<Func<T, bool>> f)
         {
-            return _sqlBuilder.BuildSelect(f, (stmt) =>
+            var statement = _sqlBuilder.BuildSelect(f);
+            statement.OnExecute = (stmt) =>
             {
                 var sql = _formatter.Format(stmt, out var context);
                 var rset = _connection.Execute(sql, context);
                 return PopulateObjects(rset, stmt, context);
-            });
+            };
+            return statement;
         }
 
         public T Create()

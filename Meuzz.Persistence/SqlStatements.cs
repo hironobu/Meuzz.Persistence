@@ -13,16 +13,15 @@ namespace Meuzz.Persistence
 
         public ParamInfo ParamInfo { get; set; } = new ParamInfo();
 
-        public SqlStatement(SqlElement root)
+        public SqlStatement()
         {
-            Root = root;
         }
     }
 
 
     public abstract class SqlSelectStatement : SqlStatement
     {
-        public SqlSelectStatement(SqlElement root) : base(root) { }
+        public SqlSelectStatement() : base() { }
 
         public BindingSpec GetBindingSpecByParamName(string from, string to)
         {
@@ -320,7 +319,7 @@ namespace Meuzz.Persistence
     {
         public Func<SelectStatement<T>, IEnumerable<T>> OnExecute = null;
 
-        public SelectStatement(SqlElement root) : base(root)
+        public SelectStatement() : base()
         {
         }
 
@@ -338,7 +337,6 @@ namespace Meuzz.Persistence
 
         public void RegisterBindingSpec(BindingSpec bindingSpec)
         {
-
             bindingSpec.ForeignParamName = ParamInfo.RegisterParameter(bindingSpec.ForeignParamName, bindingSpec.ForeignType, false);
             SetBindingSpecByParamName(bindingSpec);
         }
