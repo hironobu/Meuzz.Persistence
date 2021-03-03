@@ -85,10 +85,9 @@ namespace Meuzz.Persistence
         {
             return _sqlBuilder.BuildSelect(f, (stmt) =>
             {
-                stmt.FinishBuild();
                 var sql = _formatter.Format(stmt, out var context);
                 var rset = _connection.Execute(sql, context);
-                return PopulateObjects(rset, stmt.ParamInfo, context);
+                return PopulateObjects(rset, stmt, context);
             });
         }
 
@@ -124,7 +123,7 @@ namespace Meuzz.Persistence
             }
         }
 
-        private IEnumerable<T> PopulateObjects(Connection.ResultSet rset, ParamInfo paramInfo, SqlConnectionContext context)
+        private IEnumerable<T> PopulateObjects(Connection.ResultSet rset, SqlSelectStatement statement, SqlConnectionContext context)
         {
             var rows = rset.Results.Select(x =>
             {
@@ -162,7 +161,7 @@ namespace Meuzz.Persistence
                 foreach (var (k, v) in row)
                 {
                     var d = v as Dictionary<string, object>;
-                    var tt = paramInfo.GetParameterTypeByParamName(k);
+                    var tt = statement.ParamInfo.GetParameterTypeByParamName(k);
                     var pk = tt.GetPrimaryKey();
 
                     IDictionary<object, IDictionary<string, object>> dd = null;
@@ -192,12 +191,12 @@ namespace Meuzz.Persistence
             var objectTree = new Dictionary<string, Dictionary<string, Dictionary<dynamic, List<object>>>>();
             foreach (var x in resultDict.Keys)
             {
-                foreach (var (y, binding) in paramInfo.GetBindingsForParamName(x))
+                foreach (var binding in statement.GetBindingsForPrimaryParamName(x))
                 {
-                    if (!objectTree.TryGetValue(y, out var d))
+                    if (!objectTree.TryGetValue(binding.ForeignParamName, out var d))
                     {
                         d = new Dictionary<string, Dictionary<dynamic, List<object>>>();
-                        objectTree.Add(y, d);
+                        objectTree.Add(binding.ForeignParamName, d);
                     }
 
                     if (!d.TryGetValue(binding.ForeignKey, out var dd))
@@ -215,7 +214,7 @@ namespace Meuzz.Persistence
                     .Invoke(null, new object[] { objs });
 
             foreach (var (k, v) in resultDict) {
-                var t = paramInfo.GetParameterTypeByParamName(k);
+                var t = statement.ParamInfo.GetParameterTypeByParamName(k);
                 var objs = resultDict[k].Select(x =>
                 {
                     var v = x.Value;
@@ -273,32 +272,32 @@ namespace Meuzz.Persistence
                 }
             };
 
-            foreach (var (from, to, bindingInfo) in paramInfo.GetAllBindings())
+            foreach (var bindingSpec in statement.GetAllBindings())
             {
-                var fromObjs = resultObjects[from].Values;
+                var fromObjs = resultObjects[bindingSpec.PrimaryParamName].Values;
                 // var toObjs = resultDict[to].Values;
-                Func<object, Func<object, bool>> filteringConditions = (x) => (y) => bindingInfo.Conditions(x, y);
+                Func<object, Func<object, bool>> filteringConditions = (x) => (y) => bindingSpec.Conditions(x, y);
 
                 Func<object, object> fmap = x =>
                 {
                     // var targetToObjs = toObjs.Where(filteringConditions(x));
                     // Console.WriteLine(targetToObjs.ToList());
-                    var pkv = memberAccessor(bindingInfo.PrimaryKey)(x);
-                    if (objectTree[to][bindingInfo.ForeignKey].TryGetValue(pkv, out List<object> targetToObjs))
+                    var pkv = memberAccessor(bindingSpec.PrimaryKey)(x);
+                    if (objectTree[bindingSpec.ForeignParamName][bindingSpec.ForeignKey].TryGetValue(pkv, out List<object> targetToObjs))
                     {
                         foreach (var o in targetToObjs)
                         {
                             // o as IDictionary<string, object>)[$"__{bindingInfo.ForeignKey}"] = x;
                             // memberUpdater(o, bindingInfo.ForeignKey, x);
-                            var k0 = StringUtils.ToCamel(bindingInfo.ForeignKey.Replace("_id", ""), true);
+                            var k0 = StringUtils.ToCamel(bindingSpec.ForeignKey.Replace("_id", ""), true);
                             memberUpdater(o, k0, x);
                         }
                         // (x as IDictionary<string, object>)[$"__{StringUtils.ToSnake(bindingInfo.MemberInfo.Name)}"] = targetToObjs;
-                        memberUpdater(x, bindingInfo.MemberInfo.Name, regularCollection((bindingInfo.MemberInfo as PropertyInfo).PropertyType, targetToObjs));
+                        memberUpdater(x, bindingSpec.MemberInfo.Name, regularCollection((bindingSpec.MemberInfo as PropertyInfo).PropertyType, targetToObjs));
                     }
                     else
                     {
-                        memberUpdater(x, bindingInfo.MemberInfo.Name, regularCollection((bindingInfo.MemberInfo as PropertyInfo).PropertyType, new List<object>()));
+                        memberUpdater(x, bindingSpec.MemberInfo.Name, regularCollection((bindingSpec.MemberInfo as PropertyInfo).PropertyType, MakeGenerator(bindingSpec)));
                     }
                     return x;
                 };
@@ -309,7 +308,7 @@ namespace Meuzz.Persistence
             return (IEnumerable<T>)typeof(Enumerable)
                             .GetMethod("Cast")
                             .MakeGenericMethod(typeof(T))
-                            .Invoke(null, new object[] { resultObjects[paramInfo.GetDefaultParamName()].Values });
+                            .Invoke(null, new object[] { resultObjects[statement.ParamInfo.GetDefaultParamName()].Values });
 /*
             var bindingInfo = paramInfo.GetBindingInfoByName(k);
             var defaultParamName = paramInfo.GetDefaultParamName();
@@ -327,6 +326,12 @@ namespace Meuzz.Persistence
             }
             return results;
 */
+        }
+
+        private IEnumerable<object> MakeGenerator(BindingSpec bindingSpec)
+        {
+            // yield return null;
+            yield break;
         }
 
 #if false

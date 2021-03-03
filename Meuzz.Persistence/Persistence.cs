@@ -67,53 +67,6 @@ namespace Meuzz.Persistence
         }
 
 
-        public BindingInfo GetBindingInfoByName(string from, string to)
-        {
-            IDictionary<string, BindingInfo> d = _bindings[from];
-            if (d == null) { return null; }
-            return d[to];
-        }
-
-        public void SetBindingByName(string from, string to, string foreignKey, string primaryKey, MemberInfo memberInfo, Func<dynamic, dynamic, bool> condfunc)
-        {
-            //IDictionary<string, BindingInfo> d = _bindings[from];
-            //if (d == null)
-            if (!_bindings.TryGetValue(from, out var d))
-            {
-                d = new Dictionary<string, BindingInfo>();
-                // _bindings[from] = d;
-                _bindings.Add(from, d);
-            }
-
-            d.Add(to, new BindingInfo() { ForeignKey = foreignKey, PrimaryKey = primaryKey, MemberInfo = memberInfo, Conditions = condfunc });
-        }
-
-        private IDictionary<string, IDictionary<string, BindingInfo>> _bindings = new Dictionary<string, IDictionary<string, BindingInfo>>();
-
-        public IEnumerable<(string, string, BindingInfo)> GetAllBindings()
-        {
-            foreach (var (from, d) in _bindings)
-            {
-                foreach (var (to, bi) in d)
-                {
-                    yield return (from, to, bi);
-                }
-            }
-        }
-
-        internal IEnumerable<(string, BindingInfo)> GetBindingsForParamName(string x)
-        {
-            if (!_bindings.ContainsKey(x))
-            {
-                yield break;
-            }
-
-            foreach (var (to, bi) in _bindings[x])
-            {
-                yield return (to, bi);
-            }
-        }
-
 #if false
         public (string, string, Func<dynamic, Func<dynamic, bool>>) GetJoiningConditionByParamName(string name)
         {/*

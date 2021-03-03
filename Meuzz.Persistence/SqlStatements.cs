@@ -22,16 +22,47 @@ namespace Meuzz.Persistence
 
     public abstract class SqlSelectStatement : SqlStatement
     {
-        // public abstract SqlParameterElement[] Parameters { get; }
-
-        public abstract SqlJoinElement[] Relations { get; }
-
-        public abstract SqlElement Conditions { get;  }
-
         public SqlSelectStatement(SqlElement root) : base(root) { }
 
-        [Obsolete]
-        public ColumnAliasingInfo ColumnAliasingInfo { get; } = new ColumnAliasingInfo();
+        public BindingSpec GetBindingSpecByParamName(string from, string to)
+        {
+            foreach (var spec in _bindings)
+            {
+                if (spec.PrimaryParamName == from && spec.ForeignParamName == to)
+                {
+                    return spec;
+                }
+            }
+            return null;
+        }
+
+        public void SetBindingSpecByParamName(BindingSpec spec)
+        {
+            if (GetBindingSpecByParamName(spec.PrimaryParamName, spec.ForeignParamName) != null)
+            {
+                throw new NotImplementedException();
+            }
+
+            _bindings.Add(spec);
+        }
+
+        private List<BindingSpec> _bindings = new List<BindingSpec>();
+
+        public IEnumerable<BindingSpec> GetAllBindings()
+        {
+            return _bindings;
+        }
+
+        public IEnumerable<BindingSpec> GetBindingsForPrimaryParamName(string x)
+        {
+            foreach (var spec in _bindings)
+            {
+                if (spec.PrimaryParamName == x)
+                {
+                    yield return spec;
+                }
+            }
+        }
     }
 
     public class Joined<T0, T1>
@@ -42,13 +73,22 @@ namespace Meuzz.Persistence
         public T1 Right = null;
     }
 
+
     public class BindingSpec
     {
         public string PrimaryKey = null;
         public string ForeignKey = null;
         public string[] Parameters { get; set; } = null;
+
+        public Type PrimaryType = null;
+        public string PrimaryParamName { get; set; } = null;
+        public Type ForeignType = null;
+        public string ForeignParamName { get; set; }
+
         public Func<dynamic, dynamic, bool> Conditions = null;
         public string Comparator = null;
+
+        public MemberInfo MemberInfo { get; set; } = null;
 
         public BindingSpec()
         {
@@ -85,7 +125,7 @@ namespace Meuzz.Persistence
             return joiningConditionMaker(eq, memberAccessor(primaryKey), memberAccessor(foreignKey));
         }
 
-        private static dynamic Evaluate(JoinCondFuncElement el, ConditionContext context)
+        private static dynamic Evaluate(BindingConditionElement el, ConditionContext context)
         {
             Func<dynamic, string, dynamic> propertyGetter = (dynamic x, string prop) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).GetValue(x);
             Func<dynamic, string, dynamic> dictionaryGetter = (dynamic x, string key) => x[StringUtils.ToSnake(key)];
@@ -118,7 +158,7 @@ namespace Meuzz.Persistence
                 case MemberExpression me:
                     var (f, t, n, path) = MakeConditionFunc_(me.Expression);
                     var member = me.Member;
-                    return ((x) => new JoinCondFuncElement(f(x), member), t, n, path.Concat(new string[] { member.Name }).ToArray());
+                    return ((x) => new BindingConditionElement(f(x), member), t, n, path.Concat(new string[] { member.Name }).ToArray());
 
                 case ParameterExpression pe:
                     return ((x) => x, pe.Type, pe.Name, new string[] { });
@@ -195,6 +235,43 @@ namespace Meuzz.Persistence
             throw new NotImplementedException();
         }
 
+
+        public static BindingSpec Build<T, T2>(Type primaryType, string primaryName, MemberInfo memberInfo, string defaultForeignParamName, Expression<Func<T, T2, bool>> condexp)
+        {
+            var propinfo = (memberInfo.MemberType == MemberTypes.Property) ? (memberInfo as PropertyInfo) : null;
+            var t = propinfo.PropertyType;
+            if (t.IsGenericType)
+            {
+                t = t.GetGenericArguments()[0];
+            }
+
+            var bindingSpec = BindingSpec.New(memberInfo.DeclaringType, condexp);
+            if (bindingSpec == null)
+            {
+                var hasmany = memberInfo.GetCustomAttribute<HasManyAttribute>();
+                if (hasmany != null)
+                {
+                    bindingSpec = new BindingSpec(hasmany.ForeignKey, hasmany.PrimaryKey ?? "id");
+                }
+                else
+                {
+                    var primaryTable = memberInfo.DeclaringType.GetTableName();
+                    var foreignTableInfo = t.GetTableInfoFromType();
+                    var matched = foreignTableInfo.Where(x => x.BindingTo == primaryTable).First();
+                    bindingSpec = new BindingSpec(matched.ColumnName.ToLower(), matched.BindingToPrimaryKey.ToLower());
+                }
+            }
+
+            bindingSpec.PrimaryType = primaryType;
+            bindingSpec.PrimaryParamName = primaryName;
+            bindingSpec.ForeignType = t;
+            bindingSpec.ForeignParamName = defaultForeignParamName;
+            bindingSpec.MemberInfo = memberInfo;
+
+            return bindingSpec;
+        }
+
+
         public class ConditionContext
         {
             public Type PrimaryType = null;
@@ -202,36 +279,36 @@ namespace Meuzz.Persistence
             public MemberInfo MemberInfo = null;
         }
 
-        public class JoinCondFuncElement
+        public class BindingConditionElement
         {
-            public dynamic a;
-            public dynamic b;
+            public dynamic Left;
+            public dynamic Right;
 
-            public JoinCondFuncElement(dynamic a, dynamic b)
+            public BindingConditionElement(dynamic l, dynamic r)
             {
-                this.a = a;
-                this.b = b;
+                this.Left = l;
+                this.Right = r;
             }
 
             public dynamic[] Evaluate()
             {
                 var ret = new List<dynamic>();
 
-                if (a is JoinCondFuncElement)
+                if (Left is BindingConditionElement)
                 {
-                    ret.AddRange(a.Evaluate());
+                    ret.AddRange(Left.Evaluate());
                 }
                 else
                 {
-                    ret.Add(a);
+                    ret.Add(Left);
                 }
-                if (b is JoinCondFuncElement)
+                if (Right is BindingConditionElement)
                 {
-                    ret.AddRange(b.Evaluate());
+                    ret.AddRange(Right.Evaluate());
                 }
                 else
                 {
-                    ret.Add(b);
+                    ret.Add(Right);
                 }
 
                 return ret.ToArray();
@@ -254,41 +331,16 @@ namespace Meuzz.Persistence
             var primaryName = paramexp.Name;
             var memberInfo = (lambdaexp as MemberExpression).Member;
 
-            var newroot = MakeSqlJoinElement(this, primaryName, memberInfo, cond);
-            this.Root = newroot;
+            var bindingSpec = BindingSpec.Build(paramexp.Type, paramexp.Name, memberInfo, "t", cond);
+            RegisterBindingSpec(bindingSpec);
             return this;
         }
 
-
-        private static SqlElement MakeSqlJoinElement<T2>(SqlSelectStatement statement, string primaryName, MemberInfo memberInfo, Expression<Func<T, T2, bool>> condexp)
+        public void RegisterBindingSpec(BindingSpec bindingSpec)
         {
-            var propinfo = (memberInfo.MemberType == MemberTypes.Property) ? (memberInfo as PropertyInfo) : null;
-            var t = propinfo.PropertyType;
-            if (t.IsGenericType)
-            {
-                t = t.GetGenericArguments()[0];
-            }
 
-            var bindingspec = BindingSpec.New(memberInfo.DeclaringType, condexp);
-            if (bindingspec == null)
-            {
-                var hasmany = memberInfo.GetCustomAttribute<HasManyAttribute>();
-                if (hasmany != null)
-                {
-                    bindingspec = new BindingSpec(hasmany.ForeignKey, hasmany.PrimaryKey ?? "id");
-                }
-                else
-                {
-                    var primaryTable = memberInfo.DeclaringType.GetTableName();
-                    var foreignTableInfo = t.GetTableInfoFromType();
-                    var matched = foreignTableInfo.Where(x => x.BindingTo == primaryTable).First();
-                    bindingspec = new BindingSpec(matched.ColumnName.ToLower(), matched.BindingToPrimaryKey.ToLower());
-                }
-            }
-            
-            var joinedParameterName = statement.ParamInfo.RegisterParameter("t", t, false);
-
-            return new SqlJoinElement(statement.Root, new SqlParameterElement(t, joinedParameterName), propinfo, bindingspec);
+            bindingSpec.ForeignParamName = ParamInfo.RegisterParameter(bindingSpec.ForeignParamName, bindingSpec.ForeignType, false);
+            SetBindingSpecByParamName(bindingSpec);
         }
 
 
@@ -302,77 +354,8 @@ namespace Meuzz.Persistence
             return OnExecute(this).GetEnumerator();
         }
 
-        private bool _builded = false;
-
-        [Obsolete("TO BE REVIEWED")]
-        public void FinishBuild()
-        {
-            if (_builded) { return; }
-            _builded = true;
-
-            var element = Root;
-            var selectElement = PickupElement<SqlBinaryElement>(element, x => x is SqlBinaryElement && (x as SqlBinaryElement).Verb == SqlElementVerbs.Lambda, x => (x as SqlBinaryElement).Left);
-            var parameter = selectElement.Right as SqlParameterElement;
-            // var parameters = new List<SqlParameterElement>() { };
-            var conditions = selectElement.Left;
-
-            // parameter.Name = ParamInfo.RegisterParameter(parameter.Name, parameter.Type, true);
-
-            var joinings = new List<SqlJoinElement>();
-            var current = element;
-            while (current != null)
-            {
-                current = PickupElement<SqlJoinElement>(current, x => x is SqlJoinElement, x => (x as SqlJoinElement)?.Left);
-                if (current is SqlJoinElement picked)
-                {
-                    joinings.Add(picked);
-                    // parameters.Add(picked.Right as SqlParameterElement);
-                    current = picked.Left;
-
-                    // var px = (picked.Right as SqlParameterElement);
-                    // px.Name = ParamInfo.RegisterParameter(px.Name, px.Type, false);
-                }
-            }
-            joinings.Reverse();
-            //parameters.Reverse();
-            //parameters.Insert(0, parameter);
-
-            foreach (var je in joinings)
-            {
-                var pe = je.Right as SqlParameterElement;
-                var condfunc = je.BindingSpec.Conditions;
-                ParamInfo.SetBindingByName("x", pe.Name.ToLower(), je.BindingSpec.ForeignKey, je.BindingSpec.PrimaryKey ?? parameter.Type.GetPrimaryKey(), je.MemberInfo, condfunc);
-            }
-
-            // _parameters = parameters.ToArray();
-            _relations = joinings.ToArray();
-            _conditions = conditions;
-        }
-
-        // private SqlParameterElement[] _parameters = null;
-        private SqlJoinElement[] _relations = null;
-        private SqlElement _conditions = null;
-
-        // public override SqlParameterElement[] Parameters { get => _parameters; }
-        public override SqlJoinElement[] Relations { get => _relations; }
-        public override SqlElement Conditions { get => _conditions; }
-
-        private T1 PickupElement<T1>(SqlElement element, Func<SqlElement, bool> matcher, Func<SqlElement, SqlElement> nextElement) where T1 : SqlElement
-        {
-            var current = element;
-
-            while (current != null)
-            {
-                if (matcher(current))
-                {
-                    return current as T1;
-                }
-
-                current = nextElement(current);
-            }
-
-            return null;
-        }
+        // private SqlElement _conditions = null;
+        // public override SqlElement Conditions { get => _conditions; }
     }
 
 #if false
@@ -421,6 +404,7 @@ public class SqlElement
         Join,
     }
 
+    /*
     public class SqlJoinElement : SqlBinaryElement
     {
         public MemberInfo MemberInfo = null;
@@ -431,7 +415,7 @@ public class SqlElement
             MemberInfo = memberInfo;
             BindingSpec = bindingSpec;
         }
-    }
+    }*/
 
     public class SqlParameterElement : SqlElement
     {

@@ -32,23 +32,17 @@ namespace Meuzz.Persistence
 
                 sb.Append($" FROM {parameterType.GetTableName()} {parameterName}");
 
-                foreach (var je in selectStatement.Relations)
+                foreach (var bindingSpec in selectStatement.GetAllBindings())
                 {
-                    var jpe = je.Right as SqlParameterElement;
-                    sb.Append($" LEFT JOIN {jpe.Type.GetTableName()} {jpe.Name} ON {MakeJoiningCondition(parameterName, parameterType, je)}");
+                    var cond = $"{bindingSpec.PrimaryParamName}.{bindingSpec.PrimaryKey ?? bindingSpec.PrimaryType.GetPrimaryKey()} {bindingSpec.Comparator} {bindingSpec.ForeignParamName}.{bindingSpec.ForeignKey}";
+                    sb.Append($" LEFT JOIN {bindingSpec.ForeignType.GetTableName()} {bindingSpec.ForeignParamName} ON {cond}");
                 }
-                sb.Append($" WHERE {FormatElement(selectStatement.Conditions)}");
+                sb.Append($" WHERE {FormatElement(selectStatement.Root)}");
 
             }
 
             context = sqliteContext;
             return sb.ToString();
-        }
-
-        private string MakeJoiningCondition(string parameterName, Type parameterType, SqlJoinElement je)
-        {
-            var pe = je.Right as SqlParameterElement;
-            return $"{parameterName}.{je.BindingSpec.PrimaryKey ?? parameterType.GetPrimaryKey()} {je.BindingSpec.Comparator} {pe.Name}.{je.BindingSpec.ForeignKey}";
         }
 
 
