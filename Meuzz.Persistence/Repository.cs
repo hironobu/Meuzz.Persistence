@@ -297,7 +297,7 @@ namespace Meuzz.Persistence
                     }
                     else
                     {
-                        memberUpdater(x, bindingSpec.MemberInfo.Name, regularCollection((bindingSpec.MemberInfo as PropertyInfo).PropertyType, MakeGenerator(bindingSpec)));
+                        memberUpdater(x, bindingSpec.MemberInfo.Name, regularCollection((bindingSpec.MemberInfo as PropertyInfo).PropertyType, MakeGenerator(bindingSpec, x)));
                     }
                     return x;
                 };
@@ -309,67 +309,14 @@ namespace Meuzz.Persistence
                             .GetMethod("Cast")
                             .MakeGenericMethod(typeof(T))
                             .Invoke(null, new object[] { resultObjects[statement.ParamInfo.GetDefaultParamName()].Values });
-/*
-            var bindingInfo = paramInfo.GetBindingInfoByName(k);
-            var defaultParamName = paramInfo.GetDefaultParamName();
-            var defaultType = paramInfo.GetParameterTypeByParamName(defaultParamName);
-
-            var primaryResults = null;
-
-            var results = primaryResults;
-            foreach (var (k, v) in resultDict.Where(x => x.Key != defaultParamName))
-            {
-                if (resultDict.ContainsKey(k))
-                {
-                    results = LoadJoinedObjects(results, resultDict[k], defaultType, k, paramInfo);
-                }
-            }
-            return results;
-*/
         }
 
-        private IEnumerable<object> MakeGenerator(BindingSpec bindingSpec)
+        private IEnumerable<object> MakeGenerator(BindingSpec bindingSpec, object self)
         {
             // yield return null;
+            Console.WriteLine(self);
             yield break;
         }
-
-#if false
-        private IEnumerable<T> LoadJoinedObjects(IEnumerable<T> primaryResults, IDictionary<object, IDictionary<string, object>> joinedResults, Type defaultType, string joinedParamName, ParamInfo paramInfo)
-        {
-            var joinedType = paramInfo.GetParameterTypeByParamName(joinedParamName);
-            var joinedMemberInfo = paramInfo.GetMemberInfoByParamName(joinedParamName);
-            var bindingInfo = paramInfo.GetBindingInfoByName("x", joinedParamName);
-            Func<dynamic, Func<dynamic, bool>> joiningCondition = (x) => (y) => bindingInfo.Conditions(x, y);
-
-            IEnumerable<T> results = null;
-
-            if (joinedMemberInfo != null && joinedMemberInfo is PropertyInfo propInfo)
-            {
-                results = primaryResults.Select(x =>
-                {
-                    var ts = joinedResults.Values
-                        .Where(joiningCondition(x))
-                        .Select(y =>
-                        {
-                            // var foreignPropertyInfo = joinedType.GetPropertyFromColumnName(foreignKey, true);
-                            var obj = PopulateObject(joinedType, y.Keys, y.Values);
-                            // foreignPropertyInfo.SetValue(obj, x);
-                            return obj;
-                        }).ToArray();
-                    var ts2 =
-                        typeof(Enumerable)
-                            .GetMethod("Cast")
-                            .MakeGenericMethod(joinedType)
-                            .Invoke(null, new object[] { ts });
-                    propInfo.SetValue(x, ts2);
-                    return x;
-                });
-            }
-
-            return results;
-        }
-#endif
     }
 
     //     public class ObjectRepository<T>  : ObjectRepository<T, int>  where T new() { }
