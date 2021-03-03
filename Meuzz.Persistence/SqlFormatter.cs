@@ -25,17 +25,17 @@ namespace Meuzz.Persistence
 
             if (statement is SqlSelectStatement selectStatement)
             {
-                var parameter = selectStatement.Parameters.First();
+                var parameterName = selectStatement.ParamInfo.GetDefaultParamName();
+                var parameterType = selectStatement.ParamInfo.GetParameterTypeByParamName(parameterName);
 
-                sb.Append($"SELECT {string.Join(", ", GetColumnsToString(selectStatement.Parameters.ToArray(), sqliteContext.ColumnAliasingInfo))}");
+                sb.Append($"SELECT {string.Join(", ", GetColumnsToString(selectStatement.ParamInfo.GetAllParameters(), sqliteContext.ColumnAliasingInfo))}");
 
-                sb.Append($" FROM {parameter.Type.GetTableName()} {parameter.Name}");
+                sb.Append($" FROM {parameterType.GetTableName()} {parameterName}");
 
                 foreach (var je in selectStatement.Relations)
                 {
                     var jpe = je.Right as SqlParameterElement;
-                    // sb.Append($" LEFT JOIN {pe.Type.GetTableNameFromClassName()} {pe.Name} ON {parameter.Name}.{je.PrimaryKey ?? parameter.Type.GetPrimaryKey()} = {pe.Name}.{je.ForeignKey}");
-                    sb.Append($" LEFT JOIN {jpe.Type.GetTableName()} {jpe.Name} ON {MakeJoiningCondition(parameter, je)}");
+                    sb.Append($" LEFT JOIN {jpe.Type.GetTableName()} {jpe.Name} ON {MakeJoiningCondition(parameterName, parameterType, je)}");
                 }
                 sb.Append($" WHERE {FormatElement(selectStatement.Conditions)}");
 
@@ -45,10 +45,10 @@ namespace Meuzz.Persistence
             return sb.ToString();
         }
 
-        private string MakeJoiningCondition(SqlParameterElement parameter, SqlJoinElement je)
+        private string MakeJoiningCondition(string parameterName, Type parameterType, SqlJoinElement je)
         {
             var pe = je.Right as SqlParameterElement;
-            return $"{parameter.Name}.{je.BindingSpec.PrimaryKey ?? parameter.Type.GetPrimaryKey()} {je.BindingSpec.Comparator} {pe.Name}.{je.BindingSpec.ForeignKey}";
+            return $"{parameterName}.{je.BindingSpec.PrimaryKey ?? parameterType.GetPrimaryKey()} {je.BindingSpec.Comparator} {pe.Name}.{je.BindingSpec.ForeignKey}";
         }
 
 
@@ -104,12 +104,13 @@ namespace Meuzz.Persistence
             }
         }
 
-        private string[] GetColumnsToString(SqlParameterElement[] pes, ColumnAliasingInfo caInfo)
+        private string[] GetColumnsToString((string, Type)[] pes, ColumnAliasingInfo caInfo)
         {
             return pes.Select(x =>
             {
-                var cols = x.Type.GetTableInfoFromType().Select(x => x.ColumnName);
-                var aliasedDict = caInfo.MakeColumnAliasingDictionary(x.Name, cols);
+                var (name, type) = x;
+                var cols = type.GetTableInfoFromType().Select(x => x.ColumnName);
+                var aliasedDict = caInfo.MakeColumnAliasingDictionary(name, cols);
                 return string.Join(", ", aliasedDict.Select(x => $"{x.Value} AS {x.Key}"));
             }).ToArray();
         }

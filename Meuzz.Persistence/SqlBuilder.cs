@@ -8,33 +8,19 @@ namespace Meuzz.Persistence
 {
     public abstract class SqlBuilder<T> where T : class
     {
-        public abstract string FormatStatement(SqlElement statement);
-
-        public virtual SqlElement BuildElement(SqlElement parent, Expression expression)
+        public virtual SqlElement BuildElement(SqlStatement statement, SqlElement parent, Expression expression)
         {
             switch (expression)
             {
                 case LambdaExpression mce:
-                    var p = mce.Parameters.First();
-                    return MakeSqlElement(mce.NodeType, BuildElement(parent, mce.Body), BuildElement(parent, p));
-
-                /*case NewExpression ne:
-                    foreach (var e in ne.Arguments)
-                    {
-                        var me = e as MemberExpression;
-                        var hasmany = me.Member.GetCustomAttribute<HasManyAttribute>();
-                        if (hasmany == null)
-                        {
-                            continue;
-                        }
-
-                        parent = MakeSqlJoinElement(parent, (e as MemberExpression).Member, hasmany.ForeignKey);
-                    }
-                    return parent;*/
+                    var p = mce.Parameters.First<ParameterExpression>();
+                    var pel = BuildElement(statement, parent, p) as SqlParameterElement;
+                    pel.Name = statement.ParamInfo.RegisterParameter(pel.Name, pel.Type, true);
+                    return MakeSqlElement(mce.NodeType, BuildElement(statement, parent, mce.Body), pel);
 
                 case BinaryExpression be:
-                    var lstr = BuildElement(parent, be.Left);
-                    var rstr = BuildElement(parent, be.Right);
+                    var lstr = BuildElement(statement, parent, be.Left);
+                    var rstr = BuildElement(statement, parent, be.Right);
                     // return $"[{be.NodeType} <{lstr}> <{rstr}>]";
                     return MakeSqlElement(be.NodeType, lstr, rstr);
 
@@ -45,7 +31,7 @@ namespace Meuzz.Persistence
                 //case Property pie:
                 //    return $"<P <{pie.ToString()}>>"
                 case MemberExpression me:
-                    return MakeSqlElement(me.NodeType, BuildElement(parent, me.Expression), MakeSqlElement(me));
+                    return MakeSqlElement(me.NodeType, BuildElement(statement, parent, me.Expression), MakeSqlElement(me));
 
                 case ConstantExpression ce:
                     return MakeSqlElement(ce);
@@ -143,15 +129,9 @@ namespace Meuzz.Persistence
 
         public override SelectStatement<T> BuildSelect(Expression expression, Func<SelectStatement<T>, IEnumerable<T>> f)
         {
-            var root = BuildElement(null, expression);
-            return new SelectStatement<T>(root) { OnExecute = f };
-        }
-
-        public override string FormatStatement(SqlElement stmt)
-        {
-            Console.WriteLine(stmt);
-            return stmt.ToString();
+            var statement = new SelectStatement<T>(null) { OnExecute = f };
+            statement.Root = BuildElement(statement, null, expression);
+            return statement;
         }
     }
-
 }

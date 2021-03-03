@@ -22,7 +22,8 @@ namespace Meuzz.Persistence.Tests
             // without "_"
             Assert.Equal("abc", StringUtils.ToCamel("abc"));
             Assert.Equal("Abc", StringUtils.ToCamel("abc", true));
-            Assert.Equal("foobar", StringUtils.ToCamel("fooBar"));
+            Assert.Equal("fooBar", StringUtils.ToCamel("fooBar"));
+            Assert.Equal("FooBar", StringUtils.ToCamel("fooBar", true));
 
             Assert.Equal("fooBar", StringUtils.ToCamel("foo__bar"));
             Assert.Equal("FooBar", StringUtils.ToCamel("foo__bar", true));

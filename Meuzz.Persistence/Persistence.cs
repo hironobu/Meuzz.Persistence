@@ -6,35 +6,39 @@ using System.Reflection;
 
 namespace Meuzz.Persistence
 {
+    public class BindingInfo
+    {
+        public string ForeignKey;
+        public string PrimaryKey;
+        public MemberInfo MemberInfo;
+        public Func<dynamic, dynamic, bool> Conditions;
+    }
+
     public class ParamInfo
     {
         private IDictionary<string, Type> _parameters = new Dictionary<string, Type>();
         private string _defaultParamName = null;
 
-        private IDictionary<string, MemberInfo> _memberInfos = new Dictionary<string, MemberInfo>();
+        // private IDictionary<string, MemberInfo> _memberInfos = new Dictionary<string, MemberInfo>();
 
         public void ResetParameters()
         {
             _parameters.Clear();
-            _memberInfos.Clear();
+            // _memberInfos.Clear();
         }
 
-        public string RegisterParameter(string key, Type t, MemberInfo memberInfo)
+        public string RegisterParameter(string name, Type t, bool asDefault)
         {
-            var k = key;
+            var k = name;
             int i = 0;
             while (_parameters.ContainsKey(k))
             {
-                k = $"{key}{i++}";
+                k = $"{name}{i++}";
             }
             _parameters.Add(k, t);
-            if (memberInfo == null)
+            if (asDefault)
             {
                 _defaultParamName = k;
-            }
-            else
-            {
-                _memberInfos.Add(k, memberInfo);
             }
 
             return k;
@@ -45,11 +49,16 @@ namespace Meuzz.Persistence
             return _parameters[name];
         }
 
+        public (string, Type)[] GetAllParameters()
+        {
+            return _parameters.Select(x => (x.Key, x.Value)).ToArray();
+        }
 
-        public MemberInfo GetMemberInfoByParamName(string name)
+
+        /*public MemberInfo GetMemberInfoByParamName(string name)
         {
             return _memberInfos[name];
-        }
+        }*/
 
 
         public string GetDefaultParamName()
@@ -58,18 +67,54 @@ namespace Meuzz.Persistence
         }
 
 
-        public (string, string, Func<dynamic, dynamic, bool>) GetBindingByParamName(string name)
+        public BindingInfo GetBindingInfoByName(string from, string to)
         {
-            return (_bindings[name][0] as string, _bindings[name][1] as string, _bindings[name][2] as Func<dynamic, dynamic, bool>);
+            IDictionary<string, BindingInfo> d = _bindings[from];
+            if (d == null) { return null; }
+            return d[to];
         }
 
-        public void SetBindingByKey(string name, string foreignKey, string primaryKey, Func<dynamic, dynamic, bool> condfunc)
+        public void SetBindingByName(string from, string to, string foreignKey, string primaryKey, MemberInfo memberInfo, Func<dynamic, dynamic, bool> condfunc)
         {
-            _bindings.Add(name, new object[] { foreignKey, primaryKey, condfunc });
+            //IDictionary<string, BindingInfo> d = _bindings[from];
+            //if (d == null)
+            if (!_bindings.TryGetValue(from, out var d))
+            {
+                d = new Dictionary<string, BindingInfo>();
+                // _bindings[from] = d;
+                _bindings.Add(from, d);
+            }
+
+            d.Add(to, new BindingInfo() { ForeignKey = foreignKey, PrimaryKey = primaryKey, MemberInfo = memberInfo, Conditions = condfunc });
         }
 
-        private IDictionary<string, object[]> _bindings = new Dictionary<string, object[]>();
+        private IDictionary<string, IDictionary<string, BindingInfo>> _bindings = new Dictionary<string, IDictionary<string, BindingInfo>>();
 
+        public IEnumerable<(string, string, BindingInfo)> GetAllBindings()
+        {
+            foreach (var (from, d) in _bindings)
+            {
+                foreach (var (to, bi) in d)
+                {
+                    yield return (from, to, bi);
+                }
+            }
+        }
+
+        internal IEnumerable<(string, BindingInfo)> GetBindingsForParamName(string x)
+        {
+            if (!_bindings.ContainsKey(x))
+            {
+                yield break;
+            }
+
+            foreach (var (to, bi) in _bindings[x])
+            {
+                yield return (to, bi);
+            }
+        }
+
+#if false
         public (string, string, Func<dynamic, Func<dynamic, bool>>) GetJoiningConditionByParamName(string name)
         {/*
             var (foreignKey, primaryKey, condfunc) = GetBindingByParamName(name);
@@ -84,9 +129,10 @@ namespace Meuzz.Persistence
 
             return joiningConditionMaker(propertyGetter(primaryKey), dictionaryGetter(foreignKey), evaluator);*/
 
-            var (foreignKey, primaryKey, condfunc) = GetBindingByParamName(name);
+            var (foreignKey, primaryKey, condfunc) = GetBindingInfoByParamName(name);
             return (foreignKey, primaryKey, (x) => (y) => condfunc(x, y));
         }
+#endif
     }
 
 

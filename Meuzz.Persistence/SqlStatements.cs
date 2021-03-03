@@ -22,7 +22,7 @@ namespace Meuzz.Persistence
 
     public abstract class SqlSelectStatement : SqlStatement
     {
-        public abstract SqlParameterElement[] Parameters { get; }
+        // public abstract SqlParameterElement[] Parameters { get; }
 
         public abstract SqlJoinElement[] Relations { get; }
 
@@ -46,7 +46,7 @@ namespace Meuzz.Persistence
     {
         public string PrimaryKey = null;
         public string ForeignKey = null;
-        public string[] Parameters = null;
+        public string[] Parameters { get; set; } = null;
         public Func<dynamic, dynamic, bool> Conditions = null;
         public string Comparator = null;
 
@@ -69,8 +69,20 @@ namespace Meuzz.Persistence
             Func<dynamic, dynamic, bool> eq = (x, y) => x == y;
             Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).GetValue(x);
             Func<string, Func<dynamic, dynamic>> dictionaryGetter = (string key) => (dynamic x) => x[key];
+            Func<string, Func<dynamic, dynamic>> memberAccessor = (string memb) => (dynamic x) =>
+            {
+                Type t = x.GetType();
+                if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Dictionary<,>))
+                {
+                    return dictionaryGetter(memb)(x);
+                }
+                else
+                {
+                    return propertyGetter(memb)(x);
+                }
+            };
 
-            return joiningConditionMaker(eq, propertyGetter(primaryKey), dictionaryGetter(foreignKey));
+            return joiningConditionMaker(eq, memberAccessor(primaryKey), memberAccessor(foreignKey));
         }
 
         private static dynamic Evaluate(JoinCondFuncElement el, ConditionContext context)
@@ -233,25 +245,22 @@ namespace Meuzz.Persistence
 
         public SelectStatement(SqlElement root) : base(root)
         {
-            FinishBuild();
         }
 
-        public virtual JoinedSelectStatement<Joined<T, T2>, T, T2> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new()
+        public virtual SelectStatement<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new()
         {
-            var lambdaBody = (propexp as LambdaExpression).Body;
+            var lambdaexp = (propexp as LambdaExpression).Body;
+            var paramexp = (propexp as LambdaExpression).Parameters[0] as ParameterExpression;
+            var primaryName = paramexp.Name;
+            var memberInfo = (lambdaexp as MemberExpression).Member;
 
-            return this.BuildJoins<T2>((lambdaBody as MemberExpression).Member, cond);
+            var newroot = MakeSqlJoinElement(this, primaryName, memberInfo, cond);
+            this.Root = newroot;
+            return this;
         }
 
-        protected virtual JoinedSelectStatement<Joined<T, T2>, T, T2> BuildJoins<T2>(MemberInfo memberInfo, Expression<Func<T, T2, bool>> cond) where T2 : class
-        {
-            var newroot = MakeSqlJoinElement(this.Root, memberInfo, cond);
 
-            return new JoinedSelectStatement<Joined<T, T2>, T, T2>(newroot, memberInfo, cond) { OnExecute = this.OnExecute };
-        }
-
-
-        private static SqlElement MakeSqlJoinElement<T2>(SqlElement root, MemberInfo memberInfo, Expression<Func<T, T2, bool>> condexp)
+        private static SqlElement MakeSqlJoinElement<T2>(SqlSelectStatement statement, string primaryName, MemberInfo memberInfo, Expression<Func<T, T2, bool>> condexp)
         {
             var propinfo = (memberInfo.MemberType == MemberTypes.Property) ? (memberInfo as PropertyInfo) : null;
             var t = propinfo.PropertyType;
@@ -276,8 +285,10 @@ namespace Meuzz.Persistence
                     bindingspec = new BindingSpec(matched.ColumnName.ToLower(), matched.BindingToPrimaryKey.ToLower());
                 }
             }
+            
+            var joinedParameterName = statement.ParamInfo.RegisterParameter("t", t, false);
 
-            return new SqlJoinElement(root, new SqlParameterElement(t, "t"), propinfo, bindingspec);
+            return new SqlJoinElement(statement.Root, new SqlParameterElement(t, joinedParameterName), propinfo, bindingspec);
         }
 
 
@@ -291,15 +302,21 @@ namespace Meuzz.Persistence
             return OnExecute(this).GetEnumerator();
         }
 
+        private bool _builded = false;
+
+        [Obsolete("TO BE REVIEWED")]
         public void FinishBuild()
         {
+            if (_builded) { return; }
+            _builded = true;
+
             var element = Root;
             var selectElement = PickupElement<SqlBinaryElement>(element, x => x is SqlBinaryElement && (x as SqlBinaryElement).Verb == SqlElementVerbs.Lambda, x => (x as SqlBinaryElement).Left);
             var parameter = selectElement.Right as SqlParameterElement;
-            var parameters = new List<SqlParameterElement>() { };
+            // var parameters = new List<SqlParameterElement>() { };
             var conditions = selectElement.Left;
 
-            parameter.Name = ParamInfo.RegisterParameter(parameter.Name, parameter.Type, null);
+            // parameter.Name = ParamInfo.RegisterParameter(parameter.Name, parameter.Type, true);
 
             var joinings = new List<SqlJoinElement>();
             var current = element;
@@ -309,34 +326,34 @@ namespace Meuzz.Persistence
                 if (current is SqlJoinElement picked)
                 {
                     joinings.Add(picked);
-                    parameters.Add(picked.Right as SqlParameterElement);
+                    // parameters.Add(picked.Right as SqlParameterElement);
                     current = picked.Left;
 
-                    var px = (picked.Right as SqlParameterElement);
-                    px.Name = ParamInfo.RegisterParameter(px.Name, px.Type, picked.MemberInfo);
+                    // var px = (picked.Right as SqlParameterElement);
+                    // px.Name = ParamInfo.RegisterParameter(px.Name, px.Type, false);
                 }
             }
             joinings.Reverse();
-            parameters.Reverse();
-            parameters.Insert(0, parameter);
+            //parameters.Reverse();
+            //parameters.Insert(0, parameter);
 
             foreach (var je in joinings)
             {
-                var paramname = (je.Right as SqlParameterElement).Name.ToLower();
+                var pe = je.Right as SqlParameterElement;
                 var condfunc = je.BindingSpec.Conditions;
-                ParamInfo.SetBindingByKey(paramname, je.BindingSpec.ForeignKey, je.BindingSpec.PrimaryKey ?? parameter.Type.GetPrimaryKey(), condfunc);
+                ParamInfo.SetBindingByName("x", pe.Name.ToLower(), je.BindingSpec.ForeignKey, je.BindingSpec.PrimaryKey ?? parameter.Type.GetPrimaryKey(), je.MemberInfo, condfunc);
             }
 
-            _parameters = parameters.ToArray();
+            // _parameters = parameters.ToArray();
             _relations = joinings.ToArray();
             _conditions = conditions;
         }
 
-        private SqlParameterElement[] _parameters = null;
+        // private SqlParameterElement[] _parameters = null;
         private SqlJoinElement[] _relations = null;
         private SqlElement _conditions = null;
 
-        public override SqlParameterElement[] Parameters { get => _parameters; }
+        // public override SqlParameterElement[] Parameters { get => _parameters; }
         public override SqlJoinElement[] Relations { get => _relations; }
         public override SqlElement Conditions { get => _conditions; }
 
@@ -358,6 +375,7 @@ namespace Meuzz.Persistence
         }
     }
 
+#if false
     public class JoinedSelectStatement<JT, T, T1> : SelectStatement<T>
         where JT : Joined<T, T1>
         where T : class
@@ -366,7 +384,7 @@ namespace Meuzz.Persistence
         // public string ForeignKey = null;
         // public string PrimaryKey = null;
 
-        public JoinedSelectStatement(SqlElement newroot, MemberInfo memberInfo,Expression<Func<T, T1, bool>> conditions) : base(newroot)
+        public JoinedSelectStatement(SqlElement newroot) : base(newroot)
         {
         }
 
@@ -377,10 +395,11 @@ namespace Meuzz.Persistence
         */
 
     }
+#endif
 
 
 
-    public class SqlElement
+public class SqlElement
     {
     }
 
@@ -404,18 +423,12 @@ namespace Meuzz.Persistence
 
     public class SqlJoinElement : SqlBinaryElement
     {
-        // public string ForeignKey { get; set; } = null;
-        // public string PrimaryKey { get; set; } = null;
         public MemberInfo MemberInfo = null;
-        // public Func<dynamic, dynamic, bool> Conditions = null;
         public BindingSpec BindingSpec = null;
 
         public SqlJoinElement(SqlElement left, SqlElement right, MemberInfo memberInfo, BindingSpec bindingSpec) : base(SqlElementVerbs.Join, left, right)
         {
-            //ForeignKey = foreignKey;
-            //PrimaryKey = primaryKey;
             MemberInfo = memberInfo;
-            // Conditions = cond;
             BindingSpec = bindingSpec;
         }
     }
