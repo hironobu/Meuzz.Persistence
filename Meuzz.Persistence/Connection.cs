@@ -88,22 +88,22 @@ namespace Meuzz.Persistence
             {
                 var results = new List<IDictionary<string, object>>();
 
-                if (reader.HasRows)
+                while (reader.HasRows)
                 {
-                    var schema = reader.GetSchemaTable();
-                    Console.WriteLine(schema);
+                    // var schema = reader.GetSchemaTable();
                     // var table = reader.GetSchemaTable().Rows[0]["BaseTableName"];
                     // var t = statement.GetTableType();
                     var cols = Enumerable.Range(0, reader.FieldCount).Select(x => reader.GetName(x)).ToArray<string>();
                     while (reader.Read())
                     {
                         var vals = Enumerable.Range(0, reader.FieldCount).Select(x => reader.IsDBNull(x) ? null : reader.GetValue(x)).ToArray();
-                        var dict = cols.Zip(vals, (k, v) => new { k, v }).ToDictionary(x => x.k, x => x.v);
+                        var dict = cols.Zip(vals, (k, v) => new { K = k, V = v }).ToDictionary(x => x.K.ToLower(), x => x.V);
 
                         // var entity = PopulateEntity(t, cols, vals);
 
                         results.Add(dict);
                     }
+                    reader.NextResult();
                 }
 
                 Results = results;

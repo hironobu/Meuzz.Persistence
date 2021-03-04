@@ -341,9 +341,9 @@ namespace Meuzz.Persistence
                 else
                 {
                     var primaryTable = memberInfo.DeclaringType.GetTableName();
-                    var foreignTableInfo = t.GetTableInfoFromType();
-                    var matched = foreignTableInfo.Where(x => x.BindingTo == primaryTable).First();
-                    bindingSpec = new BindingSpec(matched.ColumnName.ToLower(), matched.BindingToPrimaryKey.ToLower());
+                    var foreignTableInfo = t.GetTableInfo();
+                    var matched = foreignTableInfo.Columns.Where(x => x.BindingTo == primaryTable).First();
+                    bindingSpec = new BindingSpec(matched.Name.ToLower(), matched.BindingToPrimaryKey.ToLower());
                 }
             }
 
@@ -401,20 +401,27 @@ namespace Meuzz.Persistence
         }
     }
 
-    public class SelectStatement<T> : SqlSelectStatement, IEnumerable<T> where T : class
+    public interface IFilterable<T> : IEnumerable<T> where T : class, new()
     {
-        public Func<SelectStatement<T>, IEnumerable<T>> OnExecute = null;
+        IFilterable<T> And(Expression<Func<T, bool>> cond);
+
+        IFilterable<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new();
+    }
+
+    public class SelectStatement<T> : SqlSelectStatement, IFilterable<T>, IEnumerable<T> where T : class, new()
+    {
+        public Func<SelectStatement<T>, IEnumerable<T>> OnExecute { get; set; } = null;
 
         public SelectStatement() : base()
         {
         }
-        public virtual SelectStatement<T> Where(Expression<Func<T, bool>> cond)
+        public virtual IFilterable<T> And(Expression<Func<T, bool>> cond)
         {
             this.Root = BuildElement(this.Root, cond);
             return this;
         }
 
-        public virtual SelectStatement<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new()
+        public virtual IFilterable<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new()
         {
             var lambdaexp = (propexp as LambdaExpression).Body;
             var paramexp = (propexp as LambdaExpression).Parameters[0] as ParameterExpression;
@@ -447,29 +454,54 @@ namespace Meuzz.Persistence
         // public override SqlElement Conditions { get => _conditions; }
     }
 
-#if false
-    public class JoinedSelectStatement<JT, T, T1> : SelectStatement<T>
-        where JT : Joined<T, T1>
-        where T : class
-        where T1 : class
+    public class SqlInsertOrUpdateStatement : SqlStatement
     {
-        // public string ForeignKey = null;
-        // public string PrimaryKey = null;
+        public string TableName { get; private set; }
+        public string PrimaryKey { get; private set; }
+        public string[] Columns { get; private set; }
 
-        public JoinedSelectStatement(SqlElement newroot) : base(newroot)
+        public object[] Values { get => _values.ToArray(); }
+
+        public IDictionary<string, object> ExtraData { get; set; }
+
+        public bool IsInsert { get; private set; }
+
+        public bool IsBulk { get;  set; }
+
+        private List<object> _values = new List<object>();
+
+        public SqlInsertOrUpdateStatement(Type t, bool isInsert, bool isBulk = false)
         {
+            TableName = t.GetTableName();
+            var tableInfo = t.GetTableInfo();
+            PrimaryKey = t.GetPrimaryKey();
+            Columns = tableInfo.Columns.Select(x => x.Name).Where(x => x != t.GetPrimaryKey()).ToArray();
+            IsInsert = isInsert;
+            IsBulk = isBulk;
         }
 
-        /*protected override JoinedSelectStatement<Joined<T, T2>, T, T2> BuildJoins<T2>(MemberInfo memberInfo, Expression<Func<T, T2, bool>> cond) where T2 : class
+        public virtual void Append<T>(IEnumerable<T> objs)
         {
-            return new JoinedSelectStatement<Joined<T, T2>, T, T2>(this.Root, memberInfo, cond) { OnExecute = this.OnExecute };
+            _values.AddRange(Enumerable.Cast<object>(objs));
         }
-        */
-
     }
-#endif
 
+    public class InsertOrUpdateStatement<T> : SqlInsertOrUpdateStatement where T : class, new()
+    {
+        public InsertOrUpdateStatement(bool isInsert) : base(typeof(T), isInsert)
+        {
+        }
+    }
 
+    public class InsertStatement<T> : InsertOrUpdateStatement<T> where T : class, new()
+    {
+        public InsertStatement() : base(true) { }
+    }
+
+    public class UpdateStatement<T> : InsertOrUpdateStatement<T> where T : class, new()
+    {
+        public UpdateStatement() : base(false) { }
+    }
 
     public class SqlElement
     {

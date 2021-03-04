@@ -116,16 +116,22 @@ namespace Meuzz.Persistence
 
     public static class TypeInfoExtensions
     {
-        public static IEnumerable<ColumnInfoEntry> GetTableInfoFromType(this Type t)
+        public static TableInfo GetTableInfo(this Type t)
         {
-            return TypeInfoDict[t];
+            return TableInfoDict[t];
         }
 
-        private static IDictionary<Type, ColumnInfoEntry[]> TypeInfoDict { get; set; } = new Dictionary<Type, ColumnInfoEntry[]>();
+        public static ClassInfo GetClassInfo(this Type t)
+        {
+            return ClassInfoDict[t];
+        }
+
+        private static IDictionary<Type, TableInfo> TableInfoDict { get; set; } = new Dictionary<Type, TableInfo>();
+        private static IDictionary<Type, ClassInfo> ClassInfoDict { get; set; } = new Dictionary<Type, ClassInfo>();
 
         public static bool IsPersistent(this Type t)
         {
-            return TypeInfoDict.TryGetValue(t, out var _);
+            return TableInfoDict.TryGetValue(t, out var _);
         }
 
         public static void MakeTypePersistent(this Type t, Func<string, string[]> tableInfoGetter, Func<string, IDictionary<string, object>[]> foreignKeyInfoGetter)
@@ -133,11 +139,8 @@ namespace Meuzz.Persistence
             if (!t.IsPersistent())
             {
                 var colinfos = new List<ColumnInfoEntry>();
-                // var rset = _connection.Execute($"PRAGMA table_info('{GetTableNameFromClassName(t)}')");
                 var classprops = t.GetProperties().ToList();
-                // foreach (var result in rset.Results)
                 var tableName = GetTableName(t);
-                // var pkinfos = new List<ColumnInfoEntry>();
                 var fkdict = new Dictionary<string, object>();
                 foreach (var fke in foreignKeyInfoGetter(tableName))
                 {
@@ -154,14 +157,27 @@ namespace Meuzz.Persistence
 
                 foreach (var col in tableInfoGetter(tableName))
                 {
-                    // var tableName = result["name"].ToString();
-                    var prop = t.GetPropertyFromColumnName(col);
-                    var fke = fkdict.ContainsKey(col) ? fkdict[col] as IDictionary<string, object> : null;
-                    colinfos.Add(new ColumnInfoEntry() { ColumnName = col, MemberInfo = prop, BindingTo = fke != null ? fke["PrimaryTableName"] as string : null, BindingToPrimaryKey = fke != null ? fke["PrimaryKey"] as string: null });
+                    var c = col.ToLower();
+                    var prop = t.GetPropertyInfoFromColumnName(c);
+                    var fke = fkdict.ContainsKey(c) ? fkdict[c] as IDictionary<string, object> : null;
+                    colinfos.Add(new ColumnInfoEntry() { Name = c, MemberInfo = prop, BindingTo = fke != null ? fke["PrimaryTableName"] as string : null, BindingToPrimaryKey = fke != null ? fke["PrimaryKey"] as string : null });
                     classprops.Remove(prop);
                 }
 
-                TypeInfoDict[t] = colinfos.ToArray();
+                TableInfoDict[t] = new TableInfo { Columns = colinfos.ToArray() };
+
+                var relinfos = new List<RelationInfoEntry>();
+                foreach (var x in classprops)
+                {
+                    var hasmany = x.GetCustomAttribute<HasManyAttribute>();
+                    relinfos.Add(new RelationInfoEntry()
+                    {
+                        PropertyInfo = x,
+                        TargetClassType = x.PropertyType.IsGenericType ? x.PropertyType.GetGenericArguments()[0] : x.PropertyType,
+                        ForeignKey = hasmany != null ? hasmany.ForeignKey : null
+                    });
+                }
+                ClassInfoDict[t] = new ClassInfo { Relations = relinfos.ToArray(), ClassType = t };
 
                 foreach (var prop in t.GetProperties())
                 {
@@ -183,7 +199,7 @@ namespace Meuzz.Persistence
             return fcol.Split('.').Last();
         }
 
-        public static PropertyInfo GetPropertyFromColumnName(this Type t, string fcol, bool usingPk = false)
+        public static PropertyInfo GetPropertyInfoFromColumnName(this Type t, string fcol, bool usingPk = false)
         {
             var c = GetShortColumnName(fcol).ToLower();
             foreach (var p in t.GetProperties())
@@ -214,6 +230,30 @@ namespace Meuzz.Persistence
             return "id";
         }
 
+        public static object GetPrimaryValue(this Type t,  object obj)
+        {
+            var pkey = t.GetPrimaryKey();
+            return GetPropertyValue(t, pkey, obj);
+        }
+
+        public static object GetPropertyValue(this Type t, string propname, object obj)
+        {
+            var prop = t.GetProperty(StringUtils.ToCamel(propname, true));
+            var pval = prop.GetValue(obj);
+            if (prop == null) { return null; }
+
+            if (pval is int)
+            {
+                return default(int) != (int)pval ? pval : null;
+            }
+            if (pval is long)
+            {
+                return default(long) != (long)pval ? pval : null;
+            }
+
+            return pval;
+        }
+
         public static string GetTableName(this Type t)
         {
             var attr = t.GetCustomAttribute<PersistentClassAttribute>();
@@ -224,13 +264,49 @@ namespace Meuzz.Persistence
             return attr.TableName;
         }
 
+        public static object GetValueForColumnName(this Type t, string c, object obj)
+        {
+            var propInfo = t.GetPropertyInfoFromColumnName(c);
+            return propInfo?.GetValue(obj);
+        }
+
+        public static IDictionary<string, object> GetValueDictFromColumnNames(this object obj, string[] cols)
+        {
+            Type t = obj.GetType();
+            return cols.Zip(obj.GetValuesFromColumnNames(cols), (x, y) => new { x, y }).ToDictionary(x => x.x, x => x.y);
+        }
+        public static IEnumerable<object> GetValuesFromColumnNames(this object obj, string[] cols)
+        {
+            Type t = obj.GetType();
+            return cols.Select(c => t.GetValueForColumnName(c, obj));
+        }
 
         public class ColumnInfoEntry
         {
-            public string ColumnName;
+            public string Name;
             public MemberInfo MemberInfo;
             public string BindingTo;
             public string BindingToPrimaryKey;
+        }
+
+        public class TableInfo
+        {
+            public ColumnInfoEntry[] Columns;
+        }
+
+        public class RelationInfoEntry
+        {
+            public Type TargetClassType;
+            public PropertyInfo PropertyInfo;
+            public string ForeignKey;
+            public string PrimaryKey;
+        }
+
+        public class ClassInfo
+        {
+            public Type ClassType;
+
+            public RelationInfoEntry[] Relations;
         }
     }
 
@@ -247,7 +323,10 @@ namespace Meuzz.Persistence
 
             return attr.Column.ToLower();
         }
+    }
 
+    public static class PropertyInfoExtensions
+    {
     }
 
     [AttributeUsage(AttributeTargets.Class)]

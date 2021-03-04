@@ -10,14 +10,14 @@ namespace Meuzz.Persistence
     {
     }
 
-    public abstract class SqlBuilder<T> : SqlBuilderBase where T : class
+    public abstract class SqlBuilder<T> : SqlBuilderBase where T : class, new()
     {
-        public abstract SelectStatement<T> BuildSelect();
+        public abstract IFilterable<T> BuildSelect();
     }
 
-    public class SqliteSqlBuilder<T> : SqlBuilder<T> where T : class
+    public class SqliteSqlBuilder<T> : SqlBuilder<T> where T : class, new()
     {
-        public override SelectStatement<T> BuildSelect()
+        public override IFilterable<T> BuildSelect()
         {
             return new SelectStatement<T>();
         }

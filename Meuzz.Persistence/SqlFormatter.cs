@@ -23,22 +23,60 @@ namespace Meuzz.Persistence
             var sb = new StringBuilder();
             var sqliteContext = new SqliteConnectionContext();
 
-            if (statement is SqlSelectStatement selectStatement)
+            switch (statement)
             {
-                var parameterName = selectStatement.ParamInfo.GetDefaultParamName();
-                var parameterType = selectStatement.ParamInfo.GetParameterTypeByParamName(parameterName);
+                case SqlSelectStatement selectStatement:
+                    var parameterName = selectStatement.ParamInfo.GetDefaultParamName();
+                    var parameterType = selectStatement.ParamInfo.GetParameterTypeByParamName(parameterName);
 
-                sb.Append($"SELECT {string.Join(", ", GetColumnsToString(selectStatement.ParamInfo.GetAllParameters(), sqliteContext.ColumnAliasingInfo))}");
+                    sb.Append($"SELECT {string.Join(", ", GetColumnsToString(selectStatement.ParamInfo.GetAllParameters(), sqliteContext.ColumnAliasingInfo))}");
 
-                sb.Append($" FROM {parameterType.GetTableName()} {parameterName}");
+                    sb.Append($" FROM {parameterType.GetTableName()} {parameterName}");
 
-                foreach (var bindingSpec in selectStatement.GetAllBindings())
-                {
-                    var cond = $"{bindingSpec.PrimaryParamName}.{bindingSpec.PrimaryKey ?? bindingSpec.PrimaryType.GetPrimaryKey()} {bindingSpec.Comparator} {bindingSpec.ForeignParamName}.{bindingSpec.ForeignKey}";
-                    sb.Append($" LEFT JOIN {bindingSpec.ForeignType.GetTableName()} {bindingSpec.ForeignParamName} ON {cond}");
-                }
-                sb.Append($" WHERE {FormatElement(selectStatement.Root)}");
+                    foreach (var bindingSpec in selectStatement.GetAllBindings())
+                    {
+                        var cond = $"{bindingSpec.PrimaryParamName}.{bindingSpec.PrimaryKey ?? bindingSpec.PrimaryType.GetPrimaryKey()} {bindingSpec.Comparator} {bindingSpec.ForeignParamName}.{bindingSpec.ForeignKey}";
+                        sb.Append($" LEFT JOIN {bindingSpec.ForeignType.GetTableName()} {bindingSpec.ForeignParamName} ON {cond}");
+                    }
+                    sb.Append($" WHERE {FormatElement(selectStatement.Root)}");
+                    break;
 
+                case SqlInsertOrUpdateStatement insertOrUpdateStatement:
+                    Func<object, object> _f = (y) => (y is string s ? Quote(s) : (y != null ? y : "NULL"));
+                    if (insertOrUpdateStatement.IsInsert)
+                    {
+                        object[] rowss = insertOrUpdateStatement.IsBulk
+                            ? new object[] { insertOrUpdateStatement.Values }
+                            : insertOrUpdateStatement.Values.Select(x => new object[] { x }).ToArray();
+                        foreach (var x in rowss)
+                        {
+                            object[] rows = (object[])x;
+                            sb.Append($"INSERT INTO {insertOrUpdateStatement.TableName}");
+                            sb.Append($" ({string.Join(", ", insertOrUpdateStatement.Columns)})");
+                            sb.Append($" VALUES");
+                            foreach (var (row, idx) in rows.Select((x, i) => (x, i)))
+                            {
+                                var d = row.GetValueDictFromColumnNames(insertOrUpdateStatement.Columns);
+                                var vals = insertOrUpdateStatement.Columns.Select(c => insertOrUpdateStatement.ExtraData != null && insertOrUpdateStatement.ExtraData.ContainsKey(c) ? insertOrUpdateStatement.ExtraData[c] : d[c]);
+                                sb.Append($" ({string.Join(", ", vals.Select(_f))})");
+                                if (idx < rows.Length - 1)  
+                                    sb.Append(",");
+                            }
+                            sb.Append($"; SELECT last_insert_rowid() AS new_id; ");
+                        }
+                    }
+                    else
+                    {
+                        foreach (var obj in insertOrUpdateStatement.Values)
+                        {
+                            sb.Append($"UPDATE {insertOrUpdateStatement.TableName} SET ");
+                            var d = obj.GetValueDictFromColumnNames(insertOrUpdateStatement.Columns);
+                            var valstr = string.Join(", ", d.Select(x => $"{x.Key} = {_f(x.Value)}"));
+                            sb.Append(valstr);
+                            sb.Append($" WHERE {insertOrUpdateStatement.PrimaryKey} = {obj.GetType().GetPrimaryValue(obj)};");
+                        }
+                    }
+                    break;
             }
 
             context = sqliteContext;
@@ -103,8 +141,8 @@ namespace Meuzz.Persistence
             return pes.Select(x =>
             {
                 var (name, type) = x;
-                var cols = type.GetTableInfoFromType().Select(x => x.ColumnName);
-                var aliasedDict = caInfo.MakeColumnAliasingDictionary(name, cols);
+                var colnames = type.GetTableInfo().Columns.Select(x => x.Name);
+                var aliasedDict = caInfo.MakeColumnAliasingDictionary(name, colnames);
                 return string.Join(", ", aliasedDict.Select(x => $"{x.Value} AS {x.Key}"));
             }).ToArray();
         }

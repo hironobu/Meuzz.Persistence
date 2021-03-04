@@ -13,7 +13,7 @@ namespace Meuzz.Persistence
 
         protected object PopulateObject(Type t, IEnumerable<string> cols, IEnumerable<object> vals)
         {
-            var props = cols.Select(c => t.GetPropertyFromColumnName(c)).Where(x => x != null).ToArray<PropertyInfo>();
+            var props = cols.Select(c => t.GetPropertyInfoFromColumnName(c)).Where(x => x != null).ToArray<PropertyInfo>();
 
             var bindings = props.Zip(vals, (k, v) => Expression.Bind(k, Expression.Constant(
                 Convert.ChangeType(v, k.PropertyType))));
@@ -76,31 +76,79 @@ namespace Meuzz.Persistence
             LoadTableInfoForType(typeof(T));
         }
 
-        public T Find(I id)
+        public IFilterable<T> Load()
         {
-            throw new NotImplementedException();
-        }
-
-        public SelectStatement<T> Where(Expression<Func<T, bool>> f)
-        {
-            var statement = new SelectStatement<T>();
-            statement.OnExecute = (stmt) =>
+            return new SelectStatement<T>()
             {
-                var sql = _formatter.Format(stmt, out var context);
-                var rset = _connection.Execute(sql, context);
-                return PopulateObjects(rset, stmt, context);
+                OnExecute = (stmt) =>
+                {
+                    var sql = _formatter.Format(stmt, out var context);
+                    var rset = _connection.Execute(sql, context);
+                    return PopulateObjects(rset, stmt, context);
+                }
             };
-            return statement.Where(f);
         }
 
-        public T Create()
+        public IFilterable<T> Load(Expression<Func<T, bool>> f)
         {
-            throw new NotImplementedException();
+            return Load().And(f);
         }
 
-        public T New()
+        public bool Store(T obj)
         {
-            return new T();
+            return Store(new T[] { obj });
+        }
+        public bool Store(IEnumerable<T> objs)
+        {
+            return StoreObjects(typeof(T), objs, null);
+        }
+        private bool StoreObjects(Type t, IEnumerable<object> objs, IDictionary<string, object> extraData)
+        {
+            var updated = objs.Where(x => t.GetPrimaryValue(x) != null).ToList();
+            var inserted = objs.Where(x => t.GetPrimaryValue(x) == null).ToList();
+
+            if (inserted.Count() > 0)
+            {
+                // var insertStatement = new InsertStatement<T>();
+                var tt = typeof(InsertStatement<>).MakeGenericType(t);
+                dynamic insertStatement = Convert.ChangeType(Activator.CreateInstance(tt), tt);
+                insertStatement.Append(inserted);
+                insertStatement.ExtraData = extraData;
+                var sql = _formatter.Format(insertStatement, out SqlConnectionContext context);
+                var rset = _connection.Execute(sql, context);
+
+                Func<object, object, dynamic> _g = (x, y) => new { X = x, Y = y };
+                foreach (var pair in ((IEnumerable<IDictionary<string, dynamic>>)rset.Results).Zip(inserted, _g))
+                {
+                    Type t1 = pair.Y.GetType();
+                    var pkey = t1.GetPrimaryKey();
+                    var prop = t1.GetProperty(StringUtils.ToCamel(pkey, true));
+                    var newPrimaryId = Convert.ChangeType(pair.X["new_id"], prop.PropertyType);
+                    prop.SetValue(pair.Y, newPrimaryId);
+
+                    var classinfo = t1.GetClassInfo();
+                    foreach (var rel in classinfo.Relations)
+                    {
+                        var foreignType = rel.TargetClassType;
+                        var childObjs = rel.PropertyInfo.GetValue(pair.Y) as IEnumerable<object>;
+
+                        if (childObjs != null)
+                        {
+                            StoreObjects(foreignType, childObjs, new Dictionary<string, object>() { { rel.ForeignKey, newPrimaryId } });
+                        }
+                    }
+                }
+            }
+
+            if (updated.Count() > 0)
+            {
+                var updateStatement = new UpdateStatement<T>();
+                updateStatement.Append(updated);
+                var sql2 = _formatter.Format(updateStatement, out var context2);
+                _connection.Execute(sql2, context2);
+            }
+
+            return true;
         }
 
         public class MyEqualityComparer : IEqualityComparer<object>
@@ -330,5 +378,4 @@ namespace Meuzz.Persistence
             throw new NotImplementedException();
         }
     }
-
 }

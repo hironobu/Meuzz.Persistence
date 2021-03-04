@@ -114,8 +114,8 @@ namespace Meuzz.Persistence.Tests
             _connection.Open();
 
             _connection.Execute(@"
-                CREATE TABLE Players (ID integer AUTO_INCREMENT PRIMARY KEY, NAME text, AGE integer, PLAY_TIME integer);
-                CREATE TABLE Characters (ID integer AUTO_INCREMENT PRIMARY KEY, NAME text, PLAYER_ID integer, LAST_PLAYER_ID integer NULL, FOREIGN KEY (PLAYER_ID) REFERENCES Players(ID), FOREIGN KEY (LAST_PLAYER_ID) REFERENCES Players(ID));
+                CREATE TABLE Players (ID integer PRIMARY KEY, NAME text, AGE integer, PLAY_TIME integer);
+                CREATE TABLE Characters (ID integer PRIMARY KEY, NAME text, PLAYER_ID integer, LAST_PLAYER_ID integer NULL, FOREIGN KEY (PLAYER_ID) REFERENCES Players(ID), FOREIGN KEY (LAST_PLAYER_ID) REFERENCES Players(ID));
             ");
             _connection.Execute(@"
                 INSERT INTO Players VALUES (1, 'aaa', 10, 100);
@@ -133,30 +133,30 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestWhereEquals()
         {
-            var objs = _repository.Where((x) => x.Name == "aaa");
+            var objs = _repository.Load((x) => x.Name == "aaa");
             Assert.Single(objs);
-            var objs2 = _repository.Where((x) => x.Age == 10);
+            var objs2 = _repository.Load((x) => x.Age == 10);
             Assert.Equal(2, objs2.Count());
         }
 
         [Fact]
         public void TestWhereNotEquals()
         {
-            var objs = _repository.Where((x) => x.Name != "aaa");
+            var objs = _repository.Load((x) => x.Name != "aaa");
             Assert.Equal(2, objs.Count());
         }
 
         [Fact]
         public void TestWhereAnd()
         {
-            var objs = _repository.Where((x) => x.Name == "aaa" && x.Age != 10);
+            var objs = _repository.Load((x) => x.Name == "aaa" && x.Age != 10);
             Assert.Empty(objs);
         }
 
         [Fact]
         public void TestWhereEqualsAndIncludes()
         {
-            var objs = _repository.Where((x) => x.Age == 10)
+            var objs = _repository.Load((x) => x.Age == 10)
                 .Joins(x => x.Characters, (l, r) => l.Id == r.Player.Id)
                 .Joins(x => x.LastCharacters, (l, r) => l.Id == r.LastPlayer.Id);
             Assert.Equal(2, objs.Count());
@@ -171,7 +171,7 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestWhereEqualsAndIncludesByHasMany()
         {
-            var objs = _repository.Where((x) => x.Age == 10)
+            var objs = _repository.Load((x) => x.Age == 10)
                 .Joins(x => x.Characters);
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
@@ -181,7 +181,7 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestWhereEqualsAndIncludesByHasManyOnPlayer2()
         {
-            var objs = _repository.Where((x) => x.Age == 10)
+            var objs = _repository.Load((x) => x.Age == 10)
                 .Joins(x => x.Characters)
                 .Joins(x => x.LastCharacters);
             Assert.Equal(2, objs.Count());
@@ -191,6 +191,49 @@ namespace Meuzz.Persistence.Tests
             Assert.Equal(2, objs.ElementAt(1).LastCharacters.Count());
             Assert.Equal(1, objs.ElementAt(1).LastCharacters.ElementAt(0).Id);
             Assert.Equal(3, objs.ElementAt(1).LastCharacters.ElementAt(1).Id);
+        }
+
+        [Fact]
+        public void TestCreateAndUpdate()
+        {
+            var p = new Player() { Name = "Create Test", Age = 999 };
+            var q = new Player() { Name = "Create Test 2", PlayTime = 10000 };
+            var r = new Player() { Id = 1, Name = "Update Test" };
+
+            p.Characters = new[]
+            {
+                new Character() { Name = "Char 1" },
+                new Character() { Name = "Char 2" }
+            };
+            p.LastCharacters = new[]
+            {
+                new Character() { Name = "Char 11" },
+                new Character() { Name = "Char 12" },
+                new Character() { Name = "Char 13" },
+                new Character() { Name = "Char 14" }
+            };
+
+            _repository.Store(new[] { p, q, r });
+
+            var rset = _connection.Execute("SELECT * FROM Players");
+
+            Assert.Equal(5, rset.Results.Count());
+            Assert.Equal("Update Test", rset.Results.ElementAt(0)["name"]);
+            Assert.Equal("bbb", rset.Results.ElementAt(1)["name"]);
+            Assert.Equal("ccc", rset.Results.ElementAt(2)["name"]);
+            Assert.Equal("Create Test", rset.Results.ElementAt(3)["name"]);
+            Assert.Equal((Int64)999, rset.Results.ElementAt(3)["age"]);
+            Assert.Equal("Create Test 2", rset.Results.ElementAt(4)["name"]);
+            Assert.Equal((Int64)10000, rset.Results.ElementAt(4)["play_time"]);
+
+            var rset2 = _connection.Execute("SELECT * FROM Characters");
+            Assert.Equal(9, rset2.Results.Count());
+        }
+
+        [Fact]
+        public void TestDelete()
+        {
+            _repository.Delete((x) => x.id);
         }
 
 
