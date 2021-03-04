@@ -11,6 +11,9 @@ namespace Meuzz.Persistence
     {
         protected Connection _connection = null;
 
+        protected SqlFormatter _formatter;
+        protected SqlCollator _collator;
+
         protected object PopulateObject(Type t, IEnumerable<string> cols, IEnumerable<object> vals)
         {
             var props = cols.Select(c => t.GetPropertyInfoFromColumnName(c)).Where(x => x != null).ToArray<PropertyInfo>();
@@ -26,57 +29,8 @@ namespace Meuzz.Persistence
             dynamic func = Convert.ChangeType(lambda.Compile(), ft);
             return func();
         }
-    }
 
-    public class ObjectRepository<T> : ObjectRepository<T, object> where T: class, new()
-    {
-        public ObjectRepository(Connection conn, SqlBuilder<T> builder, SqlFormatter formatter, SqlCollator collator) : base(conn, builder, formatter, collator) { }
-    }
-
-    public class ObjectRepository<T, I> : ObjectRepositoryBase where T : class, new()
-    {
-        private SqlBuilder<T> _sqlBuilder;
-        private SqlFormatter _formatter;
-        private SqlCollator _collator;
-
-        public ObjectRepository(Connection conn, SqlBuilder<T> builder, SqlFormatter formatter, SqlCollator collator)
-        {
-            _connection = conn;
-            _sqlBuilder = builder;
-            _formatter = formatter;
-            _collator = collator;
-
-            _connection.Open();
-            _connection.LoadTableInfo(typeof(T));
-        }
-
-        public IFilterable<T> Load()
-        {
-            return new SelectStatement<T>()
-            {
-                OnExecute = (stmt) =>
-                {
-                    var sql = _formatter.Format(stmt, out var context);
-                    var rset = _connection.Execute(sql, context);
-                    return PopulateObjects(rset, stmt, context);
-                }
-            };
-        }
-
-        public IFilterable<T> Load(Expression<Func<T, bool>> f)
-        {
-            return Load().And(f);
-        }
-
-        public bool Store(T obj)
-        {
-            return Store(new T[] { obj });
-        }
-        public bool Store(IEnumerable<T> objs)
-        {
-            return StoreObjects(typeof(T), objs, null);
-        }
-        private bool StoreObjects(Type t, IEnumerable<object> objs, IDictionary<string, object> extraData)
+        protected bool StoreObjects(Type t, IEnumerable<object> objs, IDictionary<string, object> extraData)
         {
             var updated = objs.Where(x => t.GetPrimaryValue(x) != null).ToList();
             var inserted = objs.Where(x => t.GetPrimaryValue(x) == null).ToList();
@@ -116,14 +70,74 @@ namespace Meuzz.Persistence
 
             if (updated.Count() > 0)
             {
-                var updateStatement = new UpdateStatement<T>();
+                //var updateStatement = new UpdateStatement<T>();
+                var tt = typeof(UpdateStatement<>).MakeGenericType(t);
+                dynamic updateStatement = Convert.ChangeType(Activator.CreateInstance(tt), tt);
                 updateStatement.Append(updated);
-                var sql2 = _formatter.Format(updateStatement, out var context2);
+                var sql2 = _formatter.Format(updateStatement, out SqlConnectionContext context2);
                 _connection.Execute(sql2, context2);
             }
 
             return true;
         }
+    }
+
+    public class ObjectRepository<T> : ObjectRepository<T, object> where T: class, new()
+    {
+        public ObjectRepository(Connection conn, SqlBuilder<T> builder, SqlFormatter formatter, SqlCollator collator) : base(conn, builder, formatter, collator) { }
+    }
+
+    public class ObjectRepository<T, I> : ObjectRepositoryBase where T : class, new()
+    {
+        private SqlBuilder<T> _sqlBuilder;
+
+        public ObjectRepository(Connection conn, SqlBuilder<T> builder, SqlFormatter formatter, SqlCollator collator)
+        {
+            _connection = conn;
+            _sqlBuilder = builder;
+            _formatter = formatter;
+            _collator = collator;
+
+            _connection.Open();
+            _connection.LoadTableInfo(typeof(T));
+        }
+
+        public IFilterable<T> Load(Expression<Func<T, bool>> f = null)
+        {
+            var statement = new SelectStatement<T>()
+            {
+                OnExecute = (stmt) =>
+                {
+                    var sql = _formatter.Format(stmt, out var context);
+                    var rset = _connection.Execute(sql, context);
+                    return PopulateObjects(rset, stmt, context);
+                }
+            };
+
+            if (f != null)
+            {
+                statement.And(f);
+            }
+
+            return statement;
+        }
+
+        public bool Store(T obj)
+        {
+            return Store(new T[] { obj });
+        }
+
+        public bool Store(IEnumerable<T> objs)
+        {
+            return StoreObjects(typeof(T), objs, null);
+        }
+
+
+        public bool Delete<T>(Expression<Func<T, bool>> f)
+        {
+            return true;
+        }
+
 
         public class MyEqualityComparer : IEqualityComparer<object>
         {
@@ -157,7 +171,6 @@ namespace Meuzz.Persistence
                 foreach (var (kk, v) in kvs)
                 {
                     var dx = d;
-                    // foreach (var k in kk.Take(kk.Length - 1))
                     var k = string.Join('.', kk.Take(kk.Length - 1));
                     {
                         var dx0 = dx;
@@ -299,24 +312,18 @@ namespace Meuzz.Persistence
             foreach (var bindingSpec in statement.GetAllBindings())
             {
                 var fromObjs = resultObjects[bindingSpec.PrimaryParamName].Values;
-                // var toObjs = resultDict[to].Values;
-                Func<object, Func<object, bool>> filteringConditions = (x) => (y) => bindingSpec.Conditions(x, y);
 
+                Func<object, Func<object, bool>> filteringConditions = (x) => (y) => bindingSpec.Conditions(x, y);
                 Func<object, object> fmap = x =>
                 {
-                    // var targetToObjs = toObjs.Where(filteringConditions(x));
-                    // Console.WriteLine(targetToObjs.ToList());
                     var pkv = memberAccessor(bindingSpec.PrimaryKey)(x);
                     if (objectTree[bindingSpec.ForeignParamName][bindingSpec.ForeignKey].TryGetValue(pkv, out List<object> targetToObjs))
                     {
                         foreach (var o in targetToObjs)
                         {
-                            // o as IDictionary<string, object>)[$"__{bindingInfo.ForeignKey}"] = x;
-                            // memberUpdater(o, bindingInfo.ForeignKey, x);
                             var k0 = StringUtils.ToCamel(bindingSpec.ForeignKey.Replace("_id", ""), true);
                             memberUpdater(o, k0, x);
                         }
-                        // (x as IDictionary<string, object>)[$"__{StringUtils.ToSnake(bindingInfo.MemberInfo.Name)}"] = targetToObjs;
                         memberUpdater(x, bindingSpec.MemberInfo.Name, regularCollection((bindingSpec.MemberInfo as PropertyInfo).PropertyType, targetToObjs));
                     }
                     else

@@ -235,25 +235,5 @@ namespace Meuzz.Persistence.Tests
         {
             // _repository.Delete((x) => x.id);
         }
-
-
-        /*[Fact]
-        public void TestWherePropertyTree()
-        {
-            var objs = _repository.Where((x) => x.Name == "aaa");
-
-            Console.WriteLine("OK");
-        }*/
-
-        /*
-                [Fact]
-                public void Test2()
-                {
-                    var obj = _repository.Create();
-                    obj.Name = "hoge";
-                    obj.Save();
-
-                    Console.WriteLine("OK");
-                }*/
     }
 }
