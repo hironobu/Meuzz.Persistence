@@ -26,32 +26,6 @@ namespace Meuzz.Persistence
             dynamic func = Convert.ChangeType(lambda.Compile(), ft);
             return func();
         }
-
-        protected void LoadTableInfoForType(Type t)
-        {
-            if (t.GetCustomAttribute<PersistentClassAttribute>() == null)
-                return;
-
-            t.MakeTypePersistent((t) =>
-            {
-                //TODO: for sqlite only
-                return _connection.Execute($"PRAGMA table_info('{t}')").Results.Select(x => x["name"].ToString()).ToArray();
-            }, (t) =>
-            {
-                return _connection.Execute($"PRAGMA foreign_key_list('{t}')").Results.ToArray();
-            });
-        }
-        /*
-        private IEnumerable<Type> GetTypesWithHelpAttribute(Assembly assembly, Type targetAttribute)
-        {
-            foreach (Type type in assembly.GetTypes())
-            {
-                if (type.GetCustomAttributes(targetAttribute, true).Length > 0)
-                {
-                    yield return type;
-                }
-            }
-        }*/
     }
 
     public class ObjectRepository<T> : ObjectRepository<T, object> where T: class, new()
@@ -73,7 +47,7 @@ namespace Meuzz.Persistence
             _collator = collator;
 
             _connection.Open();
-            LoadTableInfoForType(typeof(T));
+            _connection.LoadTableInfo(typeof(T));
         }
 
         public IFilterable<T> Load()

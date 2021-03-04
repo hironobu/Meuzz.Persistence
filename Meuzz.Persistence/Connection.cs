@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Reflection;
 using Microsoft.Data.Sqlite;
 
 namespace Meuzz.Persistence
@@ -31,6 +32,8 @@ namespace Meuzz.Persistence
         public abstract ResultSet Execute(string sql, SqlConnectionContext context = null);
 
         public abstract void Close();
+
+        public abstract void LoadTableInfo(Type t);
 
         public void Dispose()
         {
@@ -82,6 +85,21 @@ namespace Meuzz.Persistence
             _connection.Close();
         }
 
+        public override void LoadTableInfo(Type t)
+        {
+            if (t.GetCustomAttribute<PersistentClassAttribute>() == null)
+                return;
+
+            t.MakeTypePersistent((t) =>
+            {
+                //TODO: for sqlite only
+                return Execute($"PRAGMA table_info('{t}')", null).Results.Select(x => x["name"].ToString()).ToArray();
+            }, (t) =>
+            {
+                return Execute($"PRAGMA foreign_key_list('{t}')", null).Results.ToArray();
+            });
+        }
+
         class SqliteResultSet : ResultSet
         {
             public SqliteResultSet(/*SqliteSelectStatement statement, */ SqliteDataReader reader)
@@ -90,7 +108,6 @@ namespace Meuzz.Persistence
 
                 while (reader.HasRows)
                 {
-                    // var schema = reader.GetSchemaTable();
                     // var table = reader.GetSchemaTable().Rows[0]["BaseTableName"];
                     // var t = statement.GetTableType();
                     var cols = Enumerable.Range(0, reader.FieldCount).Select(x => reader.GetName(x)).ToArray<string>();
