@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 
@@ -35,10 +36,14 @@ namespace Meuzz.Persistence
 
                     foreach (var bindingSpec in selectStatement.GetAllBindings())
                     {
-                        var cond = $"{bindingSpec.PrimaryParamName}.{bindingSpec.PrimaryKey ?? bindingSpec.PrimaryType.GetPrimaryKey()} {bindingSpec.Comparator} {bindingSpec.ForeignParamName}.{bindingSpec.ForeignKey}";
+                        /*var cond = (bindingSpec.ConditionExpression != null
+                            ? FormatElement(bindingSpec.ConditionExpression)
+                            : $"{bindingSpec.PrimaryParamName}.{bindingSpec.PrimaryKey ?? bindingSpec.PrimaryType.GetPrimaryKey()} {"="} {bindingSpec.ForeignParamName}.{bindingSpec.ForeignKey}"
+                            );*/
+                        var cond = bindingSpec.ConditionSql;
                         sb.Append($" LEFT JOIN {bindingSpec.ForeignType.GetTableName()} {bindingSpec.ForeignParamName} ON {cond}");
                     }
-                    sb.Append($" WHERE {FormatElement(selectStatement.Root)}");
+                    sb.Append($" WHERE {FormatElement(selectStatement.Condition)}");
                     break;
 
                 case SqlInsertOrUpdateStatement insertOrUpdateStatement:
@@ -84,56 +89,49 @@ namespace Meuzz.Persistence
         }
 
 
-        protected string FormatElement(SqlElement element)
+        protected string FormatElement(Expression exp)
         {
-            if (element is SqlBinaryElement bine)
+            switch (exp)
             {
-                switch (bine.Verb)
-                {
-                    case SqlElementVerbs.And:
-                        return $"({FormatElement(bine.Left)}) AND ({FormatElement(bine.Right)})";
-                    case SqlElementVerbs.Or:
-                        return $"({FormatElement(bine.Left)}) OR ({FormatElement(bine.Right)})";
-                    case SqlElementVerbs.Lt:
-                        return $"({FormatElement(bine.Left)}) < ({FormatElement(bine.Right)})";
-                    case SqlElementVerbs.Lte:
-                        return $"({FormatElement(bine.Left)}) <= ({FormatElement(bine.Right)})";
-                    case SqlElementVerbs.Gt:
-                        return $"({FormatElement(bine.Left)}) > ({FormatElement(bine.Right)})";
-                    case SqlElementVerbs.Gte:
-                        return $"({FormatElement(bine.Left)}) >= ({FormatElement(bine.Right)})";
-                    case SqlElementVerbs.Eq:
-                        return $"({FormatElement(bine.Left)}) = ({FormatElement(bine.Right)})";
-                    case SqlElementVerbs.Ne:
-                        return $"({FormatElement(bine.Left)}) != ({FormatElement(bine.Right)})";
+                case LambdaExpression lmbe:
+                    return FormatElement(lmbe.Body);
 
-                    case SqlElementVerbs.MemberAccess:
-                        return $"{FormatElement(bine.Left)}.{FormatElement(bine.Right)}";
+                case BinaryExpression bine:
+                    switch (bine.NodeType)
+                    {
+                        case ExpressionType.AndAlso:
+                            return $"({FormatElement(bine.Left)}) AND ({FormatElement(bine.Right)})";
+                        case ExpressionType.Or:
+                            return $"({FormatElement(bine.Left)}) OR ({FormatElement(bine.Right)})";
+                        case ExpressionType.LessThan:
+                            return $"({FormatElement(bine.Left)}) < ({FormatElement(bine.Right)})";
+                        case ExpressionType.LessThanOrEqual:
+                            return $"({FormatElement(bine.Left)}) <= ({FormatElement(bine.Right)})";
+                        case ExpressionType.GreaterThan:
+                            return $"({FormatElement(bine.Left)}) > ({FormatElement(bine.Right)})";
+                        case ExpressionType.GreaterThanOrEqual:
+                            return $"({FormatElement(bine.Left)}) >= ({FormatElement(bine.Right)})";
+                        case ExpressionType.Equal:
+                            return $"({FormatElement(bine.Left)}) = ({FormatElement(bine.Right)})";
+                        case ExpressionType.NotEqual:
+                            return $"({FormatElement(bine.Left)}) != ({FormatElement(bine.Right)})";
 
-                    case SqlElementVerbs.Lambda:
-                        // return $"{FormatElementToString(bine.Left)}";
-                        return $"{FormatElement(bine.Left)}";
+                        case ExpressionType.MemberAccess:
+                            return $"{FormatElement(bine.Left)}.{FormatElement(bine.Right)}";
+                    }
+                    break;
 
-                    default:
-                        throw new NotImplementedException();
-                }
+                case ConstantExpression ce:
+                    return ce.Value is string ? Quote(ce.Value.ToString()) : ce.Value.ToString();
+
+                case ParameterExpression pe:
+                    return pe.Name;
+
+                case MemberExpression me:
+                    return $"{FormatElement(me.Expression)}.{(me.Member.Name)}";
             }
-            else if (element is SqlConstantElement ce)
-            {
-                return ce.Value is string ? Quote(ce.Value.ToString()) : ce.Value.ToString();
-            }
-            else if (element is SqlLeafElement le)
-            {
-                return le.Value.ToString();
-            }
-            else if (element is SqlParameterElement pe)
-            {
-                return pe.Name;
-            }
-            else
-            {
-                throw new NotImplementedException();
-            }
+
+            throw new NotImplementedException();
         }
 
         private string[] GetColumnsToString((string, Type)[] pes, ColumnAliasingInfo caInfo)

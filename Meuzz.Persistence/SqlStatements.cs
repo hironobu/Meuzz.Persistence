@@ -9,10 +9,6 @@ namespace Meuzz.Persistence
 {
     public class SqlStatement
     {
-        public SqlElement Root { get; set; }
-
-        public ParamInfo ParamInfo { get; set; } = new ParamInfo();
-
         public SqlStatement()
         {
         }
@@ -21,6 +17,10 @@ namespace Meuzz.Persistence
 
     public abstract class SqlSelectStatement : SqlStatement
     {
+        public Expression Condition { get; set; }
+
+        public ParamInfo ParamInfo { get; set; } = new ParamInfo();
+
         public SqlSelectStatement() : base() { }
 
         public BindingSpec GetBindingSpecByParamName(string from, string to)
@@ -64,90 +64,6 @@ namespace Meuzz.Persistence
         }
 
 
-        protected virtual SqlElement BuildElement(SqlElement parent, Expression expression)
-        {
-            switch (expression)
-            {
-                case LambdaExpression mce:
-                    var p = mce.Parameters.First<ParameterExpression>();
-                    var pel = BuildElement(parent, p) as SqlParameterElement;
-                    pel.Name = ParamInfo.RegisterParameter(pel.Name, pel.Type, true);
-                    return MakeSqlElement(mce.NodeType, BuildElement(parent, mce.Body), pel);
-
-                case BinaryExpression be:
-                    var lstr = BuildElement(parent, be.Left);
-                    var rstr = BuildElement(parent, be.Right);
-                    // return $"[{be.NodeType} <{lstr}> <{rstr}>]";
-                    return MakeSqlElement(be.NodeType, lstr, rstr);
-
-                case ParameterExpression pe:
-                    // var mstr = GetColumnNameFromProperty(pe.);
-                    return MakeSqlElement(pe);
-
-                //case Property pie:
-                //    return $"<P <{pie.ToString()}>>"
-                case MemberExpression me:
-                    return MakeSqlElement(me.NodeType, BuildElement(parent, me.Expression), MakeSqlElement(me));
-
-                case ConstantExpression ce:
-                    return MakeSqlElement(ce);
-
-                default:
-                    throw new NotImplementedException();
-            }
-        }
-
-        protected SqlElement MakeSqlElement(Expression exp)
-        {
-            switch (exp)
-            {
-                case ParameterExpression pe:
-                    return new SqlParameterElement(pe.Type, pe.Name);
-                case ConstantExpression ce:
-                    return new SqlConstantElement(ce.Value);
-                case MemberExpression me:
-                    return new SqlLeafElement(me.Member.GetColumnName());
-                default:
-                    throw new NotImplementedException();
-            }
-        }
-
-        protected SqlElement MakeSqlElement(ExpressionType type, SqlElement x, SqlElement y)
-        {
-            switch (type)
-            {
-                case ExpressionType.AndAlso:
-                    return new SqlBinaryElement(SqlElementVerbs.And, x, y);
-
-                case ExpressionType.NotEqual:
-                    return new SqlBinaryElement(SqlElementVerbs.Ne, x, y);
-
-                case ExpressionType.Equal:
-                    return new SqlBinaryElement(SqlElementVerbs.Eq, x, y);
-
-                case ExpressionType.GreaterThan:
-                    return new SqlBinaryElement(SqlElementVerbs.Gt, x, y);
-
-                case ExpressionType.GreaterThanOrEqual:
-                    return new SqlBinaryElement(SqlElementVerbs.Gte, x, y);
-
-                case ExpressionType.LessThan:
-                    return new SqlBinaryElement(SqlElementVerbs.Lt, x, y);
-
-                case ExpressionType.LessThanOrEqual:
-                    return new SqlBinaryElement(SqlElementVerbs.Lte, x, y);
-
-                case ExpressionType.MemberAccess:
-                    return new SqlBinaryElement(SqlElementVerbs.MemberAccess, x, y);
-
-                case ExpressionType.Lambda:
-                    return new SqlBinaryElement(SqlElementVerbs.Lambda, x, y);
-
-                default:
-                    throw new NotImplementedException();
-            }
-        }
-
     }
 
     public class Joined<T0, T1>
@@ -170,8 +86,25 @@ namespace Meuzz.Persistence
         public Type ForeignType = null;
         public string ForeignParamName { get; set; }
 
-        public Func<dynamic, dynamic, bool> Conditions = null;
-        public string Comparator = null;
+        // public Func<dynamic, dynamic, bool> Condition = null;
+        // public string ConditionSql = null;
+        public string ConditionSql { get => GetConditionSql(); }
+
+        public Func<dynamic, dynamic, bool> ConditionFunc
+        {
+            get 
+            {
+                if (ConditionParams == null)
+                {
+                    return _defaultConditionFunc;
+                }
+
+                return GetConditionFunc();
+            }
+        }
+        private Func<dynamic, dynamic, bool> _defaultConditionFunc = null;
+
+        public (Func<dynamic, dynamic, bool>, dynamic, dynamic)? ConditionParams { get; set; } = null;
 
         public MemberInfo MemberInfo { get; set; } = null;
 
@@ -183,8 +116,21 @@ namespace Meuzz.Persistence
         {
             ForeignKey = fk;
             PrimaryKey = pk ?? "id";
-            Comparator = "=";
-            Conditions = MakeDefaultFunc(ForeignKey, PrimaryKey);
+            _defaultConditionFunc = MakeDefaultFunc(ForeignKey, PrimaryKey);
+            // ConditionSql = MakeDefaultJoinConditionSql(ForeignKey, PrimaryKey);
+        }
+
+
+        private string GetConditionSql()
+        {
+            return $"{PrimaryParamName}.{PrimaryKey ?? PrimaryType.GetPrimaryKey()} {"="} {ForeignParamName}.{ForeignKey}";
+        }
+
+        private Func<dynamic, dynamic, bool> GetConditionFunc()
+        {
+            Func<Func<dynamic, dynamic, bool>, dynamic, dynamic, bool> evaluator = (f, xx, yy) => f(Evaluate(xx), Evaluate(yy));
+
+            return (x, y) => evaluator(ConditionParams.Value.Item1, ConditionParams.Value.Item2(x), ConditionParams.Value.Item3(y));
         }
 
         private static Func<dynamic, dynamic, bool> MakeDefaultFunc(string foreignKey, string primaryKey)
@@ -210,7 +156,7 @@ namespace Meuzz.Persistence
             return joiningConditionMaker(eq, memberAccessor(primaryKey), memberAccessor(foreignKey));
         }
 
-        private static dynamic Evaluate(BindingConditionElement el, ConditionContext context)
+        private static dynamic Evaluate(BindingConditionElement el)
         {
             Func<dynamic, string, dynamic> propertyGetter = (dynamic x, string prop) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).GetValue(x);
             Func<dynamic, string, dynamic> dictionaryGetter = (dynamic x, string key) => x[StringUtils.ToSnake(key)];
@@ -231,22 +177,17 @@ namespace Meuzz.Persistence
             }
         }
 
-        private static (Func<dynamic, dynamic>, Type, string, string[]) MakeConditionFunc_(Expression exp)
+        private static (Func<dynamic, dynamic>, ParameterExpression, string[]) MakeConditionFunc_(Expression exp)
         {
-            // Func<dynamic, dynamic, dynamic> memberAccess = (x, y) => new object[] { x, y };
-
             switch (exp)
             {
-                case LambdaExpression lme:
-                    return MakeConditionFunc_(lme.Body);
-
                 case MemberExpression me:
-                    var (f, t, n, path) = MakeConditionFunc_(me.Expression);
+                    var (f, e, path) = MakeConditionFunc_(me.Expression);
                     var member = me.Member;
-                    return ((x) => new BindingConditionElement(f(x), member), t, n, path.Concat(new string[] { member.Name }).ToArray());
+                    return ((x) => new BindingConditionElement(f(x), member), e, path.Concat(new string[] { member.Name }).ToArray());
 
                 case ParameterExpression pe:
-                    return ((x) => x, pe.Type, pe.Name, new string[] { });
+                    return ((x) => x, pe, new string[] { });
 
                 default:
                     throw new NotImplementedException();
@@ -254,72 +195,51 @@ namespace Meuzz.Persistence
         }
 
 
-        public static BindingSpec New(Type t, Expression exp, ConditionContext context = null)
+        public static (Func<dynamic, dynamic, bool>, (Func<dynamic, dynamic>, ParameterExpression, string[]), (Func<dynamic, dynamic>, ParameterExpression, string[])) New(Type t, Expression exp, ConditionContext context = null)
         {
             Func<Func<dynamic, dynamic>, Func<dynamic, dynamic>, Func<dynamic, dynamic, bool>, Func<dynamic, dynamic, bool>> conditionFuncMaker = (Func<dynamic, dynamic> f, Func<dynamic, dynamic> g, Func<dynamic, dynamic, bool> ev) => (dynamic x, dynamic y) => ev(f(x), g(y)); // propertyGetter(defaultType, primaryKey)(l) == dictionaryGetter(foreignKey)(r);
             if (exp == null)
             {
-                return null;
-            }
-
-            if (context == null)
-            {
-                context = new ConditionContext();
+                throw new NotImplementedException();
             }
 
             switch (exp)
             {
-                case LambdaExpression lme:
-                    context.PrimaryType = t;
-                    context.Parameters = lme.Parameters.Select(x => x.Name).ToArray();
-                    return New(t, lme.Body, context);
-
                 case BinaryExpression bine:
-                    Func<Func<dynamic, dynamic, bool>, dynamic, dynamic, bool> evaluator = (f, x, y) => f(Evaluate(x, context), Evaluate(y, context));
-
-                    var (le, lty, ls, lpath) = MakeConditionFunc_(bine.Left);
-                    var (re, rty, rs, rpath) = MakeConditionFunc_(bine.Right);
-
-                    var fs = new Func<dynamic, dynamic>[context.Parameters.Length];
-                    fs[Array.IndexOf(context.Parameters, ls)] = le;
-                    fs[Array.IndexOf(context.Parameters, rs)] = re;
-
-                    var primaryKey = StringUtils.ToSnake(string.Join("_", lty == context.PrimaryType ? lpath : rpath));
-                    var foreignKey = StringUtils.ToSnake(string.Join("_", lty != context.PrimaryType ? lpath : rpath));
+                    var (lf, le, lpath) = MakeConditionFunc_(bine.Left);
+                    var (rf, re, rpath) = MakeConditionFunc_(bine.Right);
 
                     switch (bine.NodeType)
                     {
                         case ExpressionType.Equal:
                             Func<dynamic, dynamic, bool> eq = (x, y) => x == y;
-                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Comparator = "=", Conditions = (x, y) => evaluator(eq, fs[0](x), fs[1](y)) };
+                            return (eq, (lf, le, lpath), (rf, re, rpath));
 
                         case ExpressionType.NotEqual:
                             Func<dynamic, dynamic, bool> ne = (x, y) => x != y;
-                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Comparator = "!=", Conditions = (x, y) => evaluator(ne, fs[0](x), fs[1](y)) };
+                            return (ne, (lf, le, lpath), (rf, re, rpath));
 
                         case ExpressionType.LessThan:
                             Func<dynamic, dynamic, bool> lt = (x, y) => x < y;
-                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Comparator = "<", Conditions = (x, y) => evaluator(lt, fs[0](x), fs[1](y)) };
+                            return (lt, (lf, le, lpath), (rf, re, rpath));
 
                         case ExpressionType.LessThanOrEqual:
                             Func<dynamic, dynamic, bool> lte = (x, y) => x <= y;
-                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Comparator = "<=", Conditions = (x, y) => evaluator(lte, fs[0](x), fs[1](y)) };
+                            return (lte, (lf, le, lpath), (rf, re, rpath));
 
                         case ExpressionType.GreaterThan:
                             Func<dynamic, dynamic, bool> gt = (x, y) => x > y;
-                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Comparator = ">", Conditions = (x, y) => evaluator(gt, fs[0](x), fs[1](y)) };
+                            return (gt, (lf, le, lpath), (rf, re, rpath));
 
                         case ExpressionType.GreaterThanOrEqual:
                             Func<dynamic, dynamic, bool> gte = (x, y) => x >= y;
-                            return new BindingSpec() { PrimaryKey = primaryKey, ForeignKey = foreignKey, Comparator = ">=", Conditions = (x, y) => evaluator(gte, fs[0](x), fs[1](y)) };
+                            return (gte, (lf, le, lpath), (rf, re, rpath));
                     }
                     break;
-
             }
 
             throw new NotImplementedException();
         }
-
 
         public static BindingSpec Build<T, T2>(Type primaryType, string primaryName, MemberInfo memberInfo, string defaultForeignParamName, Expression<Func<T, T2, bool>> condexp)
         {
@@ -330,7 +250,36 @@ namespace Meuzz.Persistence
                 t = t.GetGenericArguments()[0];
             }
 
-            var bindingSpec = BindingSpec.New(memberInfo.DeclaringType, condexp);
+            BindingSpec bindingSpec = null;
+            if (condexp != null)
+            {
+                if (!(condexp is LambdaExpression lme))
+                {
+                    throw new NotImplementedException();
+                }
+
+                var context = new ConditionContext();
+                context.PrimaryType = memberInfo.DeclaringType;
+                var parameters = lme.Parameters.Select(x => x.Name).ToArray();
+
+                var bindingParams = BindingSpec.New(memberInfo.DeclaringType, lme.Body, context);
+
+                var primaryKey = StringUtils.ToSnake(string.Join("_", bindingParams.Item2.Item2.Type == context.PrimaryType ? bindingParams.Item2.Item3 : bindingParams.Item2.Item3));
+                var foreignKey = StringUtils.ToSnake(string.Join("_", bindingParams.Item2.Item2.Type != context.PrimaryType ? bindingParams.Item2.Item3 : bindingParams.Item3.Item3));
+
+                var fs = new Func<dynamic, dynamic>[parameters.Length];
+                fs[Array.IndexOf(parameters, bindingParams.Item2.Item2.Name)] = bindingParams.Item2.Item1;
+                fs[Array.IndexOf(parameters, bindingParams.Item3.Item2.Name)] = bindingParams.Item3.Item1;
+
+                bindingSpec = new BindingSpec()
+                {
+                    PrimaryKey = primaryKey,
+                    ForeignKey = foreignKey,
+                    // ConditionSql = FormatElement(lme),
+                    ConditionParams = (bindingParams.Item1, fs[0], fs[1])
+                };
+            }
+
             if (bindingSpec == null)
             {
                 var hasmany = memberInfo.GetCustomAttribute<HasManyAttribute>();
@@ -359,9 +308,9 @@ namespace Meuzz.Persistence
 
         public class ConditionContext
         {
-            public Type PrimaryType = null;
-            public string[] Parameters = null;
-            public MemberInfo MemberInfo = null;
+            public Type PrimaryType { get; set; } = null;
+            // public string[] Parameters { get; set; } = null;
+            // public MemberInfo MemberInfo { get; set; } = null;
         }
 
         public class BindingConditionElement
@@ -411,13 +360,26 @@ namespace Meuzz.Persistence
     public class SelectStatement<T> : SqlSelectStatement, IFilterable<T>, IEnumerable<T> where T : class, new()
     {
         public Func<SelectStatement<T>, IEnumerable<T>> OnExecute { get; set; } = null;
+        private SqlBuilder<T> _sqlBuilder = null;
 
-        public SelectStatement() : base()
+        public SelectStatement(SqlBuilder<T> sqlBuilder) : base()
         {
+            _sqlBuilder = sqlBuilder;
         }
+
         public virtual IFilterable<T> And(Expression<Func<T, bool>> cond)
         {
-            this.Root = BuildElement(this.Root, cond);
+            if (!(cond is LambdaExpression lme))
+            {
+                throw new NotImplementedException();
+            }
+
+            var p = lme.Parameters.First<ParameterExpression>();
+            //var pel = _sqlBuilder.BuildCondition(null, p) as SqlParameterElement;
+            ParamInfo.RegisterParameter(p.Name, p.Type, true);
+
+            //this.Root = _sqlBuilder.BuildCondition(this.Root, lme.Body);
+            this.Condition = cond;
             return this;
         }
 
@@ -425,7 +387,7 @@ namespace Meuzz.Persistence
         {
             var lambdaexp = (propexp as LambdaExpression).Body;
             var paramexp = (propexp as LambdaExpression).Parameters[0] as ParameterExpression;
-            var primaryName = paramexp.Name;
+            // var primaryName = paramexp.Name;
             var memberInfo = (lambdaexp as MemberExpression).Member;
 
             var bindingSpec = BindingSpec.Build(paramexp.Type, paramexp.Name, memberInfo, "t", cond);
@@ -502,7 +464,7 @@ namespace Meuzz.Persistence
     {
         public UpdateStatement() : base(false) { }
     }
-
+/*
     public class SqlElement
     {
     }
@@ -523,7 +485,7 @@ namespace Meuzz.Persistence
         Lambda,
         Select,
         Join,
-    }
+    }*/
 
     /*
     public class SqlJoinElement : SqlBinaryElement
@@ -537,7 +499,7 @@ namespace Meuzz.Persistence
             BindingSpec = bindingSpec;
         }
     }*/
-
+/*
     public class SqlParameterElement : SqlElement
     {
         public Type Type;
@@ -589,5 +551,5 @@ namespace Meuzz.Persistence
     {
         public SqlConstantElement(object value) : base(value) { }
     }
-
+*/
 }

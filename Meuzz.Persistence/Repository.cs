@@ -104,7 +104,7 @@ namespace Meuzz.Persistence
 
         public IFilterable<T> Load(Expression<Func<T, bool>> f = null)
         {
-            var statement = new SelectStatement<T>()
+            var statement = new SelectStatement<T>(_sqlBuilder)
             {
                 OnExecute = (stmt) =>
                 {
@@ -133,7 +133,7 @@ namespace Meuzz.Persistence
         }
 
 
-        public bool Delete<T>(Expression<Func<T, bool>> f)
+        public bool Delete(Expression<Func<T, bool>> f)
         {
             return true;
         }
@@ -258,6 +258,7 @@ namespace Meuzz.Persistence
                     var o = PopulateObject(t, v.Keys, v.Values);
                     if (objectTree.ContainsKey(k))
                     {
+
                         foreach (var (kk, vv) in v)
                         {
                             if (!objectTree.ContainsKey(k) || !objectTree[k].ContainsKey(kk))
@@ -313,11 +314,13 @@ namespace Meuzz.Persistence
             {
                 var fromObjs = resultObjects[bindingSpec.PrimaryParamName].Values;
 
-                Func<object, Func<object, bool>> filteringConditions = (x) => (y) => bindingSpec.Conditions(x, y);
+                Func<object, Func<object, bool>> filteringConditions = (x) => (y) => bindingSpec.ConditionFunc(x, y);
                 Func<object, object> fmap = x =>
                 {
                     var pkv = memberAccessor(bindingSpec.PrimaryKey)(x);
-                    if (objectTree[bindingSpec.ForeignParamName][bindingSpec.ForeignKey].TryGetValue(pkv, out List<object> targetToObjs))
+                    var targetToObjs = objectTree[bindingSpec.ForeignParamName].Where(filteringConditions(x));
+                    if (targetToObjs.Count() > 0)
+                    //if (objectTree[bindingSpec.ForeignParamName][bindingSpec.ForeignKey].TryGetValue(pkv, out List<object> targetToObjs))
                     {
                         foreach (var o in targetToObjs)
                         {

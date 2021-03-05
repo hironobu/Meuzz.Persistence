@@ -157,8 +157,8 @@ namespace Meuzz.Persistence.Tests
         public void TestWhereEqualsAndIncludes()
         {
             var objs = _repository.Load((x) => x.Age == 10)
-                .Joins(x => x.Characters, (l, r) => l.Id == r.Player.Id)
-                .Joins(x => x.LastCharacters, (l, r) => l.Id == r.LastPlayer.Id);
+                .Joins(x => x.Characters, (x, r) => x.Id == r.Player.Id)
+                .Joins(x => x.LastCharacters, (x, r) => x.Id == r.LastPlayer.Id);
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
