@@ -236,6 +236,16 @@ namespace Meuzz.Persistence
             return GetPropertyValue(t, pkey, obj);
         }
 
+        public static PropertyInfo GetPrimaryPropertyInfo(this Type t)
+        {
+            var pkey = t.GetPrimaryKey();
+            return t.GetPropertyInfo(pkey);
+        }
+        public static PropertyInfo GetPropertyInfo(this Type t, string propname)
+        {
+            return t.GetProperty(StringUtils.ToCamel(propname, true));
+        }
+
         public static object GetPropertyValue(this Type t, string propname, object obj)
         {
             var prop = t.GetProperty(StringUtils.ToCamel(propname, true));

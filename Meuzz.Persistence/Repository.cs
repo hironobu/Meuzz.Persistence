@@ -122,6 +122,26 @@ namespace Meuzz.Persistence
             return statement;
         }
 
+        public IFilterable<T> Load(params object[] id)
+        {
+            var primaryKey = typeof(T).GetPrimaryKey();
+
+            var statement = new SelectStatement<T>(_sqlBuilder)
+            {
+                OnExecute = (stmt) =>
+                {
+                    var sql = _formatter.Format(stmt, out var context);
+                    var rset = _connection.Execute(sql, context);
+                    return PopulateObjects(rset, stmt, context);
+                }
+            };
+
+            statement.And(primaryKey, id);
+
+            return statement;
+        }
+
+
         public bool Store(T obj)
         {
             return Store(new T[] { obj });
@@ -145,7 +165,15 @@ namespace Meuzz.Persistence
 
         public bool Delete(params object[] id)
         {
-            throw new NotImplementedException();
+            var primaryKey = typeof(T).GetPrimaryKey();
+
+            var statement = new DeleteStatement<T>();
+            statement.And(primaryKey, id);
+
+            var sql = _formatter.Format(statement, out var context);
+            var rset = _connection.Execute(sql, context);
+
+            return true;
         }
 
         public class MyEqualityComparer : IEqualityComparer<object>

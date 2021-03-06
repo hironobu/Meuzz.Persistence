@@ -96,6 +96,24 @@ namespace Meuzz.Persistence
             return sb.ToString();
         }
 
+        private string ValueToString(object value)
+        {
+            switch (value)
+            {
+                case string s:
+                    return Quote(s);
+
+                case int[] ns:
+                    return string.Join(", ", ns);
+
+                case object[] objs:
+                    return string.Join(", ", objs);
+
+                default:
+                    return value.ToString();
+            }
+
+        }
 
         protected string FormatElement(Expression exp, bool showsParameterName)
         {
@@ -131,7 +149,7 @@ namespace Meuzz.Persistence
                     }
 
                 case ConstantExpression ce:
-                    return ce.Value is string ? Quote(ce.Value.ToString()) : ce.Value.ToString();
+                    return ValueToString(ce.Value);
 
                 case ParameterExpression pe:
                     return showsParameterName ? pe.Name : "";
@@ -141,10 +159,30 @@ namespace Meuzz.Persistence
                     {
                         return $"{(me.Member.Name)}";
                     }
+                    else if (me.Expression.NodeType == ExpressionType.Constant)
+                    {
+                        var container = ((ConstantExpression)me.Expression).Value;
+                        var member = me.Member;
+                        switch (member)
+                        {
+                            case FieldInfo field:
+                                object value = field.GetValue(container);
+                                return ValueToString(value);
+                        }
+                        throw new NotImplementedException();
+                    }
                     else
                     {
                         return $"{FormatElement(me.Expression, showsParameterName)}.{(me.Member.Name)}";
                     }
+
+                case MethodCallExpression mce:
+                    switch (mce.Method.Name)
+                    {
+                        case "Contains":
+                            return $"{FormatElement(mce.Arguments[1], showsParameterName)} IN ({FormatElement(mce.Arguments[0], showsParameterName)})";
+                    }
+                    break;
             }
 
             throw new NotImplementedException();

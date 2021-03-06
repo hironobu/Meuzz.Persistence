@@ -391,6 +391,32 @@ namespace Meuzz.Persistence
             return this;
         }
 
+        public virtual IFilterable<T> And(string key, params object[] value)
+        {
+            var t = typeof(T);
+            var px = Expression.Parameter(t, "x");
+            Expression f = null;
+
+            if (value.Length == 1)
+            {
+                f = Expression.Equal(
+                    Expression.MakeMemberAccess(px, t.GetPrimaryPropertyInfo()),
+                    Expression.Constant(value[0]));
+            }
+            else
+            {
+                var tt = value.GetType();
+                var ppi = t.GetPrimaryPropertyInfo();
+                var ff = typeof(PersistentExpressionExtensions).GetMethod("Contains", BindingFlags.Public | BindingFlags.Static).MakeGenericMethod(typeof(object), ppi.PropertyType);
+                f = Expression.Call(ff,
+                    Expression.Constant(value),
+                    Expression.MakeMemberAccess(px, ppi)
+                    );
+            }
+
+            return And(Expression.Lambda<Func<T, bool>>(f, px));
+        }
+
         public virtual IFilterable<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new()
         {
             var lambdaexp = (propexp as LambdaExpression).Body;
@@ -513,7 +539,42 @@ namespace Meuzz.Persistence
             this.Condition = cond;
             return this;
         }
+
+        public virtual DeleteStatement<T> And(string key, params object[] value)
+        {
+            var t = typeof(T);
+            var px = Expression.Parameter(t, "x");
+            Expression f = null;
+
+            if (value.Length == 1)
+            {
+                f = Expression.Equal(
+                    Expression.MakeMemberAccess(px, t.GetPrimaryPropertyInfo()),
+                    Expression.Constant(value[0]));
+            }
+            else
+            {
+                var tt = value.GetType();
+                var ppi = t.GetPrimaryPropertyInfo();
+                var ff = typeof(PersistentExpressionExtensions).GetMethod("Contains", BindingFlags.Public | BindingFlags.Static).MakeGenericMethod(typeof(object), ppi.PropertyType);
+                f = Expression.Call(ff,
+                    Expression.Constant(value),
+                    Expression.MakeMemberAccess(px, ppi)
+                    );
+            }
+
+            return And(Expression.Lambda<Func<T, bool>>(f, px));
+        }
     }
+
+    public static class PersistentExpressionExtensions
+    {
+        public static bool Contains<T, TT>(this T[] objs, TT target)
+        {
+            return objs.Contains(target);
+        }
+    }
+
 /*
     public class SqlElement
     {

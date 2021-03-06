@@ -6,18 +6,6 @@ using Xunit;
 
 namespace Meuzz.Persistence.Tests
 {
-    public class TypeExtensions
-    {
-        public static Type FindTypeFromClassName(Type self, Assembly assembly, string className)
-        {
-            var ts = assembly.GetTypes();
-
-            return ts.Single(x => x.Name == className);
-        }
-
-    }
-
-
     [PersistentClass("Players")]
     public class Player
     {
@@ -103,12 +91,12 @@ namespace Meuzz.Persistence.Tests
 
 
 
-    public class PersistenceTest
+    public class RepositoryTest
     {
         private Connection _connection;
         private ObjectRepository<Player> _repository;
 
-        public PersistenceTest()
+        public RepositoryTest()
         {
             _connection = new SqliteConnectionImpl("dummy.sqlite");
             _connection.Open();
@@ -128,6 +116,26 @@ namespace Meuzz.Persistence.Tests
             _repository = new ObjectRepository<Player>(_connection, new SqliteSqlBuilder<Player>(), new SqliteFormatter(), new SqliteCollator());
 
             Console.WriteLine("OK");
+        }
+
+        [Fact]
+        public void TestLoadById()
+        {
+            var objs = _repository.Load(1);
+            Assert.Single(objs);
+            Assert.Equal((Int64)1, objs.ElementAt(0).Id);
+            var objs2 = _repository.Load(2);
+            Assert.Single(objs2);
+            Assert.Equal((Int64)2, objs2.ElementAt(0).Id);
+
+            var objs3 = _repository.Load(1, 2, 3);
+            Assert.Equal(3, objs3.Count());
+            Assert.Equal((Int64)1, objs3.ElementAt(0).Id);
+            Assert.Equal("aaa", objs3.ElementAt(0).Name);
+            Assert.Equal((Int64)2, objs3.ElementAt(1).Id);
+            Assert.Equal("bbb", objs3.ElementAt(1).Name);
+            Assert.Equal((Int64)3, objs3.ElementAt(2).Id);
+            Assert.Equal("ccc", objs3.ElementAt(2).Name);
         }
 
         [Fact]
@@ -247,5 +255,71 @@ namespace Meuzz.Persistence.Tests
             var rset3 = _connection.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
         }
+
+        [Fact]
+        public void TestDeleteById()
+        {
+            var rset = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(3, rset.Results.Count());
+
+            _repository.Store(new Player() { Name = "xxx" });
+
+            var rset2 = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(4, rset2.Results.Count());
+
+            _repository.Delete(4);
+
+            var rset3 = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(3, rset3.Results.Count());
+            Assert.Equal((Int64)1, rset3.Results.ElementAt(0)["id"]);
+            Assert.Equal((Int64)2, rset3.Results.ElementAt(1)["id"]);
+            Assert.Equal((Int64)3, rset3.Results.ElementAt(2)["id"]);
+        }
+
+        [Fact]
+        public void TestDeleteByIds()
+        {
+            var rset = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(3, rset.Results.Count());
+
+            _repository.Store(new Player() { Name = "xxx" });
+            _repository.Store(new Player() { Name = "yyy" });
+            _repository.Store(new Player() { Name = "zzz" });
+
+            var rset2 = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(6, rset2.Results.Count());
+
+            _repository.Delete(4, 5, 6);
+
+            var rset3 = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(3, rset3.Results.Count());
+            Assert.Equal((Int64)1, rset3.Results.ElementAt(0)["id"]);
+            Assert.Equal((Int64)2, rset3.Results.ElementAt(1)["id"]);
+            Assert.Equal((Int64)3, rset3.Results.ElementAt(2)["id"]);
+        }
+
+        [Fact]
+        public void TestDeleteByIdsWithExpression()
+        {
+            var rset = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(3, rset.Results.Count());
+
+            _repository.Store(new Player() { Name = "xxx" });
+            _repository.Store(new Player() { Name = "yyy" });
+            _repository.Store(new Player() { Name = "zzz" });
+
+            var rset2 = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(6, rset2.Results.Count());
+
+            var ids = new int[] { 4, 5, 6 };
+            _repository.Delete(x => ids.Contains(x.Id));
+
+            var rset3 = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(3, rset3.Results.Count());
+            Assert.Equal((Int64)1, rset3.Results.ElementAt(0)["id"]);
+            Assert.Equal((Int64)2, rset3.Results.ElementAt(1)["id"]);
+            Assert.Equal((Int64)3, rset3.Results.ElementAt(2)["id"]);
+        }
+
     }
 }
