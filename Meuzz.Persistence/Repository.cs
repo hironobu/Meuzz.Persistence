@@ -191,7 +191,7 @@ namespace Meuzz.Persistence
             });
 
             var resultDict = new Dictionary<string, IDictionary<dynamic, IDictionary<string, object>>>();
-            var resultObjects = new Dictionary<string, IDictionary<dynamic, object>>();
+            var resultObjects = new Dictionary<string, IDictionary<dynamic, IDictionary<string, object>>>();
 
             foreach (var row in rows)
             {
@@ -225,22 +225,22 @@ namespace Meuzz.Persistence
                 return new List<T>();
             }
 
-            var objectTree = new Dictionary<string, Dictionary<string, Dictionary<dynamic, List<object>>>>();
+            // var objectTree = new Dictionary<string, Dictionary<string, Dictionary<dynamic, List<object>>>>();
             foreach (var x in resultDict.Keys)
             {
                 foreach (var binding in statement.GetBindingsForPrimaryParamName(x))
                 {
-                    if (!objectTree.TryGetValue(binding.ForeignParamName, out var d))
-                    {
-                        d = new Dictionary<string, Dictionary<dynamic, List<object>>>();
-                        objectTree.Add(binding.ForeignParamName, d);
-                    }
+                    //if (!objectTree.TryGetValue(binding.ForeignParamName, out var d))
+                    //{
+                    //    d = new Dictionary<string, Dictionary<dynamic, List<object>>>();
+                    //    objectTree.Add(binding.ForeignParamName, d);
+                    //}
 
-                    if (!d.TryGetValue(binding.ForeignKey, out var dd))
-                    {
-                        dd = new Dictionary<dynamic, List<object>>(new MyEqualityComparer());
-                        d.Add(binding.ForeignKey, dd);
-                    }
+                    //if (!d.TryGetValue(binding.ForeignKey, out var dd))
+                    //{
+                    //    dd = new Dictionary<dynamic, List<object>>(new MyEqualityComparer());
+                    //    d.Add(binding.ForeignKey, dd);
+                    //}
                 }
             }
 
@@ -256,9 +256,8 @@ namespace Meuzz.Persistence
                 {
                     var v = x.Value;
                     var o = PopulateObject(t, v.Keys, v.Values);
-                    if (objectTree.ContainsKey(k))
+                    /*if (objectTree.ContainsKey(k))
                     {
-
                         foreach (var (kk, vv) in v)
                         {
                             if (!objectTree.ContainsKey(k) || !objectTree[k].ContainsKey(kk))
@@ -273,25 +272,26 @@ namespace Meuzz.Persistence
                             }
                             os.Add(o);
                         }
-                    }
-                    return o;
+                    }*/
+                    v["__object"] = o;
+                    return v;
                 });
                 var primaryKeyValue = t.GetProperty(StringUtils.ToCamel(t.GetPrimaryKey(), true));
-                resultObjects.Add(k, objs.ToDictionary(x => primaryKeyValue.GetValue(x), x => x));
+                resultObjects.Add(k, objs.ToDictionary(x => primaryKeyValue.GetValue(x["__object"]), x => x));
             }
 
             Func<string, Action<dynamic, dynamic>> propertySetter = (string prop) => (dynamic x, dynamic value) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).SetValue(x, value);
             Func<string, Action<dynamic, dynamic>> dictionarySetter = (string key) => (dynamic x, dynamic value) => x[key] = value;
             Action<dynamic, string, dynamic> memberUpdater = (x, memb, value) =>
             {
-                Type t = x.GetType();
-                if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Dictionary<,>))
+                //Type t = x.GetType();
+                //if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Dictionary<,>))
+                //{
+                //    dictionarySetter(memb)(x, value);
+                //}
+                //else
                 {
-                    dictionarySetter(memb)(x, value);
-                }
-                else
-                {
-                    propertySetter(memb)(x, value);
+                    propertySetter(memb)(x["__object"], value);
                 }
             };
 
@@ -306,7 +306,7 @@ namespace Meuzz.Persistence
                 }
                 else
                 {
-                    return propertyGetter(memb)(x);
+                    return propertyGetter(memb)(x["__object"]);
                 }
             };
 
@@ -314,24 +314,24 @@ namespace Meuzz.Persistence
             {
                 var fromObjs = resultObjects[bindingSpec.PrimaryParamName].Values;
 
-                Func<object, Func<object, bool>> filteringConditions = (x) => (y) => bindingSpec.ConditionFunc(x, y);
-                Func<object, object> fmap = x =>
+                Func<dynamic, Func<dynamic, bool>> filteringConditions = (x) => (y) => bindingSpec.ConditionFunc(x, y);
+                Func<IDictionary<string, object>, object> fmap = x =>
                 {
                     var pkv = memberAccessor(bindingSpec.PrimaryKey)(x);
-                    var targetToObjs = objectTree[bindingSpec.ForeignParamName].Where(filteringConditions(x));
+                    var targetToObjs = resultObjects[bindingSpec.ForeignParamName].Values.Where(filteringConditions(x));
                     if (targetToObjs.Count() > 0)
                     //if (objectTree[bindingSpec.ForeignParamName][bindingSpec.ForeignKey].TryGetValue(pkv, out List<object> targetToObjs))
                     {
                         foreach (var o in targetToObjs)
                         {
                             var k0 = StringUtils.ToCamel(bindingSpec.ForeignKey.Replace("_id", ""), true);
-                            memberUpdater(o, k0, x);
+                            memberUpdater(o, k0, x["__object"]);
                         }
-                        memberUpdater(x, bindingSpec.MemberInfo.Name, regularCollection((bindingSpec.MemberInfo as PropertyInfo).PropertyType, targetToObjs));
+                        memberUpdater(x, bindingSpec.MemberInfo.Name, regularCollection((bindingSpec.MemberInfo as PropertyInfo).PropertyType, targetToObjs.Select(y => y["__object"])));
                     }
                     else
                     {
-                        memberUpdater(x, bindingSpec.MemberInfo.Name, regularCollection((bindingSpec.MemberInfo as PropertyInfo).PropertyType, MakeGenerator(bindingSpec, x)));
+                        memberUpdater(x, bindingSpec.MemberInfo.Name, regularCollection((bindingSpec.MemberInfo as PropertyInfo).PropertyType, MakeGenerator(bindingSpec, x["__object"])));
                     }
                     return x;
                 };
@@ -342,7 +342,7 @@ namespace Meuzz.Persistence
             return (IEnumerable<T>)typeof(Enumerable)
                             .GetMethod("Cast")
                             .MakeGenericMethod(typeof(T))
-                            .Invoke(null, new object[] { resultObjects[statement.ParamInfo.GetDefaultParamName()].Values });
+                            .Invoke(null, new object[] { resultObjects[statement.ParamInfo.GetDefaultParamName()].Values.Select(x => x["__object"]) });
         }
 
         private IEnumerable<object> MakeGenerator(BindingSpec bindingSpec, object self)
