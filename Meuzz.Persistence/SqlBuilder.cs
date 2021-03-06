@@ -92,7 +92,7 @@ namespace Meuzz.Persistence
     {
         public override IFilterable<T> BuildSelect()
         {
-            return new SelectStatement<T>(this);
+            return new SelectStatement<T>();
         }
     }
 }

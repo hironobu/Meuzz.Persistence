@@ -360,11 +360,9 @@ namespace Meuzz.Persistence
     public class SelectStatement<T> : SqlSelectStatement, IFilterable<T>, IEnumerable<T> where T : class, new()
     {
         public Func<SelectStatement<T>, IEnumerable<T>> OnExecute { get; set; } = null;
-        private SqlBuilder<T> _sqlBuilder = null;
 
-        public SelectStatement(SqlBuilder<T> sqlBuilder) : base(typeof(T))
+        public SelectStatement() : base(typeof(T))
         {
-            _sqlBuilder = sqlBuilder;
         }
 
         public virtual IFilterable<T> And(Expression<Func<T, bool>> cond)

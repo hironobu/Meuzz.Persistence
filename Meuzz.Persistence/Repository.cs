@@ -104,7 +104,7 @@ namespace Meuzz.Persistence
 
         public IFilterable<T> Load(Expression<Func<T, bool>> f = null)
         {
-            var statement = new SelectStatement<T>(_sqlBuilder)
+            var statement = new SelectStatement<T>()
             {
                 OnExecute = (stmt) =>
                 {
@@ -126,7 +126,7 @@ namespace Meuzz.Persistence
         {
             var primaryKey = typeof(T).GetPrimaryKey();
 
-            var statement = new SelectStatement<T>(_sqlBuilder)
+            var statement = new SelectStatement<T>()
             {
                 OnExecute = (stmt) =>
                 {
