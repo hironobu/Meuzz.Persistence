@@ -43,7 +43,7 @@ namespace Meuzz.Persistence
                         var cond = bindingSpec.ConditionSql;
                         sb.Append($" LEFT JOIN {bindingSpec.ForeignType.GetTableName()} {bindingSpec.ForeignParamName} ON {cond}");
                     }
-                    sb.Append($" WHERE {FormatElement(selectStatement.Condition)}");
+                    sb.Append($" WHERE {FormatElement(selectStatement.Condition, true)}");
                     break;
 
                 case SqlInsertOrUpdateStatement insertOrUpdateStatement:
@@ -82,6 +82,14 @@ namespace Meuzz.Persistence
                         }
                     }
                     break;
+
+                case SqlDeleteStatement deleteStatement:
+                    sb.Append($"DELETE FROM {deleteStatement.TableName}");
+                    sb.Append($" WHERE {FormatElement(deleteStatement.Condition, false)}");
+                    break;
+
+                default:
+                    throw new NotImplementedException();
             }
 
             context = sqliteContext;
@@ -89,46 +97,54 @@ namespace Meuzz.Persistence
         }
 
 
-        protected string FormatElement(Expression exp)
+        protected string FormatElement(Expression exp, bool showsParameterName)
         {
             switch (exp)
             {
                 case LambdaExpression lmbe:
-                    return FormatElement(lmbe.Body);
+                    return FormatElement(lmbe.Body, showsParameterName);
 
                 case BinaryExpression bine:
                     switch (bine.NodeType)
                     {
                         case ExpressionType.AndAlso:
-                            return $"({FormatElement(bine.Left)}) AND ({FormatElement(bine.Right)})";
+                            return $"({FormatElement(bine.Left, showsParameterName)}) AND ({FormatElement(bine.Right, showsParameterName)})";
                         case ExpressionType.Or:
-                            return $"({FormatElement(bine.Left)}) OR ({FormatElement(bine.Right)})";
+                            return $"({FormatElement(bine.Left, showsParameterName)}) OR ({FormatElement(bine.Right, showsParameterName)})";
                         case ExpressionType.LessThan:
-                            return $"({FormatElement(bine.Left)}) < ({FormatElement(bine.Right)})";
+                            return $"({FormatElement(bine.Left, showsParameterName)}) < ({FormatElement(bine.Right, showsParameterName)})";
                         case ExpressionType.LessThanOrEqual:
-                            return $"({FormatElement(bine.Left)}) <= ({FormatElement(bine.Right)})";
+                            return $"({FormatElement(bine.Left, showsParameterName)}) <= ({FormatElement(bine.Right, showsParameterName)})";
                         case ExpressionType.GreaterThan:
-                            return $"({FormatElement(bine.Left)}) > ({FormatElement(bine.Right)})";
+                            return $"({FormatElement(bine.Left, showsParameterName)}) > ({FormatElement(bine.Right, showsParameterName)})";
                         case ExpressionType.GreaterThanOrEqual:
-                            return $"({FormatElement(bine.Left)}) >= ({FormatElement(bine.Right)})";
+                            return $"({FormatElement(bine.Left, showsParameterName)}) >= ({FormatElement(bine.Right, showsParameterName)})";
                         case ExpressionType.Equal:
-                            return $"({FormatElement(bine.Left)}) = ({FormatElement(bine.Right)})";
+                            return $"({FormatElement(bine.Left, showsParameterName)}) = ({FormatElement(bine.Right, showsParameterName)})";
                         case ExpressionType.NotEqual:
-                            return $"({FormatElement(bine.Left)}) != ({FormatElement(bine.Right)})";
+                            return $"({FormatElement(bine.Left, showsParameterName)}) != ({FormatElement(bine.Right, showsParameterName)})";
 
-                        case ExpressionType.MemberAccess:
-                            return $"{FormatElement(bine.Left)}.{FormatElement(bine.Right)}";
+                        // case ExpressionType.MemberAccess:
+                        // return $"{FormatElement(bine.Left)}.{FormatElement(bine.Right)}";
+                        default:
+                            throw new NotImplementedException();
                     }
-                    break;
 
                 case ConstantExpression ce:
                     return ce.Value is string ? Quote(ce.Value.ToString()) : ce.Value.ToString();
 
                 case ParameterExpression pe:
-                    return pe.Name;
+                    return showsParameterName ? pe.Name : "";
 
                 case MemberExpression me:
-                    return $"{FormatElement(me.Expression)}.{(me.Member.Name)}";
+                    if (me.Expression.NodeType == ExpressionType.Parameter && !showsParameterName)
+                    {
+                        return $"{(me.Member.Name)}";
+                    }
+                    else
+                    {
+                        return $"{FormatElement(me.Expression, showsParameterName)}.{(me.Member.Name)}";
+                    }
             }
 
             throw new NotImplementedException();

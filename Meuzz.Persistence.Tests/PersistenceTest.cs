@@ -233,7 +233,19 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestDelete()
         {
-            // _repository.Delete((x) => x.id);
+            var rset = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(3, rset.Results.Count());
+
+            _repository.Store(new Player() { Name = "xxx" });
+
+            var rset2 = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(4, rset2.Results.Count());
+
+            _repository.Delete((x) => x.Id == 4);
+            // _repository.Delete(4);
+
+            var rset3 = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(3, rset3.Results.Count());
         }
     }
 }

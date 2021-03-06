@@ -21,7 +21,7 @@ namespace Meuzz.Persistence
 
         public ParamInfo ParamInfo { get; set; } = new ParamInfo();
 
-        public SqlSelectStatement() : base() { }
+        public SqlSelectStatement(Type t) : base() { }
 
         public BindingSpec GetBindingSpecByParamName(string from, string to)
         {
@@ -362,7 +362,7 @@ namespace Meuzz.Persistence
         public Func<SelectStatement<T>, IEnumerable<T>> OnExecute { get; set; } = null;
         private SqlBuilder<T> _sqlBuilder = null;
 
-        public SelectStatement(SqlBuilder<T> sqlBuilder) : base()
+        public SelectStatement(SqlBuilder<T> sqlBuilder) : base(typeof(T))
         {
             _sqlBuilder = sqlBuilder;
         }
@@ -376,7 +376,15 @@ namespace Meuzz.Persistence
 
             var p = lme.Parameters.First<ParameterExpression>();
             //var pel = _sqlBuilder.BuildCondition(null, p) as SqlParameterElement;
-            ParamInfo.RegisterParameter(p.Name, p.Type, true);
+            var defaultParamName = ParamInfo.GetDefaultParamName();
+            if (defaultParamName == null)
+            {
+                ParamInfo.RegisterParameter(p.Name, p.Type, true);
+            }
+            else if (defaultParamName != p.Name)
+            {
+                throw new NotImplementedException();
+            }
 
             //this.Root = _sqlBuilder.BuildCondition(this.Root, lme.Body);
             this.Condition = cond;
@@ -411,9 +419,6 @@ namespace Meuzz.Persistence
         {
             return OnExecute(this).GetEnumerator();
         }
-
-        // private SqlElement _conditions = null;
-        // public override SqlElement Conditions { get => _conditions; }
     }
 
     public class SqlInsertOrUpdateStatement : SqlStatement
@@ -448,6 +453,20 @@ namespace Meuzz.Persistence
         }
     }
 
+    public class SqlDeleteStatement : SqlStatement
+    {
+        public string TableName { get; set; }
+        public Expression Condition { get; set; }
+
+        public ParamInfo ParamInfo { get; set; } = new ParamInfo();
+
+
+        public SqlDeleteStatement(Type t)
+        {
+            TableName = t.GetTableName();
+        }
+    }
+
     public class InsertOrUpdateStatement<T> : SqlInsertOrUpdateStatement where T : class, new()
     {
         public InsertOrUpdateStatement(bool isInsert) : base(typeof(T), isInsert)
@@ -463,6 +482,37 @@ namespace Meuzz.Persistence
     public class UpdateStatement<T> : InsertOrUpdateStatement<T> where T : class, new()
     {
         public UpdateStatement() : base(false) { }
+    }
+
+    public class DeleteStatement<T> : SqlDeleteStatement where T : class, new()
+    {
+        public DeleteStatement() : base(typeof(T))
+        {
+
+        }
+
+        public virtual DeleteStatement<T> And(Expression<Func<T, bool>> cond)
+        {
+            if (!(cond is LambdaExpression lme))
+            {
+                throw new NotImplementedException();
+            }
+
+            var p = lme.Parameters.First<ParameterExpression>();
+            //var pel = _sqlBuilder.BuildCondition(null, p) as SqlParameterElement;
+            var defaultParamName = ParamInfo.GetDefaultParamName();
+            if (defaultParamName == null)
+            {
+                ParamInfo.RegisterParameter(p.Name, p.Type, true);
+            }
+            else if (defaultParamName != p.Name)
+            {
+                throw new NotImplementedException();
+            }
+
+            this.Condition = cond;
+            return this;
+        }
     }
 /*
     public class SqlElement

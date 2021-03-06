@@ -132,12 +132,21 @@ namespace Meuzz.Persistence
             return StoreObjects(typeof(T), objs, null);
         }
 
-
         public bool Delete(Expression<Func<T, bool>> f)
         {
+            var statement = new DeleteStatement<T>();
+            statement.And(f);
+
+            var sql = _formatter.Format(statement, out var context);
+            var rset = _connection.Execute(sql, context);
+
             return true;
         }
 
+        public bool Delete(params object[] id)
+        {
+            throw new NotImplementedException();
+        }
 
         public class MyEqualityComparer : IEqualityComparer<object>
         {
@@ -201,15 +210,10 @@ namespace Meuzz.Persistence
                     var tt = statement.ParamInfo.GetParameterTypeByParamName(k);
                     var pk = tt.GetPrimaryKey();
 
-                    IDictionary<object, IDictionary<string, object>> dd = null;
-                    if (!resultDict.TryGetValue(k, out var val))
+                    if (!resultDict.TryGetValue(k, out var dd))
                     {
                         dd = new Dictionary<object, IDictionary<string, object>>();
-                        resultDict[k] = dd;
-                    }
-                    else
-                    {
-                        dd = val as IDictionary<object, IDictionary<string, object>>;
+                        resultDict.Add(k, dd);
                     }
 
                     var pkval = d[pk];
@@ -225,90 +229,49 @@ namespace Meuzz.Persistence
                 return new List<T>();
             }
 
-            // var objectTree = new Dictionary<string, Dictionary<string, Dictionary<dynamic, List<object>>>>();
-            foreach (var x in resultDict.Keys)
-            {
-                foreach (var binding in statement.GetBindingsForPrimaryParamName(x))
-                {
-                    //if (!objectTree.TryGetValue(binding.ForeignParamName, out var d))
-                    //{
-                    //    d = new Dictionary<string, Dictionary<dynamic, List<object>>>();
-                    //    objectTree.Add(binding.ForeignParamName, d);
-                    //}
-
-                    //if (!d.TryGetValue(binding.ForeignKey, out var dd))
-                    //{
-                    //    dd = new Dictionary<dynamic, List<object>>(new MyEqualityComparer());
-                    //    d.Add(binding.ForeignKey, dd);
-                    //}
-                }
-            }
-
-            Func<Type, IEnumerable<object>, IEnumerable<object>> regularCollection
-                = (t, objs) => (IEnumerable<object>)typeof(Enumerable)
-                    .GetMethod("Cast")
-                    .MakeGenericMethod((t.IsGenericType) ? t.GetGenericArguments()[0] : t)
-                    .Invoke(null, new object[] { objs });
-
             foreach (var (k, v) in resultDict) {
                 var t = statement.ParamInfo.GetParameterTypeByParamName(k);
                 var objs = resultDict[k].Select(x =>
                 {
                     var v = x.Value;
-                    var o = PopulateObject(t, v.Keys, v.Values);
-                    /*if (objectTree.ContainsKey(k))
-                    {
-                        foreach (var (kk, vv) in v)
-                        {
-                            if (!objectTree.ContainsKey(k) || !objectTree[k].ContainsKey(kk))
-                            {
-                                continue;
-                            }
-
-                            if (!objectTree[k][kk].TryGetValue(vv, out var os))
-                            {
-                                os = new List<object>();
-                                objectTree[k][kk].Add(vv, os);
-                            }
-                            os.Add(o);
-                        }
-                    }*/
-                    v["__object"] = o;
+                    v["__object"] = PopulateObject(t, v.Keys, v.Values);
                     return v;
                 });
                 var primaryKeyValue = t.GetProperty(StringUtils.ToCamel(t.GetPrimaryKey(), true));
                 resultObjects.Add(k, objs.ToDictionary(x => primaryKeyValue.GetValue(x["__object"]), x => x));
             }
 
+            BuildBindings(statement, resultObjects);
+
+            return (IEnumerable<T>)typeof(Enumerable)
+                            .GetMethod("Cast")
+                            .MakeGenericMethod(typeof(T))
+                            .Invoke(null, new object[] { resultObjects[statement.ParamInfo.GetDefaultParamName()].Values.Select(x => x["__object"]) });
+        }
+
+        private void BuildBindings(SqlSelectStatement statement, IDictionary<string, IDictionary<dynamic, IDictionary<string, object>>> resultObjects)
+        {
             Func<string, Action<dynamic, dynamic>> propertySetter = (string prop) => (dynamic x, dynamic value) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).SetValue(x, value);
-            Func<string, Action<dynamic, dynamic>> dictionarySetter = (string key) => (dynamic x, dynamic value) => x[key] = value;
             Action<dynamic, string, dynamic> memberUpdater = (x, memb, value) =>
             {
-                //Type t = x.GetType();
-                //if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Dictionary<,>))
-                //{
-                //    dictionarySetter(memb)(x, value);
-                //}
-                //else
-                {
-                    propertySetter(memb)(x["__object"], value);
-                }
+                propertySetter(memb)(x["__object"], value);
             };
 
             Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).GetValue(x);
-            Func<string, Func<dynamic, dynamic>> dictionaryGetter = (string key) => (dynamic x) => x[key];
             Func<string, Func<dynamic, dynamic>> memberAccessor = (string memb) => (dynamic x) =>
             {
-                Type t = x.GetType();
-                if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Dictionary<,>))
+                if (x.ContainsKey(memb))
                 {
-                    return dictionaryGetter(memb)(x);
+                    return x[memb];
                 }
-                else
-                {
-                    return propertyGetter(memb)(x["__object"]);
-                }
+                return propertyGetter(memb)(x["__object"]);
             };
+
+            Func<Type, IEnumerable<object>, IEnumerable<object>> regularCollection
+                = (t, objs) => (IEnumerable<object>)typeof(Enumerable)
+                    .GetMethod("Cast")
+                    .MakeGenericMethod((t.IsGenericType) ? t.GetGenericArguments()[0] : t)
+                    .Invoke(null, new object[] { objs });
 
             foreach (var bindingSpec in statement.GetAllBindings())
             {
@@ -320,7 +283,6 @@ namespace Meuzz.Persistence
                     var pkv = memberAccessor(bindingSpec.PrimaryKey)(x);
                     var targetToObjs = resultObjects[bindingSpec.ForeignParamName].Values.Where(filteringConditions(x));
                     if (targetToObjs.Count() > 0)
-                    //if (objectTree[bindingSpec.ForeignParamName][bindingSpec.ForeignKey].TryGetValue(pkv, out List<object> targetToObjs))
                     {
                         foreach (var o in targetToObjs)
                         {
@@ -339,10 +301,6 @@ namespace Meuzz.Persistence
                 Console.WriteLine(r);
             }
 
-            return (IEnumerable<T>)typeof(Enumerable)
-                            .GetMethod("Cast")
-                            .MakeGenericMethod(typeof(T))
-                            .Invoke(null, new object[] { resultObjects[statement.ParamInfo.GetDefaultParamName()].Values.Select(x => x["__object"]) });
         }
 
         private IEnumerable<object> MakeGenerator(BindingSpec bindingSpec, object self)
