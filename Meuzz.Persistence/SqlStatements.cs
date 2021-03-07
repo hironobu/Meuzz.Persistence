@@ -74,6 +74,19 @@ namespace Meuzz.Persistence
         public T1 Right = null;
     }
 
+    public class BindingConditionEvaluatorParams
+    {
+        public Func<dynamic, dynamic, bool> Comparator { get; set; } = null;
+        public dynamic Left { get; set; } = null;
+        public dynamic Right { get; set; } = null;
+
+        public BindingConditionEvaluatorParams(Func<dynamic, dynamic, bool> comparator, dynamic left, dynamic right)
+        {
+            Comparator = comparator;
+            Left = left;
+            Right = right;
+        }
+    }
 
     public class BindingSpec
     {
@@ -104,7 +117,7 @@ namespace Meuzz.Persistence
         }
         private Func<dynamic, dynamic, bool> _defaultConditionFunc = null;
 
-        public (Func<dynamic, dynamic, bool>, dynamic, dynamic)? ConditionParams { get; set; } = null;
+        public BindingConditionEvaluatorParams ConditionParams { get; set; } = null;
 
         public MemberInfo MemberInfo { get; set; } = null;
 
@@ -130,7 +143,7 @@ namespace Meuzz.Persistence
         {
             Func<Func<dynamic, dynamic, bool>, dynamic, dynamic, bool> evaluator = (f, xx, yy) => f(Evaluate(xx), Evaluate(yy));
 
-            return (x, y) => evaluator(ConditionParams.Value.Item1, ConditionParams.Value.Item2(x), ConditionParams.Value.Item3(y));
+            return (x, y) => evaluator(ConditionParams.Comparator, ConditionParams.Left(x), ConditionParams.Right(y));
         }
 
         private static Func<dynamic, dynamic, bool> MakeDefaultFunc(string foreignKey, string primaryKey)
@@ -202,8 +215,21 @@ namespace Meuzz.Persistence
             }
         }
 
+        public class BindingCondition
+        {
+            public Func<dynamic, dynamic, bool> Comparator { get; set; } = null;
+            public BindingConditionEntry Left { get; set; } = null;
+            public BindingConditionEntry Right { get; set; } = null;
 
-        public static (Func<dynamic, dynamic, bool>, BindingConditionEntry, BindingConditionEntry) New(Type t, Expression exp, ConditionContext context = null)
+            public BindingCondition(Func<dynamic, dynamic, bool> comparator, BindingConditionEntry left, BindingConditionEntry right)
+            {
+                Comparator = comparator;
+                Left = left;
+                Right = right;
+            }
+        }
+
+        public static BindingCondition New(Type t, Expression exp, ConditionContext context = null)
         {
             Func<Func<dynamic, dynamic>, Func<dynamic, dynamic>, Func<dynamic, dynamic, bool>, Func<dynamic, dynamic, bool>> conditionFuncMaker = (Func<dynamic, dynamic> f, Func<dynamic, dynamic> g, Func<dynamic, dynamic, bool> ev) => (dynamic x, dynamic y) => ev(f(x), g(y)); // propertyGetter(defaultType, primaryKey)(l) == dictionaryGetter(foreignKey)(r);
             if (exp == null)
@@ -221,27 +247,27 @@ namespace Meuzz.Persistence
                     {
                         case ExpressionType.Equal:
                             Func<dynamic, dynamic, bool> eq = (x, y) => x == y;
-                            return (eq, left, right);
+                            return new BindingCondition(eq, left, right);
 
                         case ExpressionType.NotEqual:
                             Func<dynamic, dynamic, bool> ne = (x, y) => x != y;
-                            return (ne, left, right);
+                            return new BindingCondition(ne, left, right);
 
                         case ExpressionType.LessThan:
                             Func<dynamic, dynamic, bool> lt = (x, y) => x < y;
-                            return (lt, left, right);
+                            return new BindingCondition(lt, left, right);
 
                         case ExpressionType.LessThanOrEqual:
                             Func<dynamic, dynamic, bool> lte = (x, y) => x <= y;
-                            return (lte, left, right);
+                            return new BindingCondition(lte, left, right);
 
                         case ExpressionType.GreaterThan:
                             Func<dynamic, dynamic, bool> gt = (x, y) => x > y;
-                            return (gt, left, right);
+                            return new BindingCondition(gt, left, right);
 
                         case ExpressionType.GreaterThanOrEqual:
                             Func<dynamic, dynamic, bool> gte = (x, y) => x >= y;
-                            return (gte, left, right);
+                            return new BindingCondition(gte, left, right);
                     }
                     break;
             }
@@ -272,19 +298,19 @@ namespace Meuzz.Persistence
 
                 var bindingParams = BindingSpec.New(memberInfo.DeclaringType, lme.Body, context);
 
-                var primaryKey = StringUtils.ToSnake(string.Join("_", bindingParams.Item2.e.Type == context.PrimaryType ? bindingParams.Item2.path : bindingParams.Item3.path));
-                var foreignKey = StringUtils.ToSnake(string.Join("_", bindingParams.Item2.e.Type != context.PrimaryType ? bindingParams.Item2.path : bindingParams.Item3.path));
+                var primaryKey = StringUtils.ToSnake(string.Join("_", bindingParams.Left.e.Type == context.PrimaryType ? bindingParams.Left.path : bindingParams.Right.path));
+                var foreignKey = StringUtils.ToSnake(string.Join("_", bindingParams.Left.e.Type != context.PrimaryType ? bindingParams.Left.path : bindingParams.Right.path));
 
                 var fs = new Func<dynamic, dynamic>[parameters.Length];
-                fs[Array.IndexOf(parameters, bindingParams.Item2.e.Name)] = bindingParams.Item2.f;
-                fs[Array.IndexOf(parameters, bindingParams.Item3.e.Name)] = bindingParams.Item3.f;
+                fs[Array.IndexOf(parameters, bindingParams.Left.e.Name)] = bindingParams.Left.f;
+                fs[Array.IndexOf(parameters, bindingParams.Right.e.Name)] = bindingParams.Right.f;
 
                 bindingSpec = new BindingSpec()
                 {
                     PrimaryKey = primaryKey,
                     ForeignKey = foreignKey,
                     // ConditionSql = FormatElement(lme),
-                    ConditionParams = (bindingParams.Item1, fs[0], fs[1])
+                    ConditionParams = new BindingConditionEvaluatorParams(bindingParams.Comparator, fs[0], fs[1])
                 };
             }
 
