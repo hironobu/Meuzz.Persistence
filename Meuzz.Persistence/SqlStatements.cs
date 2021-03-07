@@ -99,8 +99,6 @@ namespace Meuzz.Persistence
         public Type ForeignType = null;
         public string ForeignParamName { get; set; }
 
-        // public Func<dynamic, dynamic, bool> Condition = null;
-        // public string ConditionSql = null;
         public string ConditionSql { get => GetConditionSql(); }
 
         public Func<dynamic, dynamic, bool> ConditionFunc
@@ -130,7 +128,6 @@ namespace Meuzz.Persistence
             ForeignKey = fk;
             PrimaryKey = pk ?? "id";
             _defaultConditionFunc = MakeDefaultFunc(ForeignKey, PrimaryKey);
-            // ConditionSql = MakeDefaultJoinConditionSql(ForeignKey, PrimaryKey);
         }
 
 
@@ -198,12 +195,12 @@ namespace Meuzz.Persistence
             public string[] path { get; set; } = null;
         }
 
-        private static BindingConditionEntry MakeConditionFunc_(Expression exp)
+        private static BindingConditionEntry NewConditionEntry(Expression exp)
         {
             switch (exp)
             {
                 case MemberExpression me:
-                    var entry = MakeConditionFunc_(me.Expression);
+                    var entry = NewConditionEntry(me.Expression);
                     var member = me.Member;
                     return new BindingConditionEntry() { f = (x) => new BindingConditionElement(entry.f(x), member), e = entry.e, path = entry.path.Concat(new string[] { member.Name }).ToArray() };
 
@@ -229,9 +226,8 @@ namespace Meuzz.Persistence
             }
         }
 
-        public static BindingCondition New(Type t, Expression exp, ConditionContext context = null)
+        public static BindingCondition New(Type t, Expression exp)
         {
-            Func<Func<dynamic, dynamic>, Func<dynamic, dynamic>, Func<dynamic, dynamic, bool>, Func<dynamic, dynamic, bool>> conditionFuncMaker = (Func<dynamic, dynamic> f, Func<dynamic, dynamic> g, Func<dynamic, dynamic, bool> ev) => (dynamic x, dynamic y) => ev(f(x), g(y)); // propertyGetter(defaultType, primaryKey)(l) == dictionaryGetter(foreignKey)(r);
             if (exp == null)
             {
                 throw new NotImplementedException();
@@ -240,8 +236,8 @@ namespace Meuzz.Persistence
             switch (exp)
             {
                 case BinaryExpression bine:
-                    var left = MakeConditionFunc_(bine.Left);
-                    var right = MakeConditionFunc_(bine.Right);
+                    var left = NewConditionEntry(bine.Left);
+                    var right = NewConditionEntry(bine.Right);
 
                     switch (bine.NodeType)
                     {
@@ -292,14 +288,12 @@ namespace Meuzz.Persistence
                     throw new NotImplementedException();
                 }
 
-                var context = new ConditionContext();
-                context.PrimaryType = memberInfo.DeclaringType;
                 var parameters = lme.Parameters.Select(x => x.Name).ToArray();
 
-                var bindingParams = BindingSpec.New(memberInfo.DeclaringType, lme.Body, context);
+                var bindingParams = BindingSpec.New(memberInfo.DeclaringType, lme.Body);
 
-                var primaryKey = StringUtils.ToSnake(string.Join("_", bindingParams.Left.e.Type == context.PrimaryType ? bindingParams.Left.path : bindingParams.Right.path));
-                var foreignKey = StringUtils.ToSnake(string.Join("_", bindingParams.Left.e.Type != context.PrimaryType ? bindingParams.Left.path : bindingParams.Right.path));
+                var primaryKey = StringUtils.ToSnake(string.Join("_", bindingParams.Left.e.Type == memberInfo.DeclaringType ? bindingParams.Left.path : bindingParams.Right.path));
+                var foreignKey = StringUtils.ToSnake(string.Join("_", bindingParams.Left.e.Type != memberInfo.DeclaringType ? bindingParams.Left.path : bindingParams.Right.path));
 
                 var fs = new Func<dynamic, dynamic>[parameters.Length];
                 fs[Array.IndexOf(parameters, bindingParams.Left.e.Name)] = bindingParams.Left.f;
@@ -339,13 +333,6 @@ namespace Meuzz.Persistence
             return bindingSpec;
         }
 
-
-        public class ConditionContext
-        {
-            public Type PrimaryType { get; set; } = null;
-            // public string[] Parameters { get; set; } = null;
-            // public MemberInfo MemberInfo { get; set; } = null;
-        }
 
         public class BindingConditionElement
         {
