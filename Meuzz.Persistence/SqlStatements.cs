@@ -239,6 +239,13 @@ namespace Meuzz.Persistence
                     var left = NewConditionEntry(bine.Left);
                     var right = NewConditionEntry(bine.Right);
 
+                    if (left.e.Type != t)
+                    {
+                        var x = left;
+                        left = right;
+                        right = x;
+                    }
+
                     switch (bine.NodeType)
                     {
                         case ExpressionType.Equal:
@@ -292,19 +299,14 @@ namespace Meuzz.Persistence
 
                 var bindingParams = BindingSpec.New(memberInfo.DeclaringType, lme.Body);
 
-                var primaryKey = StringUtils.ToSnake(string.Join("_", bindingParams.Left.e.Type == memberInfo.DeclaringType ? bindingParams.Left.path : bindingParams.Right.path));
-                var foreignKey = StringUtils.ToSnake(string.Join("_", bindingParams.Left.e.Type != memberInfo.DeclaringType ? bindingParams.Left.path : bindingParams.Right.path));
-
-                var fs = new Func<dynamic, dynamic>[parameters.Length];
-                fs[Array.IndexOf(parameters, bindingParams.Left.e.Name)] = bindingParams.Left.f;
-                fs[Array.IndexOf(parameters, bindingParams.Right.e.Name)] = bindingParams.Right.f;
+                var primaryKey = StringUtils.ToSnake(string.Join("_", bindingParams.Left.path));
+                var foreignKey = StringUtils.ToSnake(string.Join("_", bindingParams.Right.path));
 
                 bindingSpec = new BindingSpec()
                 {
                     PrimaryKey = primaryKey,
                     ForeignKey = foreignKey,
-                    // ConditionSql = FormatElement(lme),
-                    ConditionParams = new BindingConditionEvaluatorParams(bindingParams.Comparator, fs[0], fs[1])
+                    ConditionParams = new BindingConditionEvaluatorParams(bindingParams.Comparator, bindingParams.Left.f, bindingParams.Right.f)
                 };
             }
 
