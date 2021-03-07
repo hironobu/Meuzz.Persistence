@@ -177,17 +177,25 @@ namespace Meuzz.Persistence
             }
         }
 
-        private static (Func<dynamic, dynamic>, ParameterExpression, string[]) MakeConditionFunc_(Expression exp)
+        public class BindingConditionEntry
+        {
+            public Func<dynamic, dynamic> f { get; set; } = null;
+            public ParameterExpression e { get; set; } = null;
+
+            public string[] path { get; set; } = null;
+        }
+
+        private static BindingConditionEntry MakeConditionFunc_(Expression exp)
         {
             switch (exp)
             {
                 case MemberExpression me:
-                    var (f, e, path) = MakeConditionFunc_(me.Expression);
+                    var entry = MakeConditionFunc_(me.Expression);
                     var member = me.Member;
-                    return ((x) => new BindingConditionElement(f(x), member), e, path.Concat(new string[] { member.Name }).ToArray());
+                    return new BindingConditionEntry() { f = (x) => new BindingConditionElement(entry.f(x), member), e = entry.e, path = entry.path.Concat(new string[] { member.Name }).ToArray() };
 
                 case ParameterExpression pe:
-                    return ((x) => x, pe, new string[] { });
+                    return new BindingConditionEntry() { f = (x) => x, e = pe, path = new string[] { } };
 
                 default:
                     throw new NotImplementedException();
@@ -195,7 +203,7 @@ namespace Meuzz.Persistence
         }
 
 
-        public static (Func<dynamic, dynamic, bool>, (Func<dynamic, dynamic>, ParameterExpression, string[]), (Func<dynamic, dynamic>, ParameterExpression, string[])) New(Type t, Expression exp, ConditionContext context = null)
+        public static (Func<dynamic, dynamic, bool>, BindingConditionEntry, BindingConditionEntry) New(Type t, Expression exp, ConditionContext context = null)
         {
             Func<Func<dynamic, dynamic>, Func<dynamic, dynamic>, Func<dynamic, dynamic, bool>, Func<dynamic, dynamic, bool>> conditionFuncMaker = (Func<dynamic, dynamic> f, Func<dynamic, dynamic> g, Func<dynamic, dynamic, bool> ev) => (dynamic x, dynamic y) => ev(f(x), g(y)); // propertyGetter(defaultType, primaryKey)(l) == dictionaryGetter(foreignKey)(r);
             if (exp == null)
@@ -206,34 +214,34 @@ namespace Meuzz.Persistence
             switch (exp)
             {
                 case BinaryExpression bine:
-                    var (lf, le, lpath) = MakeConditionFunc_(bine.Left);
-                    var (rf, re, rpath) = MakeConditionFunc_(bine.Right);
+                    var left = MakeConditionFunc_(bine.Left);
+                    var right = MakeConditionFunc_(bine.Right);
 
                     switch (bine.NodeType)
                     {
                         case ExpressionType.Equal:
                             Func<dynamic, dynamic, bool> eq = (x, y) => x == y;
-                            return (eq, (lf, le, lpath), (rf, re, rpath));
+                            return (eq, left, right);
 
                         case ExpressionType.NotEqual:
                             Func<dynamic, dynamic, bool> ne = (x, y) => x != y;
-                            return (ne, (lf, le, lpath), (rf, re, rpath));
+                            return (ne, left, right);
 
                         case ExpressionType.LessThan:
                             Func<dynamic, dynamic, bool> lt = (x, y) => x < y;
-                            return (lt, (lf, le, lpath), (rf, re, rpath));
+                            return (lt, left, right);
 
                         case ExpressionType.LessThanOrEqual:
                             Func<dynamic, dynamic, bool> lte = (x, y) => x <= y;
-                            return (lte, (lf, le, lpath), (rf, re, rpath));
+                            return (lte, left, right);
 
                         case ExpressionType.GreaterThan:
                             Func<dynamic, dynamic, bool> gt = (x, y) => x > y;
-                            return (gt, (lf, le, lpath), (rf, re, rpath));
+                            return (gt, left, right);
 
                         case ExpressionType.GreaterThanOrEqual:
                             Func<dynamic, dynamic, bool> gte = (x, y) => x >= y;
-                            return (gte, (lf, le, lpath), (rf, re, rpath));
+                            return (gte, left, right);
                     }
                     break;
             }
@@ -264,12 +272,12 @@ namespace Meuzz.Persistence
 
                 var bindingParams = BindingSpec.New(memberInfo.DeclaringType, lme.Body, context);
 
-                var primaryKey = StringUtils.ToSnake(string.Join("_", bindingParams.Item2.Item2.Type == context.PrimaryType ? bindingParams.Item2.Item3 : bindingParams.Item2.Item3));
-                var foreignKey = StringUtils.ToSnake(string.Join("_", bindingParams.Item2.Item2.Type != context.PrimaryType ? bindingParams.Item2.Item3 : bindingParams.Item3.Item3));
+                var primaryKey = StringUtils.ToSnake(string.Join("_", bindingParams.Item2.e.Type == context.PrimaryType ? bindingParams.Item2.path : bindingParams.Item3.path));
+                var foreignKey = StringUtils.ToSnake(string.Join("_", bindingParams.Item2.e.Type != context.PrimaryType ? bindingParams.Item2.path : bindingParams.Item3.path));
 
                 var fs = new Func<dynamic, dynamic>[parameters.Length];
-                fs[Array.IndexOf(parameters, bindingParams.Item2.Item2.Name)] = bindingParams.Item2.Item1;
-                fs[Array.IndexOf(parameters, bindingParams.Item3.Item2.Name)] = bindingParams.Item3.Item1;
+                fs[Array.IndexOf(parameters, bindingParams.Item2.e.Name)] = bindingParams.Item2.f;
+                fs[Array.IndexOf(parameters, bindingParams.Item3.e.Name)] = bindingParams.Item3.f;
 
                 bindingSpec = new BindingSpec()
                 {
