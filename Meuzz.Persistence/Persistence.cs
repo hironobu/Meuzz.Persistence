@@ -302,6 +302,14 @@ namespace Meuzz.Persistence
             return cols.Select(c => t.GetValueForColumnName(c, obj));
         }
 
+        public static string GetForeignKey(this Type t, string prediction, Type primaryType, string primaryKey)
+        {
+            var ti = t.GetTableInfo();
+            return ti.Columns.Where(x => x.Name.StartsWith(prediction)
+            && (x.BindingToPrimaryKey == null || x.BindingToPrimaryKey == primaryKey)
+            && (x.BindingTo == null || x.BindingTo == primaryType.GetTableName())).Single().Name;
+        }
+
         public class ColumnInfoEntry
         {
             public string Name;

@@ -138,7 +138,10 @@ namespace Meuzz.Persistence
 
         private Func<dynamic, dynamic, bool> GetConditionFunc()
         {
-            Func<Func<dynamic, dynamic, bool>, dynamic, dynamic, bool> evaluator = (f, xx, yy) => f(Evaluate(xx), Evaluate(yy));
+            Func<Func<dynamic, dynamic, bool>, dynamic, dynamic, bool> evaluator = (f, xx, yy) =>
+            {
+                return f(Evaluate(xx), Evaluate(yy));
+            };
 
             return (x, y) => evaluator(ConditionParams.Comparator, ConditionParams.Left(x), ConditionParams.Right(y));
         }
@@ -166,11 +169,16 @@ namespace Meuzz.Persistence
             return joiningConditionMaker(eq, memberAccessor(primaryKey), memberAccessor(foreignKey));
         }
 
-        private static dynamic Evaluate(BindingConditionElement el)
+        private static dynamic Evaluate(object o)
         {
-            Func<dynamic, string, dynamic> propertyGetter = (dynamic x, string prop) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).GetValue(x);
-            Func<dynamic, string, dynamic> dictionaryGetter = (dynamic x, string key) => x[StringUtils.ToSnake(key)];
+            if (!(o is BindingConditionElement el))
+            {
+                throw new NotImplementedException();
+            }
 
+            Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).GetValue(x);
+            // Func<dynamic, string, dynamic> dictionaryGetter = (dynamic x, string key) => x[StringUtils.ToSnake(key)];
+            /*
             var arr = el.Evaluate().ToArray();
             var obj = arr.First();
             var propkeys = arr.Skip(1).Select(x => x.Name);
@@ -184,7 +192,31 @@ namespace Meuzz.Persistence
             else
             {
                 return propertyGetter(obj, prop);
+            }*/
+            var arr = el.Evaluate().ToArray();
+            var obj = arr.First();
+            var propkeys = arr.Skip(1).Select(x => x.Name);
+            if (propkeys.Count() == 0)
+            {
+                propkeys = new string[] { "id" };
             }
+            var prop = string.Join("_", propkeys);
+
+            Func<string, Func<dynamic, dynamic>> memberAccessor = (string memb) => (dynamic x) =>
+            {
+                var col = StringUtils.ToSnake(memb);
+                if (x.ContainsKey(col))
+                {
+                    return x[col];
+                }
+                if (col != "id" && x.ContainsKey(col + "_id"))
+                {
+                    return x[col + "_id"];
+                }
+                return propertyGetter(memb)(x["__object"]);
+            };
+
+            return memberAccessor(prop)(obj);
         }
 
         public class BindingConditionEntry
@@ -201,15 +233,16 @@ namespace Meuzz.Persistence
             {
                 case MemberExpression me:
                     var entry = NewConditionEntry(me.Expression);
-                    var member = me.Member;
-                    return new BindingConditionEntry() { f = (x) => new BindingConditionElement(entry.f(x), member), e = entry.e, path = entry.path.Concat(new string[] { member.Name }).ToArray() };
+                    var propertyInfo = me.Member as PropertyInfo;
+                    var newPath = entry.path.Concat(new string[] { propertyInfo.Name });
+                    return new BindingConditionEntry() { f = (x) => new BindingConditionElement(entry.f(x), propertyInfo), e = entry.e, path = newPath.ToArray() };
 
                 case ParameterExpression pe:
-                    return new BindingConditionEntry() { f = (x) => x, e = pe, path = new string[] { } };
+                    return new BindingConditionEntry() { f = (x) => new BindingConditionElement(x, null), e = pe, path = new string[] { } };
 
-                default:
-                    throw new NotImplementedException();
             }
+
+            throw new NotImplementedException();
         }
 
         public class BindingCondition
@@ -281,10 +314,10 @@ namespace Meuzz.Persistence
         public static BindingSpec Build<T, T2>(Type primaryType, string primaryName, MemberInfo memberInfo, string defaultForeignParamName, Expression<Func<T, T2, bool>> condexp)
         {
             var propinfo = (memberInfo.MemberType == MemberTypes.Property) ? (memberInfo as PropertyInfo) : null;
-            var t = propinfo.PropertyType;
-            if (t.IsGenericType)
+            var foreignType = propinfo.PropertyType;
+            if (foreignType.IsGenericType)
             {
-                t = t.GetGenericArguments()[0];
+                foreignType = foreignType.GetGenericArguments()[0];
             }
 
             BindingSpec bindingSpec = null;
@@ -295,12 +328,15 @@ namespace Meuzz.Persistence
                     throw new NotImplementedException();
                 }
 
-                var parameters = lme.Parameters.Select(x => x.Name).ToArray();
+                // var parameters = lme.Parameters.Select(x => x.Name).ToArray();
 
                 var bindingParams = BindingSpec.New(memberInfo.DeclaringType, lme.Body);
 
                 var primaryKey = StringUtils.ToSnake(string.Join("_", bindingParams.Left.path));
                 var foreignKey = StringUtils.ToSnake(string.Join("_", bindingParams.Right.path));
+
+                primaryKey = string.IsNullOrEmpty(primaryKey) ? primaryType.GetPrimaryKey() : primaryKey;
+                foreignKey = foreignType.GetForeignKey(foreignKey, primaryType, primaryKey);
 
                 bindingSpec = new BindingSpec()
                 {
@@ -320,7 +356,7 @@ namespace Meuzz.Persistence
                 else
                 {
                     var primaryTable = memberInfo.DeclaringType.GetTableName();
-                    var foreignTableInfo = t.GetTableInfo();
+                    var foreignTableInfo = foreignType.GetTableInfo();
                     var matched = foreignTableInfo.Columns.Where(x => x.BindingTo == primaryTable).First();
                     bindingSpec = new BindingSpec(matched.Name.ToLower(), matched.BindingToPrimaryKey.ToLower());
                 }
@@ -328,7 +364,7 @@ namespace Meuzz.Persistence
 
             bindingSpec.PrimaryType = primaryType;
             bindingSpec.PrimaryParamName = primaryName;
-            bindingSpec.ForeignType = t;
+            bindingSpec.ForeignType = foreignType;
             bindingSpec.ForeignParamName = defaultForeignParamName;
             bindingSpec.MemberInfo = memberInfo;
 
@@ -355,7 +391,7 @@ namespace Meuzz.Persistence
                 {
                     ret.AddRange(Left.Evaluate());
                 }
-                else
+                else if (Left != null)
                 {
                     ret.Add(Left);
                 }
@@ -363,7 +399,7 @@ namespace Meuzz.Persistence
                 {
                     ret.AddRange(Right.Evaluate());
                 }
-                else
+                else if (Right != null)
                 {
                     ret.Add(Right);
                 }
