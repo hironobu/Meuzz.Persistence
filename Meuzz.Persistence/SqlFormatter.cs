@@ -106,7 +106,7 @@ namespace Meuzz.Persistence
                     return string.Join(", ", ns);
 
                 case object[] objs:
-                    return string.Join(", ", objs);
+                    return string.Join(", ", objs.Select(x => ValueToString(x)));
 
                 default:
                     return value.ToString();

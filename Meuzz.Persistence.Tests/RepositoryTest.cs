@@ -292,6 +292,54 @@ namespace Meuzz.Persistence.Tests
         }
 
         [Fact]
+        public void TestDeleteByLamdaAndName()
+        {
+            var rset = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(3, rset.Results.Count());
+
+            _repository.Store(new Player() { Name = "xxx" });
+            _repository.Store(new Player() { Name = "yyy" });
+            _repository.Store(new Player() { Name = "zzz" });
+
+            var rset2 = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(6, rset2.Results.Count());
+
+            _repository.Delete(x => x.Name == "yyy");
+
+            var rset3 = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(5, rset3.Results.Count());
+            Assert.Equal((Int64)1, rset3.Results.ElementAt(0)["id"]);
+            Assert.Equal((Int64)2, rset3.Results.ElementAt(1)["id"]);
+            Assert.Equal((Int64)3, rset3.Results.ElementAt(2)["id"]);
+            Assert.Equal((Int64)4, rset3.Results.ElementAt(3)["id"]);
+            Assert.Equal((Int64)6, rset3.Results.ElementAt(4)["id"]);
+        }
+
+        [Fact]
+        public void TestDeleteByLamdaAndName2()
+        {
+            var rset = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(3, rset.Results.Count());
+
+            _repository.Store(new Player() { Name = "xxx" });
+            _repository.Store(new Player() { Name = "yyy" });
+            _repository.Store(new Player() { Name = "zzz" });
+
+            var rset2 = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(6, rset2.Results.Count());
+
+            var names = new[] { "xxx", "yyy", "zzz" };
+            _repository.Delete(x => names.Contains(x.Name));
+
+            var rset3 = _connection.Execute("SELECT * FROM Players");
+            Assert.Equal(3, rset3.Results.Count());
+            Assert.Equal((Int64)1, rset3.Results.ElementAt(0)["id"]);
+            Assert.Equal((Int64)2, rset3.Results.ElementAt(1)["id"]);
+            Assert.Equal((Int64)3, rset3.Results.ElementAt(2)["id"]);
+        }
+
+
+        [Fact]
         public void TestDeleteByIds()
         {
             var rset = _connection.Execute("SELECT * FROM Players");
