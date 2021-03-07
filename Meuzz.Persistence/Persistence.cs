@@ -194,6 +194,17 @@ namespace Meuzz.Persistence
             }
         }
 
+        public static bool HasColumnName(this Type t, string colname)
+        {
+            foreach (var e in t.GetTableInfo().Columns)
+            {
+                if (e.Name == colname) {
+                    return true; }
+                
+            }
+            return false;
+        }
+
         private static string GetShortColumnName(string fcol)
         {
             return fcol.Split('.').Last();

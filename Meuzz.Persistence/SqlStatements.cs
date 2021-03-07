@@ -77,8 +77,8 @@ namespace Meuzz.Persistence
 
     public class BindingSpec
     {
-        public string PrimaryKey = null;
-        public string ForeignKey = null;
+        public string PrimaryKey { get; set; } = null;
+        public string ForeignKey { get; set; } = null;
         public string[] Parameters { get; set; } = null;
 
         public Type PrimaryType = null;
@@ -350,22 +350,41 @@ namespace Meuzz.Persistence
         }
     }
 
+    /*
     public interface IFilterable<T> : IEnumerable<T> where T : class, new()
     {
         IFilterable<T> And(Expression<Func<T, bool>> cond);
 
         IFilterable<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new();
+    }*/
+
+    public class StatementProcessor<T> : IEnumerable<T> where T : class, new()
+    {
+        public SelectStatement<T> Statement { get; set; } = null;
+        public Func<SelectStatement<T>, IEnumerable<T>> OnExecute { get; set; } = null;
+
+
+        IEnumerator<T> IEnumerable<T>.GetEnumerator()
+        {
+            return OnExecute(this.Statement).GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return OnExecute(this.Statement).GetEnumerator();
+        }
+
     }
 
-    public class SelectStatement<T> : SqlSelectStatement, IFilterable<T>, IEnumerable<T> where T : class, new()
+
+    public class SelectStatement<T> : SqlSelectStatement where T : class, new()
     {
-        public Func<SelectStatement<T>, IEnumerable<T>> OnExecute { get; set; } = null;
 
         public SelectStatement() : base(typeof(T))
         {
         }
 
-        public virtual IFilterable<T> And(Expression<Func<T, bool>> cond)
+        public virtual SelectStatement<T> Where(Expression<Func<T, bool>> cond)
         {
             if (!(cond is LambdaExpression lme))
             {
@@ -389,7 +408,7 @@ namespace Meuzz.Persistence
             return this;
         }
 
-        public virtual IFilterable<T> And(string key, params object[] value)
+        public virtual SelectStatement<T> Where(string key, params object[] value)
         {
             var t = typeof(T);
             var px = Expression.Parameter(t, "x");
@@ -412,10 +431,10 @@ namespace Meuzz.Persistence
                     );
             }
 
-            return And(Expression.Lambda<Func<T, bool>>(f, px));
+            return Where(Expression.Lambda<Func<T, bool>>(f, px));
         }
 
-        public virtual IFilterable<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new()
+        public virtual SelectStatement<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new()
         {
             var lambdaexp = (propexp as LambdaExpression).Body;
             var paramexp = (propexp as LambdaExpression).Parameters[0] as ParameterExpression;
@@ -431,17 +450,6 @@ namespace Meuzz.Persistence
         {
             bindingSpec.ForeignParamName = ParamInfo.RegisterParameter(bindingSpec.ForeignParamName, bindingSpec.ForeignType, false);
             SetBindingSpecByParamName(bindingSpec);
-        }
-
-
-        IEnumerator<T> IEnumerable<T>.GetEnumerator()
-        {
-            return OnExecute(this).GetEnumerator();
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return OnExecute(this).GetEnumerator();
         }
     }
 

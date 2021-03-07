@@ -102,10 +102,12 @@ namespace Meuzz.Persistence
             _connection.LoadTableInfo(typeof(T));
         }
 
-        public IFilterable<T> Load(Expression<Func<T, bool>> f = null)
+        public StatementProcessor<T> Load(Func<SelectStatement<T>, SelectStatement<T>> f)
         {
-            var statement = new SelectStatement<T>()
+            var statement = f(new SelectStatement<T>());
+            return new StatementProcessor<T>()
             {
+                Statement = statement,
                 OnExecute = (stmt) =>
                 {
                     var sql = _formatter.Format(stmt, out var context);
@@ -113,21 +115,38 @@ namespace Meuzz.Persistence
                     return PopulateObjects(rset, stmt, context);
                 }
             };
-
-            if (f != null)
-            {
-                statement.And(f);
-            }
-
-            return statement;
         }
 
-        public IFilterable<T> Load(params object[] id)
+        public StatementProcessor<T> Load(Expression<Func<T, bool>> f = null)
+        {
+            var statement = new SelectStatement<T>();
+            if (f != null)
+            {
+                statement.Where(f);
+            }
+
+            return new StatementProcessor<T>()
+            {
+                Statement = statement,
+                OnExecute = (stmt) =>
+                {
+                    var sql = _formatter.Format(stmt, out var context);
+                    var rset = _connection.Execute(sql, context);
+                    return PopulateObjects(rset, stmt, context);
+                }
+            };
+        }
+
+        public StatementProcessor<T> Load(params object[] id)
         {
             var primaryKey = typeof(T).GetPrimaryKey();
 
-            var statement = new SelectStatement<T>()
+            var statement = new SelectStatement<T>();
+            statement.Where(primaryKey, id);
+
+            return new StatementProcessor<T>()
             {
+                Statement = statement,
                 OnExecute = (stmt) =>
                 {
                     var sql = _formatter.Format(stmt, out var context);
@@ -135,10 +154,6 @@ namespace Meuzz.Persistence
                     return PopulateObjects(rset, stmt, context);
                 }
             };
-
-            statement.And(primaryKey, id);
-
-            return statement;
         }
 
 

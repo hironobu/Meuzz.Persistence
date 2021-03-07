@@ -150,23 +150,23 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestWhereNotEquals()
         {
-            var objs = _repository.Load((x) => x.Name != "aaa");
+            var objs = _repository.Load(x => x.Name != "aaa");
             Assert.Equal(2, objs.Count());
         }
 
         [Fact]
         public void TestWhereAnd()
         {
-            var objs = _repository.Load((x) => x.Name == "aaa" && x.Age != 10);
+            var objs = _repository.Load(x => x.Name == "aaa" && x.Age != 10);
             Assert.Empty(objs);
         }
 
         [Fact]
-        public void TestWhereEqualsAndIncludes()
+        public void TestWhereEqualsAndJoins()
         {
-            var objs = _repository.Load((x) => x.Age == 10)
+            var objs = _repository.Load(st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters, (x, r) => x.Id == r.Player.Id)
-                .Joins(x => x.LastCharacters, (x, r) => x.Id == r.LastPlayer.Id);
+                .Joins(x => x.LastCharacters, (x, r) => x.Id == r.LastPlayer.Id));
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
@@ -177,21 +177,36 @@ namespace Meuzz.Persistence.Tests
         }
 
         [Fact]
-        public void TestWhereEqualsAndIncludesByHasMany()
+        public void TestWhereEqualsAndJoinsWithoutId()
         {
-            var objs = _repository.Load((x) => x.Age == 10)
-                .Joins(x => x.Characters);
+            var objs = _repository.Load(st => st.Where(x => x.Age == 10)
+                .Joins(x => x.Characters, (x, r) => x == r.Player)
+                .Joins(x => x.LastCharacters, (x, r) => x == r.LastPlayer));
+            Assert.Equal(2, objs.Count());
+            Assert.Equal(2, objs.ElementAt(0).Characters.Count());
+            Assert.Empty(objs.ElementAt(1).Characters);
+            Assert.Empty(objs.ElementAt(0).LastCharacters);
+            Assert.Equal(2, objs.ElementAt(1).LastCharacters.Count());
+            Assert.Equal(1, objs.ElementAt(1).LastCharacters.ElementAt(0).Id);
+            Assert.Equal(3, objs.ElementAt(1).LastCharacters.ElementAt(1).Id);
+        }
+
+        [Fact]
+        public void TestWhereEqualsAndJoinsByHasMany()
+        {
+            var objs = _repository.Load(st => st.Where(x => x.Age == 10)
+                .Joins(x => x.Characters));
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
         }
 
         [Fact]
-        public void TestWhereEqualsAndIncludesByHasManyOnPlayer2()
+        public void TestWhereEqualsAndJoinsByHasManyOnPlayer2()
         {
-            var objs = _repository.Load((x) => x.Age == 10)
+            var objs = _repository.Load(st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters)
-                .Joins(x => x.LastCharacters);
+                .Joins(x => x.LastCharacters));
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
