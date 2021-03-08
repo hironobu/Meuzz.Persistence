@@ -29,7 +29,9 @@ namespace Meuzz.Persistence
 
         public abstract void Open();
 
-        public abstract ResultSet Execute(string sql, SqlConnectionContext context = null);
+        public virtual ResultSet Execute(string sql, SqlConnectionContext context = null) { return Execute(sql, null, context); }
+
+        public abstract ResultSet Execute(string sql, IDictionary<string, object> parameters, SqlConnectionContext context = null);
 
         public abstract void Close();
 
@@ -72,10 +74,17 @@ namespace Meuzz.Persistence
             _connection.Open();
         }
 
-        public override ResultSet Execute(string sql, SqlConnectionContext context)
+        public override ResultSet Execute(string sql, IDictionary<string, object> parameters, SqlConnectionContext context)
         {
             var cmd = _connection.CreateCommand();
             cmd.CommandText = sql.ToString();
+            if (parameters != null)
+            {
+                foreach (var (k, v) in parameters)
+                {
+                    cmd.Parameters.AddWithValue(k, v);
+                }
+            }
             using var reader = cmd.ExecuteReader(CommandBehavior.KeyInfo);
             return new SqliteResultSet(reader);
         }

@@ -37,12 +37,11 @@ namespace Meuzz.Persistence
 
             if (inserted.Count() > 0)
             {
-                // var insertStatement = new InsertStatement<T>();
                 var tt = typeof(InsertStatement<>).MakeGenericType(t);
                 dynamic insertStatement = Convert.ChangeType(Activator.CreateInstance(tt), tt);
                 insertStatement.Append(inserted);
                 insertStatement.ExtraData = extraData;
-                var sql = _formatter.Format(insertStatement, out SqlConnectionContext context);
+                var (sql, parameters) = _formatter.Format(insertStatement as SqlStatement, out SqlConnectionContext context);
                 var rset = _connection.Execute(sql, context);
 
                 Func<object, object, dynamic> _g = (x, y) => new { X = x, Y = y };
@@ -74,7 +73,7 @@ namespace Meuzz.Persistence
                 var tt = typeof(UpdateStatement<>).MakeGenericType(t);
                 dynamic updateStatement = Convert.ChangeType(Activator.CreateInstance(tt), tt);
                 updateStatement.Append(updated);
-                var sql2 = _formatter.Format(updateStatement, out SqlConnectionContext context2);
+                var (sql2, parameters) = _formatter.Format(updateStatement as SqlStatement, out SqlConnectionContext context2);
                 _connection.Execute(sql2, context2);
             }
 
@@ -110,8 +109,8 @@ namespace Meuzz.Persistence
                 Statement = statement,
                 OnExecute = (stmt) =>
                 {
-                    var sql = _formatter.Format(stmt, out var context);
-                    var rset = _connection.Execute(sql, context);
+                    var (sql, parameters) = _formatter.Format(stmt, out var context);
+                    var rset = _connection.Execute(sql, parameters, context);
                     return PopulateObjects(rset, stmt, context);
                 }
             };
@@ -130,8 +129,8 @@ namespace Meuzz.Persistence
                 Statement = statement,
                 OnExecute = (stmt) =>
                 {
-                    var sql = _formatter.Format(stmt, out var context);
-                    var rset = _connection.Execute(sql, context);
+                    var (sql, parameters) = _formatter.Format(stmt, out var context);
+                    var rset = _connection.Execute(sql, parameters, context);
                     return PopulateObjects(rset, stmt, context);
                 }
             };
@@ -149,8 +148,8 @@ namespace Meuzz.Persistence
                 Statement = statement,
                 OnExecute = (stmt) =>
                 {
-                    var sql = _formatter.Format(stmt, out var context);
-                    var rset = _connection.Execute(sql, context);
+                    var (sql, parameters) = _formatter.Format(stmt, out var context);
+                    var rset = _connection.Execute(sql, parameters, context);
                     return PopulateObjects(rset, stmt, context);
                 }
             };
@@ -172,8 +171,8 @@ namespace Meuzz.Persistence
             var statement = new DeleteStatement<T>();
             statement.Where(f);
 
-            var sql = _formatter.Format(statement, out var context);
-            var rset = _connection.Execute(sql, context);
+            var (sql, parameters) = _formatter.Format(statement, out var context);
+            var rset = _connection.Execute(sql, parameters, context);
 
             return true;
         }
@@ -185,8 +184,8 @@ namespace Meuzz.Persistence
             var statement = new DeleteStatement<T>();
             statement.Where(primaryKey, id);
 
-            var sql = _formatter.Format(statement, out var context);
-            var rset = _connection.Execute(sql, context);
+            var (sql, parameters) = _formatter.Format(statement, out var context);
+            var rset = _connection.Execute(sql, parameters, context);
 
             return true;
         }

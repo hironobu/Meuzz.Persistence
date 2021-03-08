@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Linq.Expressions;
@@ -9,7 +10,7 @@ namespace Meuzz.Persistence
 {
     public abstract class SqlFormatter
     {
-        public abstract string Format(SqlStatement statement, out SqlConnectionContext context);
+        public abstract (string, IDictionary<string, object>) Format(SqlStatement statement, out SqlConnectionContext context);
     }
 
     public class SqliteFormatter : SqlFormatter
@@ -18,10 +19,12 @@ namespace Meuzz.Persistence
         {
         }
 
-        public override string Format(SqlStatement statement, out SqlConnectionContext context)
+        public override (string, IDictionary<string, object>) Format(SqlStatement statement, out SqlConnectionContext context)
         {
             var sb = new StringBuilder();
             var sqliteContext = new SqliteConnectionContext();
+
+            var parameters = new Dictionary<string, object>();
 
             switch (statement)
             {
@@ -35,14 +38,10 @@ namespace Meuzz.Persistence
 
                     foreach (var bindingSpec in selectStatement.GetAllBindings())
                     {
-                        /*var cond = (bindingSpec.ConditionExpression != null
-                            ? FormatElement(bindingSpec.ConditionExpression)
-                            : $"{bindingSpec.PrimaryParamName}.{bindingSpec.PrimaryKey ?? bindingSpec.PrimaryType.GetPrimaryKey()} {"="} {bindingSpec.ForeignParamName}.{bindingSpec.ForeignKey}"
-                            );*/
                         var cond = bindingSpec.ConditionSql;
                         sb.Append($" LEFT JOIN {bindingSpec.ForeignType.GetTableName()} {bindingSpec.ForeignParamName} ON {cond}");
                     }
-                    sb.Append($" WHERE {FormatElement(selectStatement.Condition, true)}");
+                    sb.Append($" WHERE {FormatElement(selectStatement.Condition, true, parameters)}");
                     break;
 
                 case SqlInsertOrUpdateStatement insertOrUpdateStatement:
@@ -84,7 +83,7 @@ namespace Meuzz.Persistence
 
                 case SqlDeleteStatement deleteStatement:
                     sb.Append($"DELETE FROM {deleteStatement.TableName}");
-                    sb.Append($" WHERE {FormatElement(deleteStatement.Condition, false)}");
+                    sb.Append($" WHERE {FormatElement(deleteStatement.Condition, false, parameters)}");
                     break;
 
                 default:
@@ -92,7 +91,7 @@ namespace Meuzz.Persistence
             }
 
             context = sqliteContext;
-            return sb.ToString();
+            return (sb.ToString(), parameters);
         }
 
         private string ValueToString(object value)
@@ -111,35 +110,34 @@ namespace Meuzz.Persistence
                 default:
                     return value.ToString();
             }
-
         }
 
-        protected string FormatElement(Expression exp, bool showsParameterName)
+        protected string FormatElement(Expression exp, bool showsParameterName, IDictionary<string, object> parameters)
         {
             switch (exp)
             {
                 case LambdaExpression lmbe:
-                    return FormatElement(lmbe.Body, showsParameterName);
+                    return FormatElement(lmbe.Body, showsParameterName, parameters);
 
                 case BinaryExpression bine:
                     switch (bine.NodeType)
                     {
                         case ExpressionType.AndAlso:
-                            return $"({FormatElement(bine.Left, showsParameterName)}) AND ({FormatElement(bine.Right, showsParameterName)})";
+                            return $"({FormatElement(bine.Left, showsParameterName, parameters)}) AND ({FormatElement(bine.Right, showsParameterName, parameters)})";
                         case ExpressionType.Or:
-                            return $"({FormatElement(bine.Left, showsParameterName)}) OR ({FormatElement(bine.Right, showsParameterName)})";
+                            return $"({FormatElement(bine.Left, showsParameterName, parameters)}) OR ({FormatElement(bine.Right, showsParameterName, parameters)})";
                         case ExpressionType.LessThan:
-                            return $"({FormatElement(bine.Left, showsParameterName)}) < ({FormatElement(bine.Right, showsParameterName)})";
+                            return $"({FormatElement(bine.Left, showsParameterName, parameters)}) < ({FormatElement(bine.Right, showsParameterName, parameters)})";
                         case ExpressionType.LessThanOrEqual:
-                            return $"({FormatElement(bine.Left, showsParameterName)}) <= ({FormatElement(bine.Right, showsParameterName)})";
+                            return $"({FormatElement(bine.Left, showsParameterName, parameters)}) <= ({FormatElement(bine.Right, showsParameterName, parameters)})";
                         case ExpressionType.GreaterThan:
-                            return $"({FormatElement(bine.Left, showsParameterName)}) > ({FormatElement(bine.Right, showsParameterName)})";
+                            return $"({FormatElement(bine.Left, showsParameterName, parameters)}) > ({FormatElement(bine.Right, showsParameterName, parameters)})";
                         case ExpressionType.GreaterThanOrEqual:
-                            return $"({FormatElement(bine.Left, showsParameterName)}) >= ({FormatElement(bine.Right, showsParameterName)})";
+                            return $"({FormatElement(bine.Left, showsParameterName, parameters)}) >= ({FormatElement(bine.Right, showsParameterName, parameters)})";
                         case ExpressionType.Equal:
-                            return $"({FormatElement(bine.Left, showsParameterName)}) = ({FormatElement(bine.Right, showsParameterName)})";
+                            return $"({FormatElement(bine.Left, showsParameterName, parameters)}) = ({FormatElement(bine.Right, showsParameterName, parameters)})";
                         case ExpressionType.NotEqual:
-                            return $"({FormatElement(bine.Left, showsParameterName)}) != ({FormatElement(bine.Right, showsParameterName)})";
+                            return $"({FormatElement(bine.Left, showsParameterName, parameters)}) != ({FormatElement(bine.Right, showsParameterName, parameters)})";
 
                         // case ExpressionType.MemberAccess:
                         // return $"{FormatElement(bine.Left)}.{FormatElement(bine.Right)}";
@@ -166,20 +164,59 @@ namespace Meuzz.Persistence
                         {
                             case FieldInfo field:
                                 object value = field.GetValue(container);
-                                return ValueToString(value);
+                                if (parameters != null)
+                                {
+                                    switch (value)
+                                    {
+                                        case int[] ns:
+                                            {
+                                                var ks = new List<string>();
+                                                foreach (var (n, i) in ns.Select((x, i) => (x, i)))
+                                                {
+                                                    var k = $"@{field.Name}_{i}";
+                                                    ks.Add(k);
+                                                    parameters.Add(k, n);
+                                                }
+                                                return string.Join(", ", ks);
+                                            }
+
+                                        case object[] objs:
+                                            {
+                                                var ks = new List<string>();
+                                                foreach (var (o, i) in objs.Select((x, i) => (x, i)))
+                                                {
+                                                    var k = $"@{field.Name}_{i}";
+                                                    ks.Add(k);
+                                                    parameters.Add(k, o);
+                                                }
+                                                return string.Join(", ", ks);
+                                            }
+
+                                        default:
+                                            {
+                                                var k = $"@{field.Name}";
+                                                parameters.Add(k, value);
+                                                return k;
+                                            }
+                                    }
+                                }
+                                else
+                                {
+                                    return ValueToString(value);
+                                }
                         }
                         throw new NotImplementedException();
                     }
                     else
                     {
-                        return $"{FormatElement(me.Expression, showsParameterName)}.{(me.Member.Name)}";
+                        return $"{FormatElement(me.Expression, showsParameterName, parameters)}.{(me.Member.Name)}";
                     }
 
                 case MethodCallExpression mce:
                     switch (mce.Method.Name)
                     {
                         case "Contains":
-                            return $"{FormatElement(mce.Arguments[1], showsParameterName)} IN ({FormatElement(mce.Arguments[0], showsParameterName)})";
+                            return $"{FormatElement(mce.Arguments[1], showsParameterName, parameters)} IN ({FormatElement(mce.Arguments[0], showsParameterName, parameters)})";
                     }
                     break;
 
@@ -187,7 +224,7 @@ namespace Meuzz.Persistence
                     switch (ue.NodeType)
                     {
                         case ExpressionType.Convert:
-                            return $"{FormatElement(ue.Operand, showsParameterName)}";
+                            return $"{FormatElement(ue.Operand, showsParameterName, parameters)}";
                     }
                     break;
             }
