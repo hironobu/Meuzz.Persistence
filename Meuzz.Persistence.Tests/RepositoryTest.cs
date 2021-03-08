@@ -148,6 +148,19 @@ namespace Meuzz.Persistence.Tests
         }
 
         [Fact]
+        public void TestLoadByLambdaAndVariables()
+        {
+            var c = "aaa";
+            var objs = _repository.Load((x) => x.Name == c);
+            Assert.Single(objs);
+            var age = 10;
+            var objs2 = _repository.Load((x) => x.Age == age);
+            Assert.Equal(2, objs2.Count());
+            age = 20;
+            Assert.Single(objs2);
+        }
+
+        [Fact]
         public void TestLoadByLambdaNotEquals()
         {
             var objs = _repository.Load(x => x.Name != "aaa");

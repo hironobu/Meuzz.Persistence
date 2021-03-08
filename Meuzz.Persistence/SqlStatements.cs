@@ -171,9 +171,6 @@ namespace Meuzz.Persistence
         }
     }
 
-
-
-
     public class Joined<T0, T1>
         where T0 : class
         where T1 : class
