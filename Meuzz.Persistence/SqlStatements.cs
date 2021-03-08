@@ -93,30 +93,35 @@ namespace Meuzz.Persistence
             var px = Expression.Parameter(t, "x");
             Expression f = null;
 
+            var ppi = string.IsNullOrEmpty(key)
+                ? t.GetPrimaryPropertyInfo()
+                : t.GetProperty(StringUtils.ToCamel(key, true));
+
             if (value.Length == 1)
             {
                 f = Expression.Equal(
-                    Expression.MakeMemberAccess(px, t.GetPrimaryPropertyInfo()),
+                    Expression.MakeMemberAccess(px, ppi),
                     Expression.Constant(value[0]));
             }
             else
             {
-                var ppi = t.GetPrimaryPropertyInfo();
-                var ff = typeof(PersistentExpressionExtensions).GetMethod("Contains", BindingFlags.Public | BindingFlags.Static).MakeGenericMethod(typeof(object), ppi.PropertyType);
+                var ff = typeof(Enumerable)
+                    .GetMethods(BindingFlags.Public | BindingFlags.Static).Where(x => x.Name == "Contains" && x.GetParameters().Count() == 2).Single()
+                    .MakeGenericMethod(typeof(object));
                 f = Expression.Call(ff,
                     Expression.Constant(value),
-                    Expression.MakeMemberAccess(px, ppi)
+                    Expression.Convert(Expression.MakeMemberAccess(px, ppi), typeof(object))
                     );
             }
 
             BuildCondition(Expression.Lambda(f, px));
         }
 
-        protected SqlSelectStatement BuildBindingCondition(Expression propexp, Expression cond)
+        protected SqlSelectStatement BuildBindingCondition(LambdaExpression propexp, LambdaExpression cond)
         {
-            var lambdaexp = (propexp as LambdaExpression).Body;
-            var paramexp = (propexp as LambdaExpression).Parameters[0];
-            var memberInfo = (lambdaexp as MemberExpression).Member;
+            var bodyexp = propexp.Body;
+            var paramexp = propexp.Parameters[0];
+            var memberInfo = (bodyexp as MemberExpression).Member;
 
             var bindingSpec = BindingSpec.Build(paramexp.Type, paramexp.Name, memberInfo, paramexp.Name, cond);
             bindingSpec.ForeignParamName = ParamInfo.RegisterParameter(bindingSpec.ForeignParamName, bindingSpec.ForeignType, false);
@@ -198,20 +203,24 @@ namespace Meuzz.Persistence
             var px = Expression.Parameter(t, "x");
             Expression f = null;
 
+            var ppi = string.IsNullOrEmpty(key)
+                ? t.GetPrimaryPropertyInfo()
+                : t.GetProperty(StringUtils.ToCamel(key, true));
+
             if (value.Length == 1)
             {
                 f = Expression.Equal(
-                    Expression.MakeMemberAccess(px, t.GetPrimaryPropertyInfo()),
+                    Expression.MakeMemberAccess(px, ppi),
                     Expression.Constant(value[0]));
             }
             else
             {
-                var tt = value.GetType();
-                var ppi = t.GetPrimaryPropertyInfo();
-                var ff = typeof(PersistentExpressionExtensions).GetMethod("Contains", BindingFlags.Public | BindingFlags.Static).MakeGenericMethod(typeof(object), ppi.PropertyType);
+                var ff = typeof(Enumerable)
+                    .GetMethods(BindingFlags.Public | BindingFlags.Static).Where(x => x.Name == "Contains" && x.GetParameters().Count() == 2).Single()
+                    .MakeGenericMethod(typeof(object));
                 f = Expression.Call(ff,
                     Expression.Constant(value),
-                    Expression.MakeMemberAccess(px, ppi)
+                    Expression.Convert(Expression.MakeMemberAccess(px, ppi), typeof(object))
                     );
             }
 
@@ -309,14 +318,6 @@ namespace Meuzz.Persistence
         {
             BuildCondition<T>(key, value);
             return this;
-        }
-    }
-
-    public static class PersistentExpressionExtensions
-    {
-        public static bool Contains<T, TT>(this T[] objs, TT target)
-        {
-            return objs.Contains(target);
         }
     }
 }

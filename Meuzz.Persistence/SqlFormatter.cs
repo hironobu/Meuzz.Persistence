@@ -182,6 +182,14 @@ namespace Meuzz.Persistence
                             return $"{FormatElement(mce.Arguments[1], showsParameterName)} IN ({FormatElement(mce.Arguments[0], showsParameterName)})";
                     }
                     break;
+
+                case UnaryExpression ue:
+                    switch (ue.NodeType)
+                    {
+                        case ExpressionType.Convert:
+                            return $"{FormatElement(ue.Operand, showsParameterName)}";
+                    }
+                    break;
             }
 
             throw new NotImplementedException();
