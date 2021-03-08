@@ -101,7 +101,6 @@ namespace Meuzz.Persistence
             }
             else
             {
-                var tt = value.GetType();
                 var ppi = t.GetPrimaryPropertyInfo();
                 var ff = typeof(PersistentExpressionExtensions).GetMethod("Contains", BindingFlags.Public | BindingFlags.Static).MakeGenericMethod(typeof(object), ppi.PropertyType);
                 f = Expression.Call(ff,
@@ -116,66 +115,12 @@ namespace Meuzz.Persistence
         protected SqlSelectStatement BuildBindingCondition(Expression propexp, Expression cond)
         {
             var lambdaexp = (propexp as LambdaExpression).Body;
-            var paramexp = (propexp as LambdaExpression).Parameters[0] as ParameterExpression;
-            // var primaryName = paramexp.Name;
+            var paramexp = (propexp as LambdaExpression).Parameters[0];
             var memberInfo = (lambdaexp as MemberExpression).Member;
 
-            var bindingSpec = BindingSpec.Build(paramexp.Type, paramexp.Name, memberInfo, "t", cond);
+            var bindingSpec = BindingSpec.Build(paramexp.Type, paramexp.Name, memberInfo, paramexp.Name, cond);
             bindingSpec.ForeignParamName = ParamInfo.RegisterParameter(bindingSpec.ForeignParamName, bindingSpec.ForeignType, false);
             SetBindingSpecByParamName(bindingSpec);
-            return this;
-        }
-
-    }
-
-    public class Joined<T0, T1>
-        where T0 : class
-        where T1 : class
-    {
-        public T0 Left = null;
-        public T1 Right = null;
-    }
-
-    public class StatementProcessor<T> : IEnumerable<T> where T : class, new()
-    {
-        public SelectStatement<T> Statement { get; set; } = null;
-        public Func<SelectStatement<T>, IEnumerable<T>> OnExecute { get; set; } = null;
-
-        IEnumerator<T> IEnumerable<T>.GetEnumerator()
-        {
-            return OnExecute(this.Statement).GetEnumerator();
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return OnExecute(this.Statement).GetEnumerator();
-        }
-
-    }
-
-
-    public class SelectStatement<T> : SqlSelectStatement where T : class, new()
-    {
-
-        public SelectStatement() : base(typeof(T))
-        {
-        }
-
-        public virtual SelectStatement<T> Where(Expression<Func<T, bool>> cond)
-        {
-            BuildCondition(cond);
-            return this;
-        }
-
-        public virtual SelectStatement<T> Where(string key, params object[] value)
-        {
-            BuildCondition<T>(key, value);
-            return this;
-        }
-
-        public virtual SelectStatement<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new()
-        {
-            BuildBindingCondition(propexp, cond);
             return this;
         }
     }
@@ -281,6 +226,61 @@ namespace Meuzz.Persistence
         {
         }
     }
+
+
+
+
+    public class Joined<T0, T1>
+        where T0 : class
+        where T1 : class
+    {
+        public T0 Left = null;
+        public T1 Right = null;
+    }
+
+    public class StatementProcessor<T> : IEnumerable<T> where T : class, new()
+    {
+        public SelectStatement<T> Statement { get; set; } = null;
+        public Func<SelectStatement<T>, IEnumerable<T>> OnExecute { get; set; } = null;
+
+        IEnumerator<T> IEnumerable<T>.GetEnumerator()
+        {
+            return OnExecute(this.Statement).GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return OnExecute(this.Statement).GetEnumerator();
+        }
+
+    }
+
+
+    public class SelectStatement<T> : SqlSelectStatement where T : class, new()
+    {
+        public SelectStatement() : base(typeof(T))
+        {
+        }
+
+        public virtual SelectStatement<T> Where(Expression<Func<T, bool>> cond)
+        {
+            BuildCondition(cond);
+            return this;
+        }
+
+        public virtual SelectStatement<T> Where(string key, params object[] value)
+        {
+            BuildCondition<T>(key, value);
+            return this;
+        }
+
+        public virtual SelectStatement<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new()
+        {
+            BuildBindingCondition(propexp, cond);
+            return this;
+        }
+    }
+
 
     public class InsertStatement<T> : InsertOrUpdateStatement<T> where T : class, new()
     {
