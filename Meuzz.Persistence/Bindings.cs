@@ -243,7 +243,7 @@ namespace Meuzz.Persistence
             throw new NotImplementedException();
         }
 
-        public static BindingSpec Build<T, T2>(Type primaryType, string primaryName, MemberInfo memberInfo, string defaultForeignParamName, Expression<Func<T, T2, bool>> condexp)
+        public static BindingSpec Build(Type primaryType, string primaryName, MemberInfo memberInfo, string defaultForeignParamName, Expression condexp)
         {
             var propinfo = (memberInfo.MemberType == MemberTypes.Property) ? (memberInfo as PropertyInfo) : null;
             var foreignType = propinfo.PropertyType;

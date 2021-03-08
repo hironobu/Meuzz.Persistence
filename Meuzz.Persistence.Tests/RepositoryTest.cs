@@ -139,7 +139,7 @@ namespace Meuzz.Persistence.Tests
         }
 
         [Fact]
-        public void TestWhereEquals()
+        public void TestLoadByLambda()
         {
             var objs = _repository.Load((x) => x.Name == "aaa");
             Assert.Single(objs);
@@ -148,21 +148,21 @@ namespace Meuzz.Persistence.Tests
         }
 
         [Fact]
-        public void TestWhereNotEquals()
+        public void TestLoadByLambdaNotEquals()
         {
             var objs = _repository.Load(x => x.Name != "aaa");
             Assert.Equal(2, objs.Count());
         }
 
         [Fact]
-        public void TestWhereAnd()
+        public void TestLoadbyLambdaAnd()
         {
             var objs = _repository.Load(x => x.Name == "aaa" && x.Age != 10);
             Assert.Empty(objs);
         }
 
         [Fact]
-        public void TestWhereEqualsAndJoins()
+        public void TestLoadByLambdaWithJoins()
         {
             var objs = _repository.Load(st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters, (x, r) => x.Id == r.Player.Id)
@@ -177,7 +177,7 @@ namespace Meuzz.Persistence.Tests
         }
 
         [Fact]
-        public void TestWhereEqualsAndJoinsWithoutId()
+        public void TestLoadByLambdaWithJoinsWithoutId()
         {
             var objs = _repository.Load(st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters, (x, r) => x == r.Player)
@@ -192,7 +192,7 @@ namespace Meuzz.Persistence.Tests
         }
 
         [Fact]
-        public void TestWhereEqualsAndJoinsByHasMany()
+        public void TestLoadByLambdaWithJoinsAndHasMany()
         {
             var objs = _repository.Load(st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters));
@@ -202,7 +202,7 @@ namespace Meuzz.Persistence.Tests
         }
 
         [Fact]
-        public void TestWhereEqualsAndJoinsByHasManyOnPlayer2()
+        public void TestLoadByLambdaWithJoinsAndHasManyOnPlayer2()
         {
             var objs = _repository.Load(st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters)

@@ -63,6 +63,17 @@ namespace Meuzz.Persistence
             }
         }
 
+        protected void Joins(Expression propexp, Expression cond)
+        {
+            var lambdaexp = (propexp as LambdaExpression).Body;
+            var paramexp = (propexp as LambdaExpression).Parameters[0] as ParameterExpression;
+            // var primaryName = paramexp.Name;
+            var memberInfo = (lambdaexp as MemberExpression).Member;
+
+            var bindingSpec = BindingSpec.Build(paramexp.Type, paramexp.Name, memberInfo, "t", cond);
+            bindingSpec.ForeignParamName = ParamInfo.RegisterParameter(bindingSpec.ForeignParamName, bindingSpec.ForeignType, false);
+            SetBindingSpecByParamName(bindingSpec);
+        }
 
     }
 
@@ -78,7 +89,6 @@ namespace Meuzz.Persistence
     {
         public SelectStatement<T> Statement { get; set; } = null;
         public Func<SelectStatement<T>, IEnumerable<T>> OnExecute { get; set; } = null;
-
 
         IEnumerator<T> IEnumerable<T>.GetEnumerator()
         {
@@ -152,20 +162,8 @@ namespace Meuzz.Persistence
 
         public virtual SelectStatement<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new()
         {
-            var lambdaexp = (propexp as LambdaExpression).Body;
-            var paramexp = (propexp as LambdaExpression).Parameters[0] as ParameterExpression;
-            // var primaryName = paramexp.Name;
-            var memberInfo = (lambdaexp as MemberExpression).Member;
-
-            var bindingSpec = BindingSpec.Build(paramexp.Type, paramexp.Name, memberInfo, "t", cond);
-            RegisterBindingSpec(bindingSpec);
+            Joins(propexp, (Expression)cond);
             return this;
-        }
-
-        private void RegisterBindingSpec(BindingSpec bindingSpec)
-        {
-            bindingSpec.ForeignParamName = ParamInfo.RegisterParameter(bindingSpec.ForeignParamName, bindingSpec.ForeignType, false);
-            SetBindingSpecByParamName(bindingSpec);
         }
     }
 
@@ -239,7 +237,7 @@ namespace Meuzz.Persistence
 
         }
 
-        public virtual DeleteStatement<T> And(Expression<Func<T, bool>> cond)
+        public virtual DeleteStatement<T> Where(Expression<Func<T, bool>> cond)
         {
             if (!(cond is LambdaExpression lme))
             {
@@ -262,7 +260,7 @@ namespace Meuzz.Persistence
             return this;
         }
 
-        public virtual DeleteStatement<T> And(string key, params object[] value)
+        public virtual DeleteStatement<T> Where(string key, params object[] value)
         {
             var t = typeof(T);
             var px = Expression.Parameter(t, "x");
@@ -285,7 +283,7 @@ namespace Meuzz.Persistence
                     );
             }
 
-            return And(Expression.Lambda<Func<T, bool>>(f, px));
+            return Where(Expression.Lambda<Func<T, bool>>(f, px));
         }
     }
 

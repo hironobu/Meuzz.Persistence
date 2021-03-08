@@ -170,7 +170,7 @@ namespace Meuzz.Persistence
         public bool Delete(Expression<Func<T, bool>> f)
         {
             var statement = new DeleteStatement<T>();
-            statement.And(f);
+            statement.Where(f);
 
             var sql = _formatter.Format(statement, out var context);
             var rset = _connection.Execute(sql, context);
@@ -183,7 +183,7 @@ namespace Meuzz.Persistence
             var primaryKey = typeof(T).GetPrimaryKey();
 
             var statement = new DeleteStatement<T>();
-            statement.And(primaryKey, id);
+            statement.Where(primaryKey, id);
 
             var sql = _formatter.Format(statement, out var context);
             var rset = _connection.Execute(sql, context);
