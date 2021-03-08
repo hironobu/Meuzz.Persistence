@@ -52,7 +52,7 @@ namespace Meuzz.Persistence
             return _bindings;
         }
 
-        public IEnumerable<BindingSpec> GetBindingsForPrimaryParamName(string x)
+        /*public IEnumerable<BindingSpec> GetBindingsForPrimaryParamName(string x)
         {
             foreach (var spec in _bindings)
             {
@@ -61,9 +61,59 @@ namespace Meuzz.Persistence
                     yield return spec;
                 }
             }
+        }*/
+
+        protected SqlSelectStatement BuildCondition(LambdaExpression cond)
+        {
+            if (!(cond is LambdaExpression lme))
+            {
+                throw new NotImplementedException();
+            }
+
+            var p = lme.Parameters.First<ParameterExpression>();
+            //var pel = _sqlBuilder.BuildCondition(null, p) as SqlParameterElement;
+            var defaultParamName = ParamInfo.GetDefaultParamName();
+            if (defaultParamName == null)
+            {
+                ParamInfo.RegisterParameter(p.Name, p.Type, true);
+            }
+            else if (defaultParamName != p.Name)
+            {
+                throw new NotImplementedException();
+            }
+
+            //this.Root = _sqlBuilder.BuildCondition(this.Root, lme.Body);
+            this.Condition = cond;
+            return this;
         }
 
-        protected void Joins(Expression propexp, Expression cond)
+        protected void BuildCondition<T>(string key, object[] value)
+        {
+            var t = typeof(T);
+            var px = Expression.Parameter(t, "x");
+            Expression f = null;
+
+            if (value.Length == 1)
+            {
+                f = Expression.Equal(
+                    Expression.MakeMemberAccess(px, t.GetPrimaryPropertyInfo()),
+                    Expression.Constant(value[0]));
+            }
+            else
+            {
+                var tt = value.GetType();
+                var ppi = t.GetPrimaryPropertyInfo();
+                var ff = typeof(PersistentExpressionExtensions).GetMethod("Contains", BindingFlags.Public | BindingFlags.Static).MakeGenericMethod(typeof(object), ppi.PropertyType);
+                f = Expression.Call(ff,
+                    Expression.Constant(value),
+                    Expression.MakeMemberAccess(px, ppi)
+                    );
+            }
+
+            BuildCondition(Expression.Lambda(f, px));
+        }
+
+        protected SqlSelectStatement BuildBindingCondition(Expression propexp, Expression cond)
         {
             var lambdaexp = (propexp as LambdaExpression).Body;
             var paramexp = (propexp as LambdaExpression).Parameters[0] as ParameterExpression;
@@ -73,6 +123,7 @@ namespace Meuzz.Persistence
             var bindingSpec = BindingSpec.Build(paramexp.Type, paramexp.Name, memberInfo, "t", cond);
             bindingSpec.ForeignParamName = ParamInfo.RegisterParameter(bindingSpec.ForeignParamName, bindingSpec.ForeignType, false);
             SetBindingSpecByParamName(bindingSpec);
+            return this;
         }
 
     }
@@ -112,57 +163,19 @@ namespace Meuzz.Persistence
 
         public virtual SelectStatement<T> Where(Expression<Func<T, bool>> cond)
         {
-            if (!(cond is LambdaExpression lme))
-            {
-                throw new NotImplementedException();
-            }
-
-            var p = lme.Parameters.First<ParameterExpression>();
-            //var pel = _sqlBuilder.BuildCondition(null, p) as SqlParameterElement;
-            var defaultParamName = ParamInfo.GetDefaultParamName();
-            if (defaultParamName == null)
-            {
-                ParamInfo.RegisterParameter(p.Name, p.Type, true);
-            }
-            else if (defaultParamName != p.Name)
-            {
-                throw new NotImplementedException();
-            }
-
-            //this.Root = _sqlBuilder.BuildCondition(this.Root, lme.Body);
-            this.Condition = cond;
+            BuildCondition(cond);
             return this;
         }
 
         public virtual SelectStatement<T> Where(string key, params object[] value)
         {
-            var t = typeof(T);
-            var px = Expression.Parameter(t, "x");
-            Expression f = null;
-
-            if (value.Length == 1)
-            {
-                f = Expression.Equal(
-                    Expression.MakeMemberAccess(px, t.GetPrimaryPropertyInfo()),
-                    Expression.Constant(value[0]));
-            }
-            else
-            {
-                var tt = value.GetType();
-                var ppi = t.GetPrimaryPropertyInfo();
-                var ff = typeof(PersistentExpressionExtensions).GetMethod("Contains", BindingFlags.Public | BindingFlags.Static).MakeGenericMethod(typeof(object), ppi.PropertyType);
-                f = Expression.Call(ff,
-                    Expression.Constant(value),
-                    Expression.MakeMemberAccess(px, ppi)
-                    );
-            }
-
-            return Where(Expression.Lambda<Func<T, bool>>(f, px));
+            BuildCondition<T>(key, value);
+            return this;
         }
 
         public virtual SelectStatement<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new()
         {
-            Joins(propexp, (Expression)cond);
+            BuildBindingCondition(propexp, cond);
             return this;
         }
     }
@@ -211,6 +224,55 @@ namespace Meuzz.Persistence
         {
             TableName = t.GetTableName();
         }
+
+        public virtual void BuildCondition(Expression cond)
+        {
+            if (!(cond is LambdaExpression lme))
+            {
+                throw new NotImplementedException();
+            }
+
+            var p = lme.Parameters.First<ParameterExpression>();
+            //var pel = _sqlBuilder.BuildCondition(null, p) as SqlParameterElement;
+            var defaultParamName = ParamInfo.GetDefaultParamName();
+            if (defaultParamName == null)
+            {
+                ParamInfo.RegisterParameter(p.Name, p.Type, true);
+            }
+            else if (defaultParamName != p.Name)
+            {
+                throw new NotImplementedException();
+            }
+
+            this.Condition = cond;
+        }
+
+        public virtual void BuildCondition<T>(string key, params object[] value)
+        {
+            var t = typeof(T);
+            var px = Expression.Parameter(t, "x");
+            Expression f = null;
+
+            if (value.Length == 1)
+            {
+                f = Expression.Equal(
+                    Expression.MakeMemberAccess(px, t.GetPrimaryPropertyInfo()),
+                    Expression.Constant(value[0]));
+            }
+            else
+            {
+                var tt = value.GetType();
+                var ppi = t.GetPrimaryPropertyInfo();
+                var ff = typeof(PersistentExpressionExtensions).GetMethod("Contains", BindingFlags.Public | BindingFlags.Static).MakeGenericMethod(typeof(object), ppi.PropertyType);
+                f = Expression.Call(ff,
+                    Expression.Constant(value),
+                    Expression.MakeMemberAccess(px, ppi)
+                    );
+            }
+
+            BuildCondition(Expression.Lambda<Func<T, bool>>(f, px));
+        }
+
     }
 
     public class InsertOrUpdateStatement<T> : SqlInsertOrUpdateStatement where T : class, new()
@@ -239,51 +301,14 @@ namespace Meuzz.Persistence
 
         public virtual DeleteStatement<T> Where(Expression<Func<T, bool>> cond)
         {
-            if (!(cond is LambdaExpression lme))
-            {
-                throw new NotImplementedException();
-            }
-
-            var p = lme.Parameters.First<ParameterExpression>();
-            //var pel = _sqlBuilder.BuildCondition(null, p) as SqlParameterElement;
-            var defaultParamName = ParamInfo.GetDefaultParamName();
-            if (defaultParamName == null)
-            {
-                ParamInfo.RegisterParameter(p.Name, p.Type, true);
-            }
-            else if (defaultParamName != p.Name)
-            {
-                throw new NotImplementedException();
-            }
-
-            this.Condition = cond;
+            BuildCondition(cond);
             return this;
         }
 
         public virtual DeleteStatement<T> Where(string key, params object[] value)
         {
-            var t = typeof(T);
-            var px = Expression.Parameter(t, "x");
-            Expression f = null;
-
-            if (value.Length == 1)
-            {
-                f = Expression.Equal(
-                    Expression.MakeMemberAccess(px, t.GetPrimaryPropertyInfo()),
-                    Expression.Constant(value[0]));
-            }
-            else
-            {
-                var tt = value.GetType();
-                var ppi = t.GetPrimaryPropertyInfo();
-                var ff = typeof(PersistentExpressionExtensions).GetMethod("Contains", BindingFlags.Public | BindingFlags.Static).MakeGenericMethod(typeof(object), ppi.PropertyType);
-                f = Expression.Call(ff,
-                    Expression.Constant(value),
-                    Expression.MakeMemberAccess(px, ppi)
-                    );
-            }
-
-            return Where(Expression.Lambda<Func<T, bool>>(f, px));
+            BuildCondition<T>(key, value);
+            return this;
         }
     }
 
