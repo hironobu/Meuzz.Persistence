@@ -18,27 +18,31 @@ namespace Meuzz.Persistence
     {
         private IDictionary<string, Type> _parameters = new Dictionary<string, Type>();
         private string _defaultParamName = null;
-
-        // private IDictionary<string, MemberInfo> _memberInfos = new Dictionary<string, MemberInfo>();
+        private Type _defaultParamType = null;
 
         public void ResetParameters()
         {
             _parameters.Clear();
-            // _memberInfos.Clear();
         }
 
         public string RegisterParameter(string name, Type t, bool asDefault)
         {
             var k = name;
-            int i = 0;
-            while (_parameters.ContainsKey(k))
+
+            if (name != null)
             {
-                k = $"{name}{i++}";
+                int i = 1;
+                while (_parameters.ContainsKey(k))
+                {
+                    k = $"{name}{i++}";
+                }
+                _parameters.Add(k, t);
             }
-            _parameters.Add(k, t);
+
             if (asDefault)
             {
-                _defaultParamName = k;
+                _defaultParamType = t ?? _defaultParamType;
+                _defaultParamName = name ?? _defaultParamName;
             }
 
             return k;
@@ -54,38 +58,15 @@ namespace Meuzz.Persistence
             return _parameters.Select(x => (x.Key, x.Value)).ToArray();
         }
 
-
-        /*public MemberInfo GetMemberInfoByParamName(string name)
+        public Type GetDefaultParamType()
         {
-            return _memberInfos[name];
-        }*/
-
+            return _defaultParamType;
+        }
 
         public string GetDefaultParamName()
         {
             return _defaultParamName;
         }
-
-
-#if false
-        public (string, string, Func<dynamic, Func<dynamic, bool>>) GetJoiningConditionByParamName(string name)
-        {/*
-            var (foreignKey, primaryKey, condfunc) = GetBindingByParamName(name);
-            Func<Func<dynamic, dynamic>, Func<dynamic, dynamic>, Func<dynamic, dynamic, bool>, Func<dynamic, Func<dynamic, bool>>> joiningConditionMaker = (Func<dynamic, dynamic> f, Func<dynamic, dynamic> g, Func<dynamic, dynamic, bool> ev) => (dynamic x) => (dynamic y) => ev(f(x), g(y)); // propertyGetter(defaultType, primaryKey)(l) == dictionaryGetter(foreignKey)(r);
-
-            Func<dynamic, dynamic, bool> evaluator = (x, y) =>
-            {
-                return x == y;
-            };
-            Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) => x.GetType().GetProperty(StringUtils.Snake2Camel(prop, true)).GetValue(x);
-            Func<string, Func<dynamic, dynamic>> dictionaryGetter = (string key) => (dynamic x) => x[key];
-
-            return joiningConditionMaker(propertyGetter(primaryKey), dictionaryGetter(foreignKey), evaluator);*/
-
-            var (foreignKey, primaryKey, condfunc) = GetBindingInfoByParamName(name);
-            return (foreignKey, primaryKey, (x) => (y) => condfunc(x, y));
-        }
-#endif
     }
 
 
