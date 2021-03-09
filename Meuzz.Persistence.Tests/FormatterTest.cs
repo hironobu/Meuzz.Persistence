@@ -6,97 +6,15 @@ using Xunit;
 
 namespace Meuzz.Persistence.Tests
 {
-    [PersistentClass("Players")]
-    public class Player
-    {
-        public int Id { get; set; }
-
-        [PersistentProperty]
-        public string Name { get; set; }
-
-        public int Age { get; set; }
-
-        public int PlayTime { get; set; }
-
-        [HasMany(typeof(Character), foreignKey: "player_id")]
-        public IEnumerable<Character> Characters { get; set; }
-
-        [HasMany(typeof(Character), foreignKey: "last_player_id")]
-        public IEnumerable<Character> LastCharacters { get; set; }
-
-        public IEnumerable<Item> Items { get; set; }
-    }
-
-    public class Item
-    {
-        public int Id { get; set; }
-
-        public string Name { get; set; }
-
-        public string Description { get; set; }
-    }
-
-
-    [PersistentClass("Characters")]
-    public class Character
-    {
-        public int Id { get; set; }
-
-        public string Name { get; set; }
-
-        public Geometry Location { get; set; }
-
-        public Player Player { get; set; }
-
-        public Player LastPlayer { get; set; }
-    }
-
-    public class Geometry
-    {
-        public double Latitude { get; set; }
-        public double Longitude { get; set; }
-
-        public double Altitude { get; set; }
-    }
-
-
-    [PersistentClass("Players")]
-    public class Player2
-    {
-        public int Id { get; set; }
-
-        [PersistentProperty]
-        public string Name { get; set; }
-
-        public int Age { get; set; }
-
-        public int PlayTime { get; set; }
-
-        [HasMany(typeof(Character2), foreignKey: "player_id")]
-        public IEnumerable<Character2> Characters { get; set; }
-
-        [HasMany(typeof(Character2), foreignKey: "last_player_id")]
-        public IEnumerable<Character2> LastCharacters { get; set; }
-    }
-
-    [PersistentClass("Characters")]
-    public class Character2
-    {
-        public int Id { get; set; }
-
-        public string Name { get; set; }
-
-        public Geometry Location { get; set; }
-    }
-
-
-
-    public class RepositoryTest
+    public class FormatterTest
     {
         private Connection _connection;
-        private ObjectRepository<Player> _repository;
-        private ObjectRepository<Character> _characterRepository;
-        public RepositoryTest()
+        /*private ObjectRepository<Player> _repository;
+        private ObjectRepository<Character> _characterRepository;*/
+
+        private SqlFormatter _formatter = null;
+
+        public FormatterTest()
         {
             _connection = new SqliteConnectionImpl("dummy.sqlite");
             _connection.Open();
@@ -113,30 +31,42 @@ namespace Meuzz.Persistence.Tests
                 INSERT INTO Characters VALUES (2, 'bbbb', 1, NULL);
                 INSERT INTO Characters VALUES (3, 'cccc', 2, 3);
             ");
-            _repository = new ObjectRepository<Player>(_connection, new SqliteSqlBuilder<Player>(), new SqliteFormatter(), new SqliteCollator());
+
+            _formatter = new SqliteFormatter();
+
+            _connection.LoadTableInfo(typeof(Player));
+
+/*            _repository = new ObjectRepository<Player>(_connection, new SqliteSqlBuilder<Player>(), new SqliteFormatter(), new SqliteCollator());
             _characterRepository = new ObjectRepository<Character>(_connection, new SqliteSqlBuilder<Character>(), new SqliteFormatter(), new SqliteCollator());
+
+            Console.WriteLine("OK");*/
         }
 
         [Fact]
         public void TestLoadById()
         {
-            var objs = _repository.Load(1);
-            Assert.Single(objs);
-            Assert.Equal((Int64)1, objs.ElementAt(0).Id);
-            var objs2 = _repository.Load(2);
-            Assert.Single(objs2);
-            Assert.Equal((Int64)2, objs2.ElementAt(0).Id);
+            var statement = new SelectStatement<Player>();
+            statement.Where("id", 1);
+            var objs = _formatter.Format(statement, out var _);
 
-            var objs3 = _repository.Load(1, 2, 3);
-            Assert.Equal(3, objs3.Count());
-            Assert.Equal((Int64)1, objs3.ElementAt(0).Id);
-            Assert.Equal("aaa", objs3.ElementAt(0).Name);
-            Assert.Equal((Int64)2, objs3.ElementAt(1).Id);
-            Assert.Equal("bbb", objs3.ElementAt(1).Name);
-            Assert.Equal((Int64)3, objs3.ElementAt(2).Id);
-            Assert.Equal("ccc's", objs3.ElementAt(2).Name);
+            Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) = (1)", objs.Item1);
+            Assert.Null(objs.Item2);
+
+            var statement2 = new SelectStatement<Player>();
+            statement.Where("id", 2);
+            var objs2 = _formatter.Format(statement, out var _);
+
+            Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) = (2)", objs2.Item1);
+            Assert.Null(objs2.Item2);
+
+            var statement3 = new SelectStatement<Player>();
+            statement.Where("id", 1, 2, 3);
+            var objs3 = _formatter.Format(statement, out var _);
+
+            Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) IN (1, 2, 3)", objs3.Item1);
+            Assert.Null(objs3.Item2);
         }
-
+        /*
         [Fact]
         public void TestLoadByLambda()
         {
@@ -456,6 +386,6 @@ namespace Meuzz.Persistence.Tests
             Assert.Equal((Int64)2, rset3.Results.ElementAt(1)["id"]);
             Assert.Equal((Int64)3, rset3.Results.ElementAt(2)["id"]);
         }
-
+        */
     }
 }

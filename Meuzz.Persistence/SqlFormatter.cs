@@ -228,7 +228,7 @@ namespace Meuzz.Persistence
                     switch (mce.Method.Name)
                     {
                         case "Contains":
-                            return $"{FormatElement(mce.Arguments[1], showsParameterName, parameters)} IN ({FormatElement(mce.Arguments[0], showsParameterName, parameters)})";
+                            return $"({FormatElement(mce.Arguments[1], showsParameterName, parameters)}) IN ({FormatElement(mce.Arguments[0], showsParameterName, parameters)})";
                     }
                     break;
 

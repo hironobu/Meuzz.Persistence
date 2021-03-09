@@ -107,8 +107,8 @@ namespace Meuzz.Persistence
             return ClassInfoDict[t];
         }
 
-        private static IDictionary<Type, TableInfo> TableInfoDict { get; set; } = new Dictionary<Type, TableInfo>();
-        private static IDictionary<Type, ClassInfo> ClassInfoDict { get; set; } = new Dictionary<Type, ClassInfo>();
+        private static IDictionary<Type, TableInfo> TableInfoDict { get; } = new Dictionary<Type, TableInfo>();
+        private static IDictionary<Type, ClassInfo> ClassInfoDict { get; } = new Dictionary<Type, ClassInfo>();
 
         public static bool IsPersistent(this Type t)
         {
