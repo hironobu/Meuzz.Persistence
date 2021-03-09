@@ -99,26 +99,26 @@ namespace Meuzz.Persistence
 
     public class TableInfoManager
     {
-        private IDictionary<Type, TableInfo> _dict = null;
+        private IDictionary<Type, Entry> _dict = null;
 
         public TableInfoManager()
         {
-            _dict = new ConcurrentDictionary<Type, TableInfo>();
+            _dict = new ConcurrentDictionary<Type, Entry>();
         }
 
-        public TableInfo GetEntry(Type t)
+        public Entry GetEntry(Type t)
         {
             return _dict[t];
         }
 
-        public bool TryGetEntry(Type t, out TableInfo ti)
+        public bool TryGetEntry(Type t, out Entry ti)
         {
             return _dict.TryGetValue(t, out ti);
         }
 
         public bool RegisterEntry(Type t, ColumnInfoEntry[] colinfos)
         {
-            _dict[t] = new TableInfo { Columns = colinfos };
+            _dict[t] = new Entry { Columns = colinfos };
             return true;
         }
 
@@ -149,7 +149,7 @@ namespace Meuzz.Persistence
             public string BindingToPrimaryKey;
         }
 
-        public class TableInfo
+        public class Entry
         {
             public ColumnInfoEntry[] Columns;
         }
@@ -157,21 +157,21 @@ namespace Meuzz.Persistence
 
     public class ClassInfoManager
     {
-        private IDictionary<Type, ClassInfo> _dict = null;
+        private IDictionary<Type, Entry> _dict = null;
 
         public ClassInfoManager()
         {
-            _dict = new ConcurrentDictionary<Type, ClassInfo>();
+            _dict = new ConcurrentDictionary<Type, Entry>();
         }
 
-        public ClassInfo GetEntry(Type t)
+        public Entry GetEntry(Type t)
         {
             return _dict[t];
         }
 
         public bool RegisterEntry(Type t, RelationInfoEntry[] relinfos)
         {
-            _dict[t] = new ClassInfo { Relations = relinfos, ClassType = t };
+            _dict[t] = new Entry { Relations = relinfos, ClassType = t };
             return true;
         }
 
@@ -203,7 +203,7 @@ namespace Meuzz.Persistence
             public string PrimaryKey;
         }
 
-        public class ClassInfo
+        public class Entry
         {
             public Type ClassType;
 
@@ -214,18 +214,15 @@ namespace Meuzz.Persistence
 
     public static class TypeInfoExtensions
     {
-        public static TableInfoManager.TableInfo GetTableInfo(this Type t)
+        public static TableInfoManager.Entry GetTableInfo(this Type t)
         {
             return TableInfoManager.Instance().GetEntry(t);
         }
 
-        public static ClassInfoManager.ClassInfo GetClassInfo(this Type t)
+        public static ClassInfoManager.Entry GetClassInfo(this Type t)
         {
             return ClassInfoManager.Instance().GetEntry(t);
         }
-
-        // private static IDictionary<Type, TableInfo> TableInfoDict { get; } = new Dictionary<Type, TableInfo>();
-        // private static IDictionary<Type, ClassInfo> ClassInfoDict { get; } = new Dictionary<Type, ClassInfo>();
 
         public static bool IsPersistent(this Type t)
         {
@@ -275,7 +272,7 @@ namespace Meuzz.Persistence
                         ForeignKey = hasmany != null ? hasmany.ForeignKey : null
                     });
                 }
-                // ClassInfoDict[t] = new ClassInfo { Relations = relinfos.ToArray(), ClassType = t };
+
                 ClassInfoManager.Instance().RegisterEntry(t, relinfos.ToArray());
 
                 foreach (var prop in t.GetProperties())
@@ -291,17 +288,6 @@ namespace Meuzz.Persistence
                 }
 
             }
-        }
-
-        public static bool HasColumnName(this Type t, string colname)
-        {
-            foreach (var e in t.GetTableInfo().Columns)
-            {
-                if (e.Name == colname) {
-                    return true; }
-                
-            }
-            return false;
         }
 
         private static string GetShortColumnName(string fcol)
