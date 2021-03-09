@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -95,31 +96,147 @@ namespace Meuzz.Persistence
 
     }
 
+
+    public class TableInfoManager
+    {
+        private IDictionary<Type, TableInfo> _dict = null;
+
+        public TableInfoManager()
+        {
+            _dict = new ConcurrentDictionary<Type, TableInfo>();
+        }
+
+        public TableInfo GetEntry(Type t)
+        {
+            return _dict[t];
+        }
+
+        public bool TryGetEntry(Type t, out TableInfo ti)
+        {
+            return _dict.TryGetValue(t, out ti);
+        }
+
+        public bool RegisterEntry(Type t, ColumnInfoEntry[] colinfos)
+        {
+            _dict[t] = new TableInfo { Columns = colinfos };
+            return true;
+        }
+
+        public static TableInfoManager Instance()
+        {
+            if (_instance == null)
+            {
+                lock (_instanceLocker)
+                {
+                    if (_instance == null)
+                    {
+                        _instance = new TableInfoManager();
+                    }
+                }
+            }
+
+            return _instance;
+        }
+
+        private static TableInfoManager _instance = null;
+        private static readonly object _instanceLocker = new object();
+
+        public class ColumnInfoEntry
+        {
+            public string Name;
+            public MemberInfo MemberInfo;
+            public string BindingTo;
+            public string BindingToPrimaryKey;
+        }
+
+        public class TableInfo
+        {
+            public ColumnInfoEntry[] Columns;
+        }
+    }
+
+    public class ClassInfoManager
+    {
+        private IDictionary<Type, ClassInfo> _dict = null;
+
+        public ClassInfoManager()
+        {
+            _dict = new ConcurrentDictionary<Type, ClassInfo>();
+        }
+
+        public ClassInfo GetEntry(Type t)
+        {
+            return _dict[t];
+        }
+
+        public bool RegisterEntry(Type t, RelationInfoEntry[] relinfos)
+        {
+            _dict[t] = new ClassInfo { Relations = relinfos, ClassType = t };
+            return true;
+        }
+
+        public static ClassInfoManager Instance()
+        {
+            if (_instance == null)
+            {
+                lock (_instanceLocker)
+                {
+                    if (_instance == null)
+                    {
+                        _instance = new ClassInfoManager();
+                    }
+                }
+            }
+
+            return _instance;
+        }
+
+        private static ClassInfoManager _instance = null;
+        private static readonly object _instanceLocker = new Object();
+
+
+        public class RelationInfoEntry
+        {
+            public Type TargetClassType;
+            public PropertyInfo PropertyInfo;
+            public string ForeignKey;
+            public string PrimaryKey;
+        }
+
+        public class ClassInfo
+        {
+            public Type ClassType;
+
+            public RelationInfoEntry[] Relations;
+        }
+
+    }
+
     public static class TypeInfoExtensions
     {
-        public static TableInfo GetTableInfo(this Type t)
+        public static TableInfoManager.TableInfo GetTableInfo(this Type t)
         {
-            return TableInfoDict[t];
+            return TableInfoManager.Instance().GetEntry(t);
         }
 
-        public static ClassInfo GetClassInfo(this Type t)
+        public static ClassInfoManager.ClassInfo GetClassInfo(this Type t)
         {
-            return ClassInfoDict[t];
+            return ClassInfoManager.Instance().GetEntry(t);
         }
 
-        private static IDictionary<Type, TableInfo> TableInfoDict { get; } = new Dictionary<Type, TableInfo>();
-        private static IDictionary<Type, ClassInfo> ClassInfoDict { get; } = new Dictionary<Type, ClassInfo>();
+        // private static IDictionary<Type, TableInfo> TableInfoDict { get; } = new Dictionary<Type, TableInfo>();
+        // private static IDictionary<Type, ClassInfo> ClassInfoDict { get; } = new Dictionary<Type, ClassInfo>();
 
         public static bool IsPersistent(this Type t)
         {
-            return TableInfoDict.TryGetValue(t, out var _);
+            return TableInfoManager.Instance().TryGetEntry(t, out var _);
         }
 
         public static void MakeTypePersistent(this Type t, Func<string, string[]> tableInfoGetter, Func<string, IDictionary<string, object>[]> foreignKeyInfoGetter)
         {
             if (!t.IsPersistent())
             {
-                var colinfos = new List<ColumnInfoEntry>();
+                var colinfos = new List<TableInfoManager.ColumnInfoEntry>();
                 var classprops = t.GetProperties().ToList();
                 var tableName = GetTableName(t);
                 var fkdict = new Dictionary<string, object>();
@@ -141,24 +258,25 @@ namespace Meuzz.Persistence
                     var c = col.ToLower();
                     var prop = t.GetPropertyInfoFromColumnName(c);
                     var fke = fkdict.ContainsKey(c) ? fkdict[c] as IDictionary<string, object> : null;
-                    colinfos.Add(new ColumnInfoEntry() { Name = c, MemberInfo = prop, BindingTo = fke != null ? fke["PrimaryTableName"] as string : null, BindingToPrimaryKey = fke != null ? fke["PrimaryKey"] as string : null });
+                    colinfos.Add(new TableInfoManager.ColumnInfoEntry() { Name = c, MemberInfo = prop, BindingTo = fke != null ? fke["PrimaryTableName"] as string : null, BindingToPrimaryKey = fke != null ? fke["PrimaryKey"] as string : null });
                     classprops.Remove(prop);
                 }
 
-                TableInfoDict[t] = new TableInfo { Columns = colinfos.ToArray() };
+                TableInfoManager.Instance().RegisterEntry(t, colinfos.ToArray());
 
-                var relinfos = new List<RelationInfoEntry>();
+                var relinfos = new List<ClassInfoManager.RelationInfoEntry>();
                 foreach (var x in classprops)
                 {
                     var hasmany = x.GetCustomAttribute<HasManyAttribute>();
-                    relinfos.Add(new RelationInfoEntry()
+                    relinfos.Add(new ClassInfoManager.RelationInfoEntry()
                     {
                         PropertyInfo = x,
                         TargetClassType = x.PropertyType.IsGenericType ? x.PropertyType.GetGenericArguments()[0] : x.PropertyType,
                         ForeignKey = hasmany != null ? hasmany.ForeignKey : null
                     });
                 }
-                ClassInfoDict[t] = new ClassInfo { Relations = relinfos.ToArray(), ClassType = t };
+                // ClassInfoDict[t] = new ClassInfo { Relations = relinfos.ToArray(), ClassType = t };
+                ClassInfoManager.Instance().RegisterEntry(t, relinfos.ToArray());
 
                 foreach (var prop in t.GetProperties())
                 {
@@ -289,34 +407,6 @@ namespace Meuzz.Persistence
             return ti.Columns.Where(x => x.Name.StartsWith(prediction)
             && (x.BindingToPrimaryKey == null || x.BindingToPrimaryKey == primaryKey)
             && (x.BindingTo == null || x.BindingTo == primaryType.GetTableName())).Single().Name;
-        }
-
-        public class ColumnInfoEntry
-        {
-            public string Name;
-            public MemberInfo MemberInfo;
-            public string BindingTo;
-            public string BindingToPrimaryKey;
-        }
-
-        public class TableInfo
-        {
-            public ColumnInfoEntry[] Columns;
-        }
-
-        public class RelationInfoEntry
-        {
-            public Type TargetClassType;
-            public PropertyInfo PropertyInfo;
-            public string ForeignKey;
-            public string PrimaryKey;
-        }
-
-        public class ClassInfo
-        {
-            public Type ClassType;
-
-            public RelationInfoEntry[] Relations;
         }
     }
 
