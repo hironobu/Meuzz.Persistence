@@ -82,7 +82,7 @@ namespace Meuzz.Persistence
             {
                 foreach (var (k, v) in parameters)
                 {
-                    cmd.Parameters.AddWithValue(k, v);
+                    cmd.Parameters.AddWithValue(k, v != null ? v : DBNull.Value);
                 }
             }
             using var reader = cmd.ExecuteReader(CommandBehavior.KeyInfo);

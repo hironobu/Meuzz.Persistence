@@ -42,22 +42,22 @@ namespace Meuzz.Persistence
                 insertStatement.Append(inserted);
                 insertStatement.ExtraData = extraData;
                 var (sql, parameters) = _formatter.Format(insertStatement as SqlStatement, out SqlConnectionContext context);
-                var rset = _connection.Execute(sql, context);
+                var rset = _connection.Execute(sql, parameters, context);
 
-                Func<object, object, dynamic> _g = (x, y) => new { X = x, Y = y };
-                foreach (var pair in ((IEnumerable<IDictionary<string, dynamic>>)rset.Results).Zip(inserted, _g))
+                var pkey = t.GetPrimaryKey();
+                var prop = t.GetProperty(StringUtils.ToCamel(pkey, true));
+                var classinfo = t.GetClassInfo();
+
+                int newPrimaryId = (int)Convert.ChangeType(rset.Results.First()["new_id"], prop.PropertyType) - inserted.Count() + 1;
+
+                foreach (var (y, i) in inserted.Select((x, i) => (x, i)))
                 {
-                    Type t1 = pair.Y.GetType();
-                    var pkey = t1.GetPrimaryKey();
-                    var prop = t1.GetProperty(StringUtils.ToCamel(pkey, true));
-                    var newPrimaryId = Convert.ChangeType(pair.X["new_id"], prop.PropertyType);
-                    prop.SetValue(pair.Y, newPrimaryId);
+                    prop.SetValue(y, newPrimaryId + i);
 
-                    var classinfo = t1.GetClassInfo();
                     foreach (var rel in classinfo.Relations)
                     {
                         var foreignType = rel.TargetClassType;
-                        var childObjs = rel.PropertyInfo.GetValue(pair.Y) as IEnumerable<object>;
+                        var childObjs = rel.PropertyInfo.GetValue(y) as IEnumerable<object>;
 
                         if (childObjs != null)
                         {
@@ -69,12 +69,11 @@ namespace Meuzz.Persistence
 
             if (updated.Count() > 0)
             {
-                //var updateStatement = new UpdateStatement<T>();
                 var tt = typeof(UpdateStatement<>).MakeGenericType(t);
                 dynamic updateStatement = Convert.ChangeType(Activator.CreateInstance(tt), tt);
                 updateStatement.Append(updated);
                 var (sql2, parameters) = _formatter.Format(updateStatement as SqlStatement, out SqlConnectionContext context2);
-                _connection.Execute(sql2, context2);
+                _connection.Execute(sql2, parameters, context2);
             }
 
             return true;

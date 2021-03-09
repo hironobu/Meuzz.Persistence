@@ -48,7 +48,9 @@ namespace Meuzz.Persistence
                     Func<object, object> _f = (y) => (y is string s ? Quote(s) : (y != null ? y : "NULL"));
                     if (insertOrUpdateStatement.IsInsert)
                     {
-                        object[] rowss = insertOrUpdateStatement.IsBulk
+                        parameters = null;
+                        var index = 0;
+                        object[] rowss = insertOrUpdateStatement.IsBulk || true
                             ? new object[] { insertOrUpdateStatement.Values }
                             : insertOrUpdateStatement.Values.Select(x => new object[] { x }).ToArray();
                         foreach (var x in rowss)
@@ -61,9 +63,24 @@ namespace Meuzz.Persistence
                             {
                                 var d = row.GetValueDictFromColumnNames(insertOrUpdateStatement.Columns);
                                 var vals = insertOrUpdateStatement.Columns.Select(c => insertOrUpdateStatement.ExtraData != null && insertOrUpdateStatement.ExtraData.ContainsKey(c) ? insertOrUpdateStatement.ExtraData[c] : d[c]);
-                                sb.Append($" ({string.Join(", ", vals.Select(_f))})");
-                                if (idx < rows.Length - 1)  
-                                    sb.Append(",");
+                                if (parameters != null)
+                                {
+                                    var cols = insertOrUpdateStatement.Columns.Select(c => $"@{c}_{index}");
+                                    sb.Append($" ({string.Join(", ", cols)})");
+                                    if (idx < rows.Length - 1)
+                                        sb.Append(",");
+                                    foreach (var (c, v) in cols.Zip(vals))
+                                    {
+                                        parameters.Add(c, v);
+                                    }
+                                    index++;
+                                }
+                                else
+                                {
+                                    sb.Append($" ({string.Join(", ", vals.Select(_f))})");
+                                    if (idx < rows.Length - 1)
+                                        sb.Append(",");
+                                }
                             }
                             sb.Append($"; SELECT last_insert_rowid() AS new_id; ");
                         }

@@ -95,7 +95,7 @@ namespace Meuzz.Persistence.Tests
     {
         private Connection _connection;
         private ObjectRepository<Player> _repository;
-
+        private ObjectRepository<Character> _characterRepository;
         public RepositoryTest()
         {
             _connection = new SqliteConnectionImpl("dummy.sqlite");
@@ -114,6 +114,7 @@ namespace Meuzz.Persistence.Tests
                 INSERT INTO Characters VALUES (3, 'cccc', 2, 3);
             ");
             _repository = new ObjectRepository<Player>(_connection, new SqliteSqlBuilder<Player>(), new SqliteFormatter(), new SqliteCollator());
+            _characterRepository = new ObjectRepository<Character>(_connection, new SqliteSqlBuilder<Character>(), new SqliteFormatter(), new SqliteCollator());
 
             Console.WriteLine("OK");
         }
@@ -262,8 +263,43 @@ namespace Meuzz.Persistence.Tests
             Assert.Equal("Create Test 2", rset.Results.ElementAt(4)["name"]);
             Assert.Equal((Int64)10000, rset.Results.ElementAt(4)["play_time"]);
 
+            Assert.Equal(4, p.Id);
+            Assert.Equal(5, q.Id);
+            Assert.Equal(1, r.Id);
+
             var rset2 = _connection.Execute("SELECT * FROM Characters");
             Assert.Equal(9, rset2.Results.Count());
+        }
+
+        [Fact]
+        public void TestCreateBy10000ItemsWithRawSQL()
+        {
+            var sql = "INSERT INTO Characters (name) VALUES ";
+            var values = new List<string>();
+            for (int i = 0; i < 10000; i++)
+            {
+                values.Add($"('Char {i}')");
+            };
+
+            _connection.Execute(sql + string.Join(", ", values));
+
+            var rset = _connection.Execute("SELECT * FROM Characters");
+            Assert.Equal(10003, rset.Results.Count());
+        }
+
+        [Fact]
+        public void TestCreateBy10000Items()
+        {
+            var characters = new List<Character>();
+            for (int i = 0; i < 10000; i++)
+            {
+                characters.Add(new Character() { Name = $"Char {i}" });
+            };
+
+            _characterRepository.Store(characters.ToArray());
+
+            var rset = _connection.Execute("SELECT * FROM Characters");
+            Assert.Equal(10003, rset.Results.Count());
         }
 
         [Fact]
