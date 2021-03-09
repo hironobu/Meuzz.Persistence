@@ -138,17 +138,14 @@ namespace Meuzz.Persistence
 
         public bool IsInsert { get; private set; }
 
-        public bool IsBulk { get;  set; }
-
         private List<object> _values = new List<object>();
 
-        public SqlInsertOrUpdateStatement(Type t, bool isInsert, bool isBulk = false) : base(t)
+        public SqlInsertOrUpdateStatement(Type t, bool isInsert) : base(t)
         {
             var tableInfo = t.GetTableInfo();
             PrimaryKey = t.GetPrimaryKey();
             Columns = tableInfo.Columns.Select(x => x.Name).Where(x => x != t.GetPrimaryKey()).ToArray();
             IsInsert = isInsert;
-            IsBulk = isBulk;
         }
 
         public virtual void Append<T>(IEnumerable<T> objs)

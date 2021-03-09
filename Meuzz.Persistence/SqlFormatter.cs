@@ -24,7 +24,7 @@ namespace Meuzz.Persistence
             var sb = new StringBuilder();
             var sqliteContext = new SqliteConnectionContext();
 
-            var parameters = new Dictionary<string, object>();
+            IDictionary<string, object> parameters = null; //  new Dictionary<string, object>();
 
             switch (statement)
             {

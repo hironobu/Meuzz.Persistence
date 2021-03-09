@@ -146,20 +146,46 @@ namespace Meuzz.Persistence.Tests
             Assert.Single(objs);
             var objs2 = _repository.Load((x) => x.Age == 10);
             Assert.Equal(2, objs2.Count());
+            Assert.Equal(1, objs2.ElementAt(0).Id);
+            Assert.Equal(3, objs2.ElementAt(1).Id);
         }
 
         [Fact]
         public void TestLoadByLambdaAndVariables()
         {
             var c = "aaa";
-            var objs = _repository.Load((x) => x.Name == c);
+            var objs = _repository.Load(x => x.Name == c);
             Assert.Single(objs);
+            Assert.Equal(1, objs.ElementAt(0).Id);
+
             var age = 10;
-            var objs2 = _repository.Load((x) => x.Age == age);
+            var objs2 = _repository.Load(x => x.Age == age);
             Assert.Equal(2, objs2.Count());
+            Assert.Equal(1, objs2.ElementAt(0).Id);
+            Assert.Equal(3, objs2.ElementAt(1).Id);
             age = 20;
             Assert.Single(objs2);
+            Assert.Equal(2, objs2.ElementAt(0).Id);
         }
+
+        [Fact]
+        public void TestLoadByClosure()
+        {
+            var c = "aaa";
+            var objs = _repository.Load(x => x.Name == c);
+            Assert.Single(objs);
+            Assert.Equal(1, objs.ElementAt(0).Id);
+
+            var age = 10;
+            var objs2 = _repository.Load(x => x.Age == age);
+            Assert.Equal(2, objs2.Count());
+            Assert.Equal(1, objs2.ElementAt(0).Id);
+            Assert.Equal(3, objs2.ElementAt(1).Id);
+            age = 20;
+            Assert.Single(objs2);
+            Assert.Equal(2, objs2.ElementAt(0).Id);
+        }
+
 
         [Fact]
         public void TestLoadByLambdaNotEquals()
