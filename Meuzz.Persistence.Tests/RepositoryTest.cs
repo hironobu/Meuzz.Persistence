@@ -108,7 +108,7 @@ namespace Meuzz.Persistence.Tests
             _connection.Execute(@"
                 INSERT INTO Players VALUES (1, 'aaa', 10, 100);
                 INSERT INTO Players VALUES (2, 'bbb', 20, 200);
-                INSERT INTO Players VALUES (3, 'ccc', 10, 200);
+                INSERT INTO Players VALUES (3, 'ccc''s', 10, 200);
                 INSERT INTO Characters VALUES (1, 'aaaa', 1, 3);
                 INSERT INTO Characters VALUES (2, 'bbbb', 1, NULL);
                 INSERT INTO Characters VALUES (3, 'cccc', 2, 3);
@@ -136,7 +136,7 @@ namespace Meuzz.Persistence.Tests
             Assert.Equal((Int64)2, objs3.ElementAt(1).Id);
             Assert.Equal("bbb", objs3.ElementAt(1).Name);
             Assert.Equal((Int64)3, objs3.ElementAt(2).Id);
-            Assert.Equal("ccc", objs3.ElementAt(2).Name);
+            Assert.Equal("ccc's", objs3.ElementAt(2).Name);
         }
 
         [Fact]
@@ -257,7 +257,7 @@ namespace Meuzz.Persistence.Tests
             Assert.Equal(5, rset.Results.Count());
             Assert.Equal("Update Test", rset.Results.ElementAt(0)["name"]);
             Assert.Equal("bbb", rset.Results.ElementAt(1)["name"]);
-            Assert.Equal("ccc", rset.Results.ElementAt(2)["name"]);
+            Assert.Equal("ccc's", rset.Results.ElementAt(2)["name"]);
             Assert.Equal("Create Test", rset.Results.ElementAt(3)["name"]);
             Assert.Equal((Int64)999, rset.Results.ElementAt(3)["age"]);
             Assert.Equal("Create Test 2", rset.Results.ElementAt(4)["name"]);

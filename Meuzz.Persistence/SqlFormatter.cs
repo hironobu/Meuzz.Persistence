@@ -50,40 +50,35 @@ namespace Meuzz.Persistence
                     {
                         parameters = null;
                         var index = 0;
-                        object[] rowss = insertOrUpdateStatement.IsBulk || true
-                            ? new object[] { insertOrUpdateStatement.Values }
-                            : insertOrUpdateStatement.Values.Select(x => new object[] { x }).ToArray();
-                        foreach (var x in rowss)
+                        object[] rows = insertOrUpdateStatement.Values;
+
+                        sb.Append($"INSERT INTO {insertOrUpdateStatement.TableName}");
+                        sb.Append($" ({string.Join(", ", insertOrUpdateStatement.Columns)})");
+                        sb.Append($" VALUES");
+                        foreach (var (row, idx) in rows.Select((x, i) => (x, i)))
                         {
-                            object[] rows = (object[])x;
-                            sb.Append($"INSERT INTO {insertOrUpdateStatement.TableName}");
-                            sb.Append($" ({string.Join(", ", insertOrUpdateStatement.Columns)})");
-                            sb.Append($" VALUES");
-                            foreach (var (row, idx) in rows.Select((x, i) => (x, i)))
+                            var d = row.GetValueDictFromColumnNames(insertOrUpdateStatement.Columns);
+                            var vals = insertOrUpdateStatement.Columns.Select(c => insertOrUpdateStatement.ExtraData != null && insertOrUpdateStatement.ExtraData.ContainsKey(c) ? insertOrUpdateStatement.ExtraData[c] : d[c]);
+                            if (parameters != null)
                             {
-                                var d = row.GetValueDictFromColumnNames(insertOrUpdateStatement.Columns);
-                                var vals = insertOrUpdateStatement.Columns.Select(c => insertOrUpdateStatement.ExtraData != null && insertOrUpdateStatement.ExtraData.ContainsKey(c) ? insertOrUpdateStatement.ExtraData[c] : d[c]);
-                                if (parameters != null)
+                                var cols = insertOrUpdateStatement.Columns.Select(c => $"@{c}_{index}");
+                                sb.Append($" ({string.Join(", ", cols)})");
+                                if (idx < rows.Length - 1)
+                                    sb.Append(",");
+                                foreach (var (c, v) in cols.Zip(vals))
                                 {
-                                    var cols = insertOrUpdateStatement.Columns.Select(c => $"@{c}_{index}");
-                                    sb.Append($" ({string.Join(", ", cols)})");
-                                    if (idx < rows.Length - 1)
-                                        sb.Append(",");
-                                    foreach (var (c, v) in cols.Zip(vals))
-                                    {
-                                        parameters.Add(c, v);
-                                    }
-                                    index++;
+                                    parameters.Add(c, v);
                                 }
-                                else
-                                {
-                                    sb.Append($" ({string.Join(", ", vals.Select(_f))})");
-                                    if (idx < rows.Length - 1)
-                                        sb.Append(",");
-                                }
+                                index++;
                             }
-                            sb.Append($"; SELECT last_insert_rowid() AS new_id; ");
+                            else
+                            {
+                                sb.Append($" ({string.Join(", ", vals.Select(_f))})");
+                                if (idx < rows.Length - 1)
+                                    sb.Append(",");
+                            }
                         }
+                        sb.Append($"; SELECT last_insert_rowid() AS new_id; ");
                     }
                     else
                     {
@@ -262,7 +257,7 @@ namespace Meuzz.Persistence
 
         private string Quote(string s)
         {
-            return $"'{s}'";
+            return $"'{s.Replace(@"'", @"''")}'";
         }
     }
 }
