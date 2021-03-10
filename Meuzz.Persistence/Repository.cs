@@ -97,7 +97,6 @@ namespace Meuzz.Persistence
             _collator = collator;
 
             _connection.Open();
-            _connection.LoadTableInfo(typeof(T));
         }
 
         public StatementProcessor<T> Load(Func<SelectStatement<T>, SelectStatement<T>> f)

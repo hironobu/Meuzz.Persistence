@@ -34,8 +34,6 @@ namespace Meuzz.Persistence.Tests
 
             _formatter = new SqliteFormatter();
 
-            _connection.LoadTableInfo(typeof(Player));
-
 /*            _repository = new ObjectRepository<Player>(_connection, new SqliteSqlBuilder<Player>(), new SqliteFormatter(), new SqliteCollator());
             _characterRepository = new ObjectRepository<Character>(_connection, new SqliteSqlBuilder<Character>(), new SqliteFormatter(), new SqliteCollator());
 

@@ -35,8 +35,6 @@ namespace Meuzz.Persistence
 
         public abstract void Close();
 
-        public abstract void LoadTableInfo(Type t);
-
         public void Dispose()
         {
             Dispose(true);
@@ -92,21 +90,6 @@ namespace Meuzz.Persistence
         public override void Close()
         {
             _connection.Close();
-        }
-
-        public override void LoadTableInfo(Type t)
-        {
-            if (t.GetCustomAttribute<PersistentClassAttribute>() == null)
-                return;
-
-            t.MakeTypePersistent((t) =>
-            {
-                //TODO: for sqlite only
-                return Execute($"PRAGMA table_info('{t}')", null).Results.Select(x => x["name"].ToString()).ToArray();
-            }, (t) =>
-            {
-                return Execute($"PRAGMA foreign_key_list('{t}')", null).Results.ToArray();
-            });
         }
 
         class SqliteResultSet : ResultSet

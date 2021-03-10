@@ -108,17 +108,16 @@ namespace Meuzz.Persistence
 
         public Entry GetEntry(Type t)
         {
-            return _dict[t];
+            if (!_dict.TryGetValue(t, out var entry))
+            {
+                return null;
+            }
+            return entry;
         }
 
-        public bool TryGetEntry(Type t, out Entry ti)
+        public bool RegisterEntry(Type t, Entry ti)
         {
-            return _dict.TryGetValue(t, out ti);
-        }
-
-        public bool RegisterEntry(Type t, ColumnInfoEntry[] colinfos)
-        {
-            _dict[t] = new Entry { Columns = colinfos };
+            _dict[t] = ti;
             return true;
         }
 
@@ -166,12 +165,16 @@ namespace Meuzz.Persistence
 
         public Entry GetEntry(Type t)
         {
-            return _dict[t];
+            if (!_dict.TryGetValue(t, out var entry))
+            {
+                return null;
+            }
+            return entry;
         }
 
-        public bool RegisterEntry(Type t, RelationInfoEntry[] relinfos)
+        public bool RegisterEntry(Type t, Entry entry)
         {
-            _dict[t] = new Entry { Relations = relinfos, ClassType = t };
+            _dict[t] = entry;
             return true;
         }
 
@@ -214,23 +217,196 @@ namespace Meuzz.Persistence
 
     public static class TypeInfoExtensions
     {
-        public static TableInfoManager.Entry GetTableInfo(this Type t)
+        public class ForeignKeyInfo
         {
-            return TableInfoManager.Instance().GetEntry(t);
+            public string PrimaryKey;
+            public string PrimaryTableName;
+            public string ForeignKey;
+            public string ForeignTableName;
         }
 
+        private static ForeignKeyInfo GetForeignKeyInfoReversed(Type t, PropertyInfo pi)
+        {
+            var fki = new ForeignKeyInfo();
+
+            
+
+            return fki;
+        }
+
+        private static ForeignKeyInfo GetForeignKeyInfo(PropertyInfo pi)
+        {
+            var pt = pi.PropertyType;
+            if (!(typeof(System.Collections.IEnumerable).IsAssignableFrom(pt) && !typeof(string).IsAssignableFrom(pt)))
+            {
+                if (!pt.IsPersistent())
+                {
+                    return null;
+                }
+                else
+                {
+                    return GetForeignKeyInfoReversed(pt, pi);
+                }
+            }
+
+            var fki = new ForeignKeyInfo();
+
+            var hasmany = pi.GetCustomAttribute<HasManyAttribute>();
+            fki.PrimaryKey = hasmany?.PrimaryKey ?? pi.DeclaringType.GetPrimaryKey();
+            fki.PrimaryTableName = pi.DeclaringType.GetTableName();
+            fki.ForeignKey = hasmany?.ForeignKey;
+            fki.ForeignTableName = hasmany?.To?.GetTableName() ?? pi.PropertyType.GetTableName();
+
+            return fki;
+        }
+
+        private static IDictionary<Type, string[]> _foreignKeyTable = null;
+
+        public static void InitializeForeignKeyTable()
+        {
+            var table = new Dictionary<Type, string[]>();
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                foreach (var type in assembly.GetTypes().Where(t => t.IsDefined(typeof(PersistentClassAttribute), true)))
+                {
+                    foreach (var prop in type.GetProperties().Where(p => p.IsDefined(typeof(HasManyAttribute), true)))
+                    {
+                        var t = typeof(System.Collections.IEnumerable).IsAssignableFrom(prop.PropertyType) ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
+                        var hasmany = prop.GetCustomAttribute<HasManyAttribute>();
+                        if (table.ContainsKey(t))
+                        {
+                            var fkeys = table[t];
+                            table[t] = fkeys.Concat(new string[] { hasmany.ForeignKey }).ToArray();
+                        }
+                        else
+                        {
+                            table.Add(t, new string[] { hasmany.ForeignKey });
+                        }
+                    }
+                }
+            }
+            _foreignKeyTable = table;
+        }
+
+        public static string[] GetForeignKeyByTargetType(Type targetType)
+        {
+            if (_foreignKeyTable == null)
+            {
+                InitializeForeignKeyTable();
+            }
+
+            if (_foreignKeyTable.ContainsKey(targetType))
+            {
+                return _foreignKeyTable[targetType];
+            }
+            else
+            {
+                return new string[] { };
+            }
+        }
+
+        public static TableInfoManager.Entry GetTableInfo(this Type t)
+        {
+            if (!t.IsPersistent())
+            {
+                throw new NotImplementedException();
+            }
+
+            var ti = TableInfoManager.Instance().GetEntry(t);
+            if (ti != null)
+            {
+                return ti;
+            }
+
+            var colinfos = new List<TableInfoManager.ColumnInfoEntry>();
+            foreach (var prop in t.GetProperties())
+            {
+                var fke = GetForeignKeyInfo(prop);
+
+                if (fke != null)
+                {
+
+                }
+                else
+                {
+                    colinfos.Add(new TableInfoManager.ColumnInfoEntry()
+                    {
+                        Name = StringUtils.ToSnake(prop.Name),
+                        MemberInfo = prop,
+                        BindingTo = fke != null ? fke.PrimaryTableName : null,
+                        BindingToPrimaryKey = fke != null ? fke.PrimaryKey : null
+                    });
+                }
+            }
+
+            var fkeys = GetForeignKeyByTargetType(t);
+            foreach (var fk in fkeys)
+            {
+                colinfos.Add(new TableInfoManager.ColumnInfoEntry()
+                {
+                    Name = StringUtils.ToSnake(fk),
+                });
+            }
+
+            ti = new TableInfoManager.Entry() { Columns = colinfos.ToArray() };
+            TableInfoManager.Instance().RegisterEntry(t, ti);
+
+            return ti;
+        }
+
+        // private static IDictionary<string, object> _tableInfo = new ConcurrentDictionary<string, object>();
+
+        [Obsolete("TO BE REVIEWED")]
         public static ClassInfoManager.Entry GetClassInfo(this Type t)
         {
-            return ClassInfoManager.Instance().GetEntry(t);
+            if (!t.IsPersistent())
+            {
+                throw new NotImplementedException();
+            }
+
+            var ti = ClassInfoManager.Instance().GetEntry(t);
+            if (ti != null)
+            {
+                return ti;
+            }
+
+            var relinfos = new List<ClassInfoManager.RelationInfoEntry>();
+            foreach (var prop in t.GetProperties())
+            {
+                var hasmany = prop.GetCustomAttribute<HasManyAttribute>();
+                relinfos.Add(new ClassInfoManager.RelationInfoEntry()
+                {
+                    PropertyInfo = prop,
+                    TargetClassType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType,
+                    ForeignKey = hasmany != null ? hasmany.ForeignKey : null
+                });
+            }
+
+            ti = new ClassInfoManager.Entry() { Relations = relinfos.ToArray(), ClassType = t };
+            ClassInfoManager.Instance().RegisterEntry(t, ti);
+
+            return ti;
         }
 
         public static bool IsPersistent(this Type t)
         {
-            return TableInfoManager.Instance().TryGetEntry(t, out var _);
+            // return TableInfoManager.Instance().TryGetEntry(t, out var _);
+            return t.GetCustomAttribute<PersistentClassAttribute>() != null;
         }
 
+        /**
+         * 
+         * DBからテーブル情報を取得し、TableInfoManagerおよびClassInfoManagerにその内容を登録する。
+         * ただし、DBのスキーマ情報をどの程度の優先度をもってTableInfoManagerおよびClassInfoManager上で扱うかについてを精査しないといけないので、
+         * 両クラスでの情報生成・登録のロジックを見直す必要がある。
+         * 
+         * 1) モデルクラスの命名規則
+         * 2) モデルクラスにおけるアノテーション
+         * 3) DBのテーブル情報
+         * 
+         */
         public static void MakeTypePersistent(this Type t, Func<string, string[]> tableInfoGetter, Func<string, IDictionary<string, object>[]> foreignKeyInfoGetter)
-        {
+        {/*
             if (!t.IsPersistent())
             {
                 var colinfos = new List<TableInfoManager.ColumnInfoEntry>();
@@ -259,7 +435,7 @@ namespace Meuzz.Persistence
                     classprops.Remove(prop);
                 }
 
-                TableInfoManager.Instance().RegisterEntry(t, colinfos.ToArray());
+                TableInfoManager.Instance().RegisterEntry(t, new TableInfoManager.Entry() { Columns = colinfos.ToArray() });
 
                 var relinfos = new List<ClassInfoManager.RelationInfoEntry>();
                 foreach (var x in classprops)
@@ -273,7 +449,7 @@ namespace Meuzz.Persistence
                     });
                 }
 
-                ClassInfoManager.Instance().RegisterEntry(t, relinfos.ToArray());
+                ClassInfoManager.Instance().RegisterEntry(t, new ClassInfoManager.Entry() { ClassType = t, Relations = relinfos.ToArray() });
 
                 foreach (var prop in t.GetProperties())
                 {
@@ -287,7 +463,7 @@ namespace Meuzz.Persistence
                     }
                 }
 
-            }
+            }*/
         }
 
         private static string GetShortColumnName(string fcol)
@@ -420,6 +596,10 @@ namespace Meuzz.Persistence
     {
         public string TableName = null;
         public string PrimaryKey = null;
+
+        public PersistentClassAttribute(string tableName) : this(tableName, "id")
+        {
+        }
 
         public PersistentClassAttribute(string tableName, string primaryKey = null)
         {

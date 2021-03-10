@@ -44,7 +44,7 @@ namespace Meuzz.Persistence.Tests
 
         public string Name { get; set; }
 
-        public Geometry Location { get; set; }
+        // public Geometry Location { get; set; }
 
         public Player Player { get; set; }
 
