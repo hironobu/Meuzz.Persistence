@@ -197,7 +197,6 @@ namespace Meuzz.Persistence
         private static ClassInfoManager _instance = null;
         private static readonly object _instanceLocker = new Object();
 
-
         public class RelationInfoEntry
         {
             public Type TargetClassType;
@@ -212,14 +211,12 @@ namespace Meuzz.Persistence
 
             public RelationInfoEntry[] Relations;
         }
-
     }
-
 
     public class ForeignKeyInfoManager
     {
-        private IDictionary<Type, string[]> _foreignKeyTable = null;
-        private IDictionary<PropertyInfo, string> _defaultForeignKeyForPropertyInfoTable = null;
+        private IDictionary<Type, string[]> _typeToForeignKeysTable = null;
+        private IDictionary<PropertyInfo, string> _propertyInfoToForeignKeyTable = null;
 
         public ForeignKeyInfoManager()
         {
@@ -229,6 +226,7 @@ namespace Meuzz.Persistence
         {
             var table = new Dictionary<Type, string[]>();
             var table2 = new Dictionary<PropertyInfo, string>();
+
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
                 foreach (var type in assembly.GetTypes().Where(t => t.IsDefined(typeof(PersistentClassAttribute), true)))
@@ -262,20 +260,21 @@ namespace Meuzz.Persistence
                     }
                 }
             }
-            _foreignKeyTable = table;
-            _defaultForeignKeyForPropertyInfoTable = table2;
+
+            _typeToForeignKeysTable = table;
+            _propertyInfoToForeignKeyTable = table2;
         }
 
         public string[] GetForeignKeysByTargetType(Type targetType)
         {
-            if (_foreignKeyTable == null)
+            if (_typeToForeignKeysTable == null)
             {
                 InitializeForeignKeyTable();
             }
 
-            if (_foreignKeyTable.ContainsKey(targetType))
+            if (_typeToForeignKeysTable.ContainsKey(targetType))
             {
-                return _foreignKeyTable[targetType];
+                return _typeToForeignKeysTable[targetType];
             }
             else
             {
@@ -285,7 +284,7 @@ namespace Meuzz.Persistence
 
         public string GetForeignKeyByPropertyInfo(PropertyInfo pi)
         {
-            return _defaultForeignKeyForPropertyInfoTable.ContainsKey(pi) ? _defaultForeignKeyForPropertyInfoTable[pi] : null;
+            return _propertyInfoToForeignKeyTable.ContainsKey(pi) ? _propertyInfoToForeignKeyTable[pi] : null;
         }
 
         private static ForeignKeyInfoManager _instance = null;
@@ -379,12 +378,16 @@ namespace Meuzz.Persistence
             var relinfos = new List<ClassInfoManager.RelationInfoEntry>();
             foreach (var prop in t.GetProperties())
             {
-                relinfos.Add(new ClassInfoManager.RelationInfoEntry()
+                var fk = ForeignKeyInfoManager.Instance().GetForeignKeyByPropertyInfo(prop);
+                if (fk != null)
                 {
-                    PropertyInfo = prop,
-                    TargetClassType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType,
-                    ForeignKey = ForeignKeyInfoManager.Instance().GetForeignKeyByPropertyInfo(prop)
-                }) ;
+                    relinfos.Add(new ClassInfoManager.RelationInfoEntry()
+                    {
+                        PropertyInfo = prop,
+                        TargetClassType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType,
+                        ForeignKey = fk
+                    });
+                }
             }
 
             ti = new ClassInfoManager.Entry() { Relations = relinfos.ToArray(), ClassType = t };

@@ -7,6 +7,17 @@ using System.Reflection;
 
 namespace Meuzz.Persistence
 {
+    public class GeneratorUtils
+    {
+        public static IEnumerable<object> MakeGenerator(ClassInfoManager.RelationInfoEntry reli)
+        {
+            Console.WriteLine(reli);
+            yield break;
+        }
+
+
+    }
+
     public class ObjectRepositoryBase
     {
         protected Connection _connection = null;
@@ -16,10 +27,56 @@ namespace Meuzz.Persistence
 
         protected object PopulateObject(Type t, IEnumerable<string> cols, IEnumerable<object> vals)
         {
-            var props = cols.Select(c => t.GetPropertyInfoFromColumnName(c)).Where(x => x != null).ToArray<PropertyInfo>();
+            Func<PropertyInfo, object, MemberAssignment> mapper = (k, v) =>
+            {
+                return Expression.Bind(k, Expression.Constant(Convert.ChangeType(v, k.PropertyType)));
+            };
+            var bindings = new List<MemberAssignment>();
 
-            var bindings = props.Zip(vals, (k, v) => Expression.Bind(k, Expression.Constant(
-                Convert.ChangeType(v, k.PropertyType))));
+            foreach (var (c, v) in cols.Zip(vals))
+            {
+                var prop = t.GetPropertyInfoFromColumnName(c, true);
+                if (prop == null)
+                {
+                    continue;
+                }
+
+                if (prop.PropertyType.IsPersistent())
+                {
+                    bindings.Add(mapper(prop, null));
+                }
+                else
+                {
+                    bindings.Add(mapper(prop, v));
+                }
+            };
+
+            // var props = cols.Select(c => t.GetPropertyInfoFromColumnName(c)).Where(x => x != null).ToList<PropertyInfo>();
+            // var valss = vals.ToList();
+            var ci = t.GetClassInfo();
+
+            foreach (var reli in ci.Relations)
+            {
+                var prop = reli.PropertyInfo;
+                if (prop != null)
+                {
+                    var tt = prop.PropertyType;
+
+                    var conv = typeof(Enumerable)
+                        .GetMethod("Cast")
+                        .MakeGenericMethod((tt.IsGenericType) ? tt.GetGenericArguments()[0] : tt);
+                    var ffs = typeof(GeneratorUtils).GetMethods();
+                        var ff = ffs.Where(x => x.Name == "MakeGenerator").First();
+                    bindings.Add(
+                        Expression.Bind(prop,
+                            Expression.Call(null, conv,
+                                Expression.Call(null, ff, Expression.Constant(reli))
+                                )
+                        ));
+                }
+            }
+
+            // var bindings = props.Zip(valss, );
 
             NewExpression instance = Expression.New(t);
             Expression expr = Expression.MemberInit(instance, bindings);
@@ -340,7 +397,6 @@ namespace Meuzz.Persistence
                 var r = fromObjs.Select(fmap).ToList(); // just do it
                 Console.WriteLine(r);
             }
-
         }
 
         private IEnumerable<object> MakeGenerator(BindingSpec bindingSpec, object self)
