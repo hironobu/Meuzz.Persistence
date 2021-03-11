@@ -24,7 +24,7 @@ namespace Meuzz.Persistence.Tests
         [HasMany(ForeignKey: "last_player_id")]
         public IEnumerable<Character> LastCharacters { get; set; }
 
-        public IEnumerable<Item> Items { get; set; }
+        // public IEnumerable<Item> Items { get; set; }
     }
 
     public class Item
@@ -59,7 +59,6 @@ namespace Meuzz.Persistence.Tests
         public double Altitude { get; set; }
     }
 
-
     [PersistentClass("Players")]
     public class Player2
     {
@@ -86,15 +85,43 @@ namespace Meuzz.Persistence.Tests
 
         public string Name { get; set; }
 
-        public Geometry Location { get; set; }
+        // public Geometry Location { get; set; }
     }
 
+
+    [PersistentClass("Players")]
+    public class Player3
+    {
+        public int Id { get; set; }
+
+        [PersistentProperty]
+        public string Name { get; set; }
+
+        public int Age { get; set; }
+
+        public int PlayTime { get; set; }
+
+        [HasMany]
+        public IEnumerable<Character3> Characters { get; set; }
+    }
+
+    [PersistentClass("Characters")]
+    public class Character3
+    {
+        public int Id { get; set; }
+
+        public string Name { get; set; }
+
+        public Player3 Player { get; set; }
+    }
 
 
     public class RepositoryTest
     {
         private Connection _connection;
         private ObjectRepository<Player> _repository;
+        private ObjectRepository<Player2> _repository2;
+        private ObjectRepository<Player3> _repository3;
         private ObjectRepository<Character> _characterRepository;
         public RepositoryTest()
         {
@@ -114,6 +141,8 @@ namespace Meuzz.Persistence.Tests
                 INSERT INTO Characters VALUES (3, 'cccc', 2, 3);
             ");
             _repository = new ObjectRepository<Player>(_connection, new SqliteSqlBuilder<Player>(), new SqliteFormatter(), new SqliteCollator());
+            _repository2 = new ObjectRepository<Player2>(_connection, new SqliteSqlBuilder<Player2>(), new SqliteFormatter(), new SqliteCollator());
+            _repository3 = new ObjectRepository<Player3>(_connection, new SqliteSqlBuilder<Player3>(), new SqliteFormatter(), new SqliteCollator());
             _characterRepository = new ObjectRepository<Character>(_connection, new SqliteSqlBuilder<Character>(), new SqliteFormatter(), new SqliteCollator());
         }
 
@@ -242,7 +271,7 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestLoadByLambdaWithJoinsAndHasManyOnPlayer2()
         {
-            var objs = _repository.Load(st => st.Where(x => x.Age == 10)
+            var objs = _repository2.Load(st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters)
                 .Joins(x => x.LastCharacters));
             Assert.Equal(2, objs.Count());
@@ -254,6 +283,15 @@ namespace Meuzz.Persistence.Tests
             Assert.Equal(3, objs.ElementAt(1).LastCharacters.ElementAt(1).Id);
         }
 
+        [Fact]
+        public void TestLoadByLambdaWithJoinsAndHasManyOnPlayer3()
+        {
+            var objs = _repository3.Load(st => st.Where(x => x.Age == 10)
+                .Joins(x => x.Characters));
+            Assert.Equal(2, objs.Count());
+            Assert.Equal(2, objs.ElementAt(0).Characters.Count());
+            Assert.Empty(objs.ElementAt(1).Characters);
+        }
         [Fact]
         public void TestCreateAndUpdate()
         {
