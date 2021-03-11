@@ -291,7 +291,7 @@ namespace Meuzz.Persistence
 
         private void BuildBindings(SqlSelectStatement statement, IDictionary<string, IDictionary<dynamic, IDictionary<string, object>>> resultObjects)
         {
-            Func<string, Action<dynamic, dynamic>> propertySetter = (string prop) => (dynamic x, dynamic value) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).SetValue(x, value);
+            Func<string, Action<dynamic, dynamic>> propertySetter = (string prop) => (dynamic x, dynamic value) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true))?.SetValue(x, value);
             Action<dynamic, string, dynamic> memberUpdater = (x, memb, value) =>
             {
                 propertySetter(memb)(x["__object"], value);

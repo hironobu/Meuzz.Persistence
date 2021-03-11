@@ -174,7 +174,7 @@ namespace Meuzz.Persistence
 
         public bool RegisterEntry(Type t, Entry entry)
         {
-            _dict[t] = entry;
+            _dict.Add(t, entry);
             return true;
         }
 
@@ -219,6 +219,7 @@ namespace Meuzz.Persistence
     public class ForeignKeyInfoManager
     {
         private IDictionary<Type, string[]> _foreignKeyTable = null;
+        private IDictionary<PropertyInfo, string> _defaultForeignKeyForPropertyInfoTable = null;
 
         public ForeignKeyInfoManager()
         {
@@ -227,6 +228,7 @@ namespace Meuzz.Persistence
         public void InitializeForeignKeyTable()
         {
             var table = new Dictionary<Type, string[]>();
+            var table2 = new Dictionary<PropertyInfo, string>();
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
                 foreach (var type in assembly.GetTypes().Where(t => t.IsDefined(typeof(PersistentClassAttribute), true)))
@@ -247,6 +249,7 @@ namespace Meuzz.Persistence
                             var revprop = t.GetProperties().Where(x => x.PropertyType == prop.DeclaringType).Single();
                             fk = StringUtils.ToSnake(revprop.Name) + "_id";
                         }
+                        table2.Add(prop, fk);
 
                         if (table.ContainsKey(t))
                         {
@@ -260,6 +263,7 @@ namespace Meuzz.Persistence
                 }
             }
             _foreignKeyTable = table;
+            _defaultForeignKeyForPropertyInfoTable = table2;
         }
 
         public string[] GetForeignKeysByTargetType(Type targetType)
@@ -277,6 +281,11 @@ namespace Meuzz.Persistence
             {
                 return new string[] { };
             }
+        }
+
+        public string GetForeignKeyByPropertyInfo(PropertyInfo pi)
+        {
+            return _defaultForeignKeyForPropertyInfoTable.ContainsKey(pi) ? _defaultForeignKeyForPropertyInfoTable[pi] : null;
         }
 
         private static ForeignKeyInfoManager _instance = null;
@@ -370,13 +379,12 @@ namespace Meuzz.Persistence
             var relinfos = new List<ClassInfoManager.RelationInfoEntry>();
             foreach (var prop in t.GetProperties())
             {
-                var hasmany = prop.GetCustomAttribute<HasManyAttribute>();
                 relinfos.Add(new ClassInfoManager.RelationInfoEntry()
                 {
                     PropertyInfo = prop,
                     TargetClassType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType,
-                    ForeignKey = hasmany != null ? hasmany.ForeignKey : null
-                });
+                    ForeignKey = ForeignKeyInfoManager.Instance().GetForeignKeyByPropertyInfo(prop)
+                }) ;
             }
 
             ti = new ClassInfoManager.Entry() { Relations = relinfos.ToArray(), ClassType = t };
@@ -622,7 +630,7 @@ namespace Meuzz.Persistence
             var hasmany = pi.GetCustomAttribute<HasManyAttribute>();
             fki.PrimaryKey = hasmany?.PrimaryKey ?? pi.DeclaringType.GetPrimaryKey();
             fki.PrimaryTableName = pi.DeclaringType.GetTableName();
-            fki.ForeignKey = hasmany?.ForeignKey;
+            fki.ForeignKey = hasmany?.ForeignKey ?? ForeignKeyInfoManager.Instance().GetForeignKeyByPropertyInfo(pi);
             fki.ForeignTableName = pi.PropertyType.GetTableName();
 
             return fki;
