@@ -28,7 +28,7 @@ namespace Meuzz.Persistence
             ParamInfo.RegisterParameter(null, t, true);
         }
 
-        protected virtual void BuildCondition(LambdaExpression cond)
+        public virtual void BuildCondition(LambdaExpression cond)
         {
             if (!(cond is LambdaExpression lme))
             {
@@ -51,20 +51,27 @@ namespace Meuzz.Persistence
             this.Condition = cond;
         }
 
-        protected virtual void BuildCondition(string key, object[] value)
+        public virtual void BuildCondition(string key, params object[] value)
         {
             Type t = ParamInfo.GetDefaultParamType();
             var px = Expression.Parameter(t, "x");
             Expression f = null;
 
-            var ppi = string.IsNullOrEmpty(key)
+            var key0 = key.Replace("_id", "");
+            var ppi = string.IsNullOrEmpty(key0)
                 ? t.GetPrimaryPropertyInfo()
-                : t.GetProperty(StringUtils.ToCamel(key, true));
+                : t.GetProperty(StringUtils.ToCamel(key0, true));
+            var memberAccessor = Expression.MakeMemberAccess(px, ppi);
+
+            if (key.EndsWith("_id"))
+            {
+                memberAccessor = Expression.MakeMemberAccess(memberAccessor, ppi.PropertyType.GetPrimaryPropertyInfo());
+            }
 
             if (value.Length == 1)
             {
                 f = Expression.Equal(
-                    Expression.MakeMemberAccess(px, ppi),
+                    memberAccessor,
                     Expression.Constant(value[0]));
             }
             else
@@ -74,7 +81,7 @@ namespace Meuzz.Persistence
                     .MakeGenericMethod(typeof(object));
                 f = Expression.Call(ff,
                     Expression.Constant(value),
-                    Expression.Convert(Expression.MakeMemberAccess(px, ppi), typeof(object))
+                    Expression.Convert(memberAccessor, typeof(object))
                     );
             }
 
@@ -82,7 +89,7 @@ namespace Meuzz.Persistence
         }
     }
 
-    public abstract class SqlSelectStatement : SqlConditionalStatement
+    public class SqlSelectStatement : SqlConditionalStatement
     {
         public SqlSelectStatement(Type t) : base(t) { }
 
@@ -176,7 +183,7 @@ namespace Meuzz.Persistence
         public T1 Right = null;
     }
 
-    public class StatementProcessor<T> : IEnumerable<T> where T : class, new()
+/*    public class StatementProcessor<T> : IEnumerable<T> where T : class, new()
     {
         public SelectStatement<T> Statement { get; set; } = null;
         public Func<SelectStatement<T>, IEnumerable<T>> OnExecute { get; set; } = null;
@@ -190,7 +197,7 @@ namespace Meuzz.Persistence
         {
             return OnExecute(this.Statement).GetEnumerator();
         }
-    }
+    }*/
 
     public class SelectStatement<T> : SqlSelectStatement where T : class, new()
     {

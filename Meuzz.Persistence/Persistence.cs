@@ -199,7 +199,7 @@ namespace Meuzz.Persistence
 
         public class RelationInfoEntry
         {
-            public Type TargetClassType;
+            public Type TargetType;
             public PropertyInfo PropertyInfo;
             public string ForeignKey;
             public string PrimaryKey;
@@ -384,7 +384,7 @@ namespace Meuzz.Persistence
                     relinfos.Add(new ClassInfoManager.RelationInfoEntry()
                     {
                         PropertyInfo = prop,
-                        TargetClassType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType,
+                        TargetType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType,
                         ForeignKey = fk
                     });
                 }
