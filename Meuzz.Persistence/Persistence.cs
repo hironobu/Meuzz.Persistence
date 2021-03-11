@@ -215,72 +215,46 @@ namespace Meuzz.Persistence
 
     }
 
-    public static class TypeInfoExtensions
+
+    public class ForeignKeyInfoManager
     {
-        public class ForeignKeyInfo
+        private IDictionary<Type, string[]> _foreignKeyTable = null;
+
+        public ForeignKeyInfoManager()
         {
-            public string PrimaryKey;
-            public string PrimaryTableName;
-            public string ForeignKey;
-            public string ForeignTableName;
         }
 
-        private static ForeignKeyInfo GetForeignKeyInfoReversed(Type t, PropertyInfo pi)
-        {
-            var fki = new ForeignKeyInfo();
-
-            
-
-            return fki;
-        }
-
-        private static ForeignKeyInfo GetForeignKeyInfo(PropertyInfo pi)
-        {
-            var pt = pi.PropertyType;
-            if (!(typeof(System.Collections.IEnumerable).IsAssignableFrom(pt) && !typeof(string).IsAssignableFrom(pt)))
-            {
-                if (!pt.IsPersistent())
-                {
-                    return null;
-                }
-                else
-                {
-                    return GetForeignKeyInfoReversed(pt, pi);
-                }
-            }
-
-            var fki = new ForeignKeyInfo();
-
-            var hasmany = pi.GetCustomAttribute<HasManyAttribute>();
-            fki.PrimaryKey = hasmany?.PrimaryKey ?? pi.DeclaringType.GetPrimaryKey();
-            fki.PrimaryTableName = pi.DeclaringType.GetTableName();
-            fki.ForeignKey = hasmany?.ForeignKey;
-            fki.ForeignTableName = hasmany?.To?.GetTableName() ?? pi.PropertyType.GetTableName();
-
-            return fki;
-        }
-
-        private static IDictionary<Type, string[]> _foreignKeyTable = null;
-
-        public static void InitializeForeignKeyTable()
+        public void InitializeForeignKeyTable()
         {
             var table = new Dictionary<Type, string[]>();
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
                 foreach (var type in assembly.GetTypes().Where(t => t.IsDefined(typeof(PersistentClassAttribute), true)))
                 {
-                    foreach (var prop in type.GetProperties().Where(p => p.IsDefined(typeof(HasManyAttribute), true)))
+                    var hasManyProps = type.GetProperties().Where(p => p.IsDefined(typeof(HasManyAttribute), true));
+                    foreach (var prop in hasManyProps)
                     {
                         var t = typeof(System.Collections.IEnumerable).IsAssignableFrom(prop.PropertyType) ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
                         var hasmany = prop.GetCustomAttribute<HasManyAttribute>();
+                        var fk = hasmany.ForeignKey;
+                        if (fk == null)
+                        {
+                            if (hasManyProps.Where(p => p.PropertyType == prop.PropertyType).Count() > 1)
+                            {
+                                throw new NotImplementedException();
+                            }
+
+                            var revprop = t.GetProperties().Where(x => x.PropertyType == prop.DeclaringType).Single();
+                            fk = StringUtils.ToSnake(revprop.Name) + "_id";
+                        }
+
                         if (table.ContainsKey(t))
                         {
-                            var fkeys = table[t];
-                            table[t] = fkeys.Concat(new string[] { hasmany.ForeignKey }).ToArray();
+                            table[t] = table[t].Concat(new string[] { fk }).ToArray();
                         }
                         else
                         {
-                            table.Add(t, new string[] { hasmany.ForeignKey });
+                            table.Add(t, new string[] { fk });
                         }
                     }
                 }
@@ -288,7 +262,7 @@ namespace Meuzz.Persistence
             _foreignKeyTable = table;
         }
 
-        public static string[] GetForeignKeyByTargetType(Type targetType)
+        public string[] GetForeignKeysByTargetType(Type targetType)
         {
             if (_foreignKeyTable == null)
             {
@@ -305,6 +279,29 @@ namespace Meuzz.Persistence
             }
         }
 
+        private static ForeignKeyInfoManager _instance = null;
+        private static readonly object _instanceLocker = new object();
+
+        public static ForeignKeyInfoManager Instance()
+        {
+            if (_instance == null)
+            {
+                lock (_instanceLocker)
+                {
+                    if (_instance == null)
+                    {
+                        _instance = new ForeignKeyInfoManager();
+                        _instance.InitializeForeignKeyTable();
+                    }
+                }
+            }
+
+            return _instance;
+        }
+    }
+
+    public static class TypeInfoExtensions
+    {
         public static TableInfoManager.Entry GetTableInfo(this Type t)
         {
             if (!t.IsPersistent())
@@ -321,7 +318,7 @@ namespace Meuzz.Persistence
             var colinfos = new List<TableInfoManager.ColumnInfoEntry>();
             foreach (var prop in t.GetProperties())
             {
-                var fke = GetForeignKeyInfo(prop);
+                var fke = prop.GetForeignKeyInfo();
 
                 if (fke != null)
                 {
@@ -339,7 +336,7 @@ namespace Meuzz.Persistence
                 }
             }
 
-            var fkeys = GetForeignKeyByTargetType(t);
+            var fkeys = ForeignKeyInfoManager.Instance().GetForeignKeysByTargetType(t);
             foreach (var fk in fkeys)
             {
                 colinfos.Add(new TableInfoManager.ColumnInfoEntry()
@@ -585,6 +582,51 @@ namespace Meuzz.Persistence
 
             return attr.Column.ToLower();
         }
+
+
+
+
+
+        public class ForeignKeyInfo
+        {
+            public string PrimaryKey;
+            public string PrimaryTableName;
+            public string ForeignKey;
+            public string ForeignTableName;
+        }
+
+        private static ForeignKeyInfo GetForeignKeyInfoReversed(Type t, PropertyInfo pi)
+        {
+            // dummy
+            var fki = new ForeignKeyInfo();
+            return fki;
+        }
+
+        public static ForeignKeyInfo GetForeignKeyInfo(this PropertyInfo pi)
+        {
+            var pt = pi.PropertyType;
+            if (!(typeof(System.Collections.IEnumerable).IsAssignableFrom(pt) && !typeof(string).IsAssignableFrom(pt)))
+            {
+                if (!pt.IsPersistent())
+                {
+                    return null;
+                }
+                else
+                {
+                    return GetForeignKeyInfoReversed(pt, pi);
+                }
+            }
+
+            var fki = new ForeignKeyInfo();
+
+            var hasmany = pi.GetCustomAttribute<HasManyAttribute>();
+            fki.PrimaryKey = hasmany?.PrimaryKey ?? pi.DeclaringType.GetPrimaryKey();
+            fki.PrimaryTableName = pi.DeclaringType.GetTableName();
+            fki.ForeignKey = hasmany?.ForeignKey;
+            fki.ForeignTableName = pi.PropertyType.GetTableName();
+
+            return fki;
+        }
     }
 
     public static class PropertyInfoExtensions
@@ -621,14 +663,13 @@ namespace Meuzz.Persistence
     [AttributeUsage(AttributeTargets.Property)]
     public class HasManyAttribute : Attribute
     {
-        public Type To = null;
-        public string PrimaryKey = null;
         public string ForeignKey = null;
+        public string PrimaryKey = null;
 
-        public HasManyAttribute(Type to, string primaryKey = null, string foreignKey = null)
+        public HasManyAttribute(string ForeignKey = null, string PrimaryKey = null)
         {
-            this.To = to;
-            this.ForeignKey = foreignKey;
+            this.ForeignKey = ForeignKey;
+            this.PrimaryKey = PrimaryKey;
         }
     }
 }

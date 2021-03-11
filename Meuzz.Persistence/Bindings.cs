@@ -280,10 +280,10 @@ namespace Meuzz.Persistence
 
             if (bindingSpec == null)
             {
-                var hasmany = memberInfo.GetCustomAttribute<HasManyAttribute>();
-                if (hasmany != null)
+                var fki = propinfo.GetForeignKeyInfo();
+                if (fki != null)
                 {
-                    bindingSpec = new BindingSpec(hasmany.ForeignKey, hasmany.PrimaryKey ?? "id");
+                    bindingSpec = new BindingSpec(fki.ForeignKey, fki.PrimaryKey ?? "id");
                 }
                 else
                 {

@@ -18,10 +18,10 @@ namespace Meuzz.Persistence.Tests
 
         public int PlayTime { get; set; }
 
-        [HasMany(typeof(Character), foreignKey: "player_id")]
+        [HasMany(ForeignKey: "player_id")]
         public IEnumerable<Character> Characters { get; set; }
 
-        [HasMany(typeof(Character), foreignKey: "last_player_id")]
+        [HasMany(ForeignKey: "last_player_id")]
         public IEnumerable<Character> LastCharacters { get; set; }
 
         public IEnumerable<Item> Items { get; set; }
@@ -72,10 +72,10 @@ namespace Meuzz.Persistence.Tests
 
         public int PlayTime { get; set; }
 
-        [HasMany(typeof(Character2), foreignKey: "player_id")]
+        [HasMany(ForeignKey: "player_id")]
         public IEnumerable<Character2> Characters { get; set; }
 
-        [HasMany(typeof(Character2), foreignKey: "last_player_id")]
+        [HasMany(ForeignKey: "last_player_id")]
         public IEnumerable<Character2> LastCharacters { get; set; }
     }
 
