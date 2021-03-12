@@ -54,9 +54,14 @@ namespace Meuzz.Persistence.Tests
             Assert.Single(objs.ElementAt(0).Children.ElementAt(1).Children);
             Assert.Equal(5, objs.ElementAt(0).Children.ElementAt(2).Children.Count());
 
+            Assert.NotNull(objs.ElementAt(0).Children.ElementAt(0).Parent);
+            Assert.Equal(1, objs.ElementAt(0).Children.ElementAt(0).Parent.Id);
+
             var objs2 = _repository.Load(2);
             Assert.Single(objs2);
             Assert.Equal((Int64)2, objs2.ElementAt(0).Id);
+            Assert.Equal(1, objs2.ElementAt(0).Parent.Id);
+
 
             var objs3 = _repository.Load(1, 2, 3);
             Assert.Equal(3, objs3.Count());

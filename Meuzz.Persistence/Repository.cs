@@ -14,12 +14,17 @@ namespace Meuzz.Persistence
         protected SqlFormatter _formatter;
         protected SqlCollator _collator;
 
-        protected IEnumerable<object> LoadObjects(Type t, SqlSelectStatement statement)
+        protected IEnumerable<object> LoadObjects(Type t, SqlSelectStatement statement, Action<IEnumerable<object>> propertySetter = null)
         {
             var (sql, parameters) = _formatter.Format(statement, out var context);
             var rset = _connection.Execute(sql, parameters, context);
 
             var results = PopulateObjects(t, rset, statement, context);
+            if (propertySetter != null)
+            {
+                propertySetter(results);
+            }
+
             foreach (var o in results)
             {
                 yield return o;
@@ -32,24 +37,21 @@ namespace Meuzz.Persistence
             var statement = new SqlSelectStatement(reli.TargetType);
             statement.BuildCondition(reli.ForeignKey, obj.GetType().GetPrimaryValue(obj));
 
-            var (sql, parameters) = _formatter.Format(statement, out var context);
-            var rset = _connection.Execute(sql, parameters, context);
-
-            var results = PopulateObjects(reli.TargetType, rset, statement, context);
-            if (obj != null && reli != null)
+            return LoadObjects(reli.TargetType, statement, (results) =>
             {
-                var tt = reli.TargetType;
+                var t = reli.TargetType;
                 var conv = typeof(Enumerable)
                     .GetMethod("Cast")
-                    .MakeGenericMethod((tt.IsGenericType) ? tt.GetGenericArguments()[0] : tt);
+                    .MakeGenericMethod((t.IsGenericType) ? t.GetGenericArguments()[0] : t);
+                if (reli.InversePropertyInfo != null)
+                {
+                    foreach (var x in results)
+                    {
+                        reli.InversePropertyInfo.SetValue(x, obj);
+                    }
+                }
                 reli.PropertyInfo.SetValue(obj, conv.Invoke(null, new object[] { results }));
-            }
-
-            foreach (var o in results)
-            {
-                yield return o;
-            }
-            yield break;
+            });
         }
 
         protected object PopulateObject(Type t, IEnumerable<string> cols, IEnumerable<object> vals)
@@ -78,32 +80,7 @@ namespace Meuzz.Persistence
                 }
             };
 
-            // var props = cols.Select(c => t.GetPropertyInfoFromColumnName(c)).Where(x => x != null).ToList<PropertyInfo>();
-            // var valss = vals.ToList();
             var ci = t.GetClassInfo();
-
-            /*foreach (var reli in ci.Relations)
-            {
-                var prop = reli.PropertyInfo;
-                if (prop != null)
-                {
-                    var tt = prop.PropertyType;
-
-                    var conv = typeof(Enumerable)
-                        .GetMethod("Cast")
-                        .MakeGenericMethod((tt.IsGenericType) ? tt.GetGenericArguments()[0] : tt);
-                    var ffs = this.GetType().GetMethods(BindingFlags.NonPublic | BindingFlags.Instance);
-                    var ff = ffs.Where(x => x.Name == "MakeDefaultLoader").First();
-                    bindings.Add(
-                        Expression.Bind(prop,
-                            Expression.Call(null, conv,
-                                Expression.Call(Expression.Constant(this), ff, Expression., Expression.Constant(reli))
-                                )
-                        ));
-                }
-            }*/
-
-            // var bindings = props.Zip(valss, );
 
             NewExpression instance = Expression.New(t);
             Expression expr = Expression.MemberInit(instance, bindings);

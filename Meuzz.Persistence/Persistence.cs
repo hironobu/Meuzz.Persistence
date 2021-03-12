@@ -201,6 +201,7 @@ namespace Meuzz.Persistence
         {
             public Type TargetType;
             public PropertyInfo PropertyInfo;
+            public PropertyInfo InversePropertyInfo;
             public string ForeignKey;
             public string PrimaryKey;
         }
@@ -217,6 +218,7 @@ namespace Meuzz.Persistence
     {
         private IDictionary<Type, string[]> _typeToForeignKeysTable = null;
         private IDictionary<PropertyInfo, string> _propertyInfoToForeignKeyTable = null;
+        private IDictionary<string, PropertyInfo> _foreignKeyToInversePropertyInfoTable = null;
 
         public ForeignKeyInfoManager()
         {
@@ -226,6 +228,7 @@ namespace Meuzz.Persistence
         {
             var table = new Dictionary<Type, string[]>();
             var table2 = new Dictionary<PropertyInfo, string>();
+            var table3 = new Dictionary<string, PropertyInfo>();
 
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
@@ -246,8 +249,11 @@ namespace Meuzz.Persistence
 
                             var revprop = t.GetProperties().Where(x => x.PropertyType == prop.DeclaringType).Single();
                             fk = StringUtils.ToSnake(revprop.Name) + "_id";
+
                         }
                         table2.Add(prop, fk);
+
+                        // table3.Add(fk, t.GetPropertyInfoFromColumnName(fk));
 
                         if (table.ContainsKey(t))
                         {
@@ -263,6 +269,7 @@ namespace Meuzz.Persistence
 
             _typeToForeignKeysTable = table;
             _propertyInfoToForeignKeyTable = table2;
+            // _foreignKeyToInversePropertyInfoTable = table3;
         }
 
         public string[] GetForeignKeysByTargetType(Type targetType)
@@ -285,6 +292,11 @@ namespace Meuzz.Persistence
         public string GetForeignKeyByPropertyInfo(PropertyInfo pi)
         {
             return _propertyInfoToForeignKeyTable.ContainsKey(pi) ? _propertyInfoToForeignKeyTable[pi] : null;
+        }
+
+        public PropertyInfo GetInversePropertyInfoByForeignKey(string fk)
+        {
+            return _foreignKeyToInversePropertyInfoTable[fk];
         }
 
         private static ForeignKeyInfoManager _instance = null;
@@ -381,10 +393,12 @@ namespace Meuzz.Persistence
                 var fk = ForeignKeyInfoManager.Instance().GetForeignKeyByPropertyInfo(prop);
                 if (fk != null)
                 {
+                    var targetType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
                     relinfos.Add(new ClassInfoManager.RelationInfoEntry()
                     {
                         PropertyInfo = prop,
-                        TargetType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType,
+                        InversePropertyInfo = targetType.GetPropertyInfoFromColumnName(fk, true),
+                        TargetType = targetType,
                         ForeignKey = fk
                     });
                 }
