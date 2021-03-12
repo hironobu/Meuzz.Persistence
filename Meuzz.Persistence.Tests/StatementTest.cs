@@ -34,7 +34,7 @@ namespace Meuzz.Persistence.Tests
             statement.Where("id", 1);
             Assert.NotNull(statement.Condition);
 
-            Assert.Equal("x => (x.Id == 1)", statement.Condition.ToString());
+            Assert.Equal("x => (Convert(x.Id, Int32) == 1)", statement.Condition.ToString());
         }
 
         [Fact]

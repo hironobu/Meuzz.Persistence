@@ -229,6 +229,9 @@ namespace Meuzz.Persistence
                     {
                         case "Contains":
                             return $"({FormatElement(mce.Arguments[1], showsParameterName, parameters)}) IN ({FormatElement(mce.Arguments[0], showsParameterName, parameters)})";
+
+                        case "get_Item":
+                            return $"{FormatElement(mce.Object, showsParameterName, parameters)}.{FormatElement(mce.Arguments[0], showsParameterName, parameters)}";
                     }
                     break;
 

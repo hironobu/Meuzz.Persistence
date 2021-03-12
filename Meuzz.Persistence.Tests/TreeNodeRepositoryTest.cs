@@ -32,7 +32,8 @@ namespace Meuzz.Persistence.Tests
                 CREATE TABLE TreeNodes (ID integer PRIMARY KEY, NAME text, PARENT_ID integer);
             ");
             _connection.Execute(@"
-                INSERT INTO TreeNodes VALUES (1, 'aaa', NULL), (2, 'bbb', 1), (3, 'ccc', 1), (4, 'ddd', 1);
+                INSERT INTO TreeNodes VALUES (1, 'aa', NULL), (2, 'bbb', 1), (3, 'ccc', 1), (4, 'ddd', 1);
+                INSERT INTO TreeNodes VALUES (5, 'aaaa', 2), (6, 'bbbb', 3), (7, 'cccc', 4), (8, 'dddd', 4), (9, 'eeee', 4), (10, 'ffff', 4), (11, 'gggg', 4);
             ");
             _repository = new ObjectRepository<TreeNode>(_connection, new SqliteSqlBuilder<TreeNode>(), new SqliteFormatter(), new SqliteCollator());
         }
@@ -44,6 +45,12 @@ namespace Meuzz.Persistence.Tests
             Assert.Single(objs);
             Assert.Equal(1, objs.ElementAt(0).Id);
             Assert.Equal(3, objs.ElementAt(0).Children.Count());
+            Assert.Equal("bbb", objs.ElementAt(0).Children.ElementAt(0).Name);
+            Assert.Equal("ccc", objs.ElementAt(0).Children.ElementAt(1).Name);
+            Assert.Equal("ddd", objs.ElementAt(0).Children.ElementAt(2).Name);
+            Assert.Single(objs.ElementAt(0).Children.ElementAt(0).Children);
+            Assert.Single(objs.ElementAt(0).Children.ElementAt(1).Children);
+            Assert.Equal(5, objs.ElementAt(0).Children.ElementAt(2).Children.Count());
 
             var objs2 = _repository.Load(2);
             Assert.Single(objs2);
@@ -52,7 +59,7 @@ namespace Meuzz.Persistence.Tests
             var objs3 = _repository.Load(1, 2, 3);
             Assert.Equal(3, objs3.Count());
             Assert.Equal((Int64)1, objs3.ElementAt(0).Id);
-            Assert.Equal("aaa", objs3.ElementAt(0).Name);
+            Assert.Equal("aa", objs3.ElementAt(0).Name);
             Assert.Equal((Int64)2, objs3.ElementAt(1).Id);
             Assert.Equal("bbb", objs3.ElementAt(1).Name);
             Assert.Equal((Int64)3, objs3.ElementAt(2).Id);
@@ -67,6 +74,11 @@ namespace Meuzz.Persistence.Tests
                 var nn = n;
                 Console.WriteLine(nn);
             }
+        }
+
+        [Fact]
+        public void Test01()
+        {
         }
 
         private IEnumerable<TreeNode> GetList(IEnumerable<string> sources)

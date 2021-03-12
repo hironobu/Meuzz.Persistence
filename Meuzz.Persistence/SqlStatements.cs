@@ -1,9 +1,11 @@
-﻿using System;
+﻿using Microsoft.CSharp.RuntimeBinder;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace Meuzz.Persistence
 {
@@ -28,7 +30,7 @@ namespace Meuzz.Persistence
             ParamInfo.RegisterParameter(null, t, true);
         }
 
-        public virtual void BuildCondition(LambdaExpression cond)
+        public virtual void BuildCondition(LambdaExpression cond, Type t)
         {
             if (!(cond is LambdaExpression lme))
             {
@@ -40,7 +42,7 @@ namespace Meuzz.Persistence
             var defaultParamName = ParamInfo.GetDefaultParamName();
             if (defaultParamName == null)
             {
-                ParamInfo.RegisterParameter(p.Name, p.Type, true);
+                ParamInfo.RegisterParameter(p.Name, t ?? p.Type, true);
             }
             else if (defaultParamName != p.Name)
             {
@@ -54,24 +56,31 @@ namespace Meuzz.Persistence
         public virtual void BuildCondition(string key, params object[] value)
         {
             Type t = ParamInfo.GetDefaultParamType();
-            var px = Expression.Parameter(t, "x");
-            Expression f = null;
+            Expression memberAccessor = null;
+            ParameterExpression px = null;
 
-            var key0 = key.Replace("_id", "");
-            var ppi = string.IsNullOrEmpty(key0)
+            var ppi = string.IsNullOrEmpty(key)
                 ? t.GetPrimaryPropertyInfo()
-                : t.GetProperty(StringUtils.ToCamel(key0, true));
-            var memberAccessor = Expression.MakeMemberAccess(px, ppi);
-
-            if (key.EndsWith("_id"))
+                : t.GetProperty(StringUtils.ToCamel(key, true));
+            if (ppi != null)
             {
-                memberAccessor = Expression.MakeMemberAccess(memberAccessor, ppi.PropertyType.GetPrimaryPropertyInfo());
+                px = Expression.Parameter(t, "x");
+                memberAccessor = Expression.MakeMemberAccess(px, ppi);
             }
+            else
+            {
+                var t1 = typeof(IDictionary<string, object>);
+                px = Expression.Parameter(t1, "x");
+                var methodInfo = t1.GetMethod("get_Item");
+                memberAccessor = Expression.Call(px, methodInfo, Expression.Constant(key));
+            }
+
+            Expression f = null;
 
             if (value.Length == 1)
             {
                 f = Expression.Equal(
-                    memberAccessor,
+                    Expression.Convert(memberAccessor, value[0].GetType()),
                     Expression.Constant(value[0]));
             }
             else
@@ -85,7 +94,7 @@ namespace Meuzz.Persistence
                     );
             }
 
-            BuildCondition(Expression.Lambda(f, px));
+            BuildCondition(Expression.Lambda(f, px), t);
         }
     }
 
@@ -207,7 +216,7 @@ namespace Meuzz.Persistence
 
         public virtual SelectStatement<T> Where(Expression<Func<T, bool>> cond)
         {
-            BuildCondition(cond);
+            BuildCondition(cond, null);
             return this;
         }
 
@@ -244,7 +253,7 @@ namespace Meuzz.Persistence
 
         public virtual DeleteStatement<T> Where(Expression<Func<T, bool>> cond)
         {
-            BuildCondition(cond);
+            BuildCondition(cond, null);
             return this;
         }
 

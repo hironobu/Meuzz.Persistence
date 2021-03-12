@@ -28,11 +28,16 @@ namespace Meuzz.Persistence
 
         protected IEnumerable<object> MakeDefaultLoader(object obj, ClassInfoManager.RelationInfoEntry reli)
         {
-            Console.WriteLine(reli);
             var statement = new SqlSelectStatement(reli.TargetType);
             statement.BuildCondition(reli.ForeignKey, obj.GetType().GetPrimaryValue(obj));
 
+            var (sql, parameters) = _formatter.Format(statement, out var context);
+            var rset = _connection.Execute(sql, parameters, context);
 
+            foreach (var o in PopulateObjects(reli.TargetType, rset, statement, context))
+            {
+                yield return o;
+            }
             yield break;
         }
 
