@@ -19,7 +19,8 @@ namespace Meuzz.Persistence
             var (sql, parameters) = _formatter.Format(statement, out var context);
             var rset = _connection.Execute(sql, parameters, context);
 
-            foreach (var o in PopulateObjects(t, rset, statement, context))
+            var results = PopulateObjects(t, rset, statement, context);
+            foreach (var o in results)
             {
                 yield return o;
             }
@@ -34,14 +35,22 @@ namespace Meuzz.Persistence
             var (sql, parameters) = _formatter.Format(statement, out var context);
             var rset = _connection.Execute(sql, parameters, context);
 
-            foreach (var o in PopulateObjects(reli.TargetType, rset, statement, context))
+            var results = PopulateObjects(reli.TargetType, rset, statement, context);
+            if (obj != null && reli != null)
+            {
+                var tt = reli.TargetType;
+                var conv = typeof(Enumerable)
+                    .GetMethod("Cast")
+                    .MakeGenericMethod((tt.IsGenericType) ? tt.GetGenericArguments()[0] : tt);
+                reli.PropertyInfo.SetValue(obj, conv.Invoke(null, new object[] { results }));
+            }
+
+            foreach (var o in results)
             {
                 yield return o;
             }
             yield break;
         }
-
-
 
         protected object PopulateObject(Type t, IEnumerable<string> cols, IEnumerable<object> vals)
         {
@@ -110,18 +119,9 @@ namespace Meuzz.Persistence
                 if (prop != null)
                 {
                     var tt = prop.PropertyType;
-
                     var conv = typeof(Enumerable)
                         .GetMethod("Cast")
                         .MakeGenericMethod((tt.IsGenericType) ? tt.GetGenericArguments()[0] : tt);
-                    var ffs = this.GetType().GetMethods(BindingFlags.NonPublic | BindingFlags.Instance);
-                    var ff = ffs.Where(x => x.Name == "MakeDefaultLoader").First();
-                    /*bindings.Add(
-                        Expression.Bind(prop,
-                            Expression.Call(null, conv,
-                                Expression.Call(Expression.Constant(this), ff, Expression., Expression.Constant(reli))
-                                )
-                        ));*/
 
                     prop.SetValue(obj, conv.Invoke(null, new object[] { MakeDefaultLoader(obj, reli) }));
                 }
