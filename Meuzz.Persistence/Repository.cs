@@ -73,6 +73,7 @@ namespace Meuzz.Persistence
                 if (prop.PropertyType.IsPersistent())
                 {
                     // bindings.Add(mapper(prop, null));
+                    var getter = prop.GetGetMethod();
                 }
                 else
                 {
