@@ -14,9 +14,16 @@ namespace Meuzz.Persistence.Tests
         }*/
         public void BeforeRun()
         {
+        }
+
+        public object Run()
+        {
+            BeforeRun();
             var n = 0;
 
-            CharacterEx.NewPlayer = (x) =>
+
+            var ch = new CharacterEx();
+            ch.NewPlayer = (x) =>
             {
                 for (var i = 0; i < n; i++)
                 {
@@ -24,13 +31,6 @@ namespace Meuzz.Persistence.Tests
                 }
                 return new Player() { Id = 999 };
             };
-        }
-
-        public object Run()
-        {
-            BeforeRun();
-
-            var ch = new CharacterEx();
 
             Console.WriteLine("<<<");
             var n2 = ch.Player;
@@ -41,7 +41,7 @@ namespace Meuzz.Persistence.Tests
 
     public class CharacterEx : Character
     {
-        public static Func<Character, Player> NewPlayer = null;
+        public Func<Character, Player> NewPlayer = null;
 
         public new Player Player
         {
@@ -53,8 +53,11 @@ namespace Meuzz.Persistence.Tests
                     return player;
                 }
 
-                player = NewPlayer(this);
-                base.Player = player;
+                if (NewPlayer != null)
+                {
+                    player = NewPlayer(this);
+                    base.Player = player;
+                }
                 return player;
             }
         }
@@ -119,6 +122,12 @@ namespace Meuzz.Persistence.Tests
             _output.WriteLine(p2.ToString());
             Assert.Equal(11111, p2.Id);
 
+            p = obj.Player;
+            _output.WriteLine(p.ToString());
+            Assert.Equal(999, p.Id);
+            p2 = obj.Player;
+            _output.WriteLine(p2.ToString());
+            Assert.Equal(999, p2.Id);
         }
 
     }

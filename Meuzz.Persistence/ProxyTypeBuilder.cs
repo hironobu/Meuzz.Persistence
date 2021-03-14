@@ -8,13 +8,6 @@ namespace Meuzz.Persistence
     {
         private TypeBuilder _typeBuilder;
         private Type _objectType;
-    
-        /*public Type CreateTypeOverride(Type originalType, PropertyInfo originalProp, Delegate closureInfo)
-        {
-            var aName = Assembly.GetExecutingAssembly().GetName();
-
-            GetDynamicObject(aName, originalType, originalProp, closureInfo);
-        }*/
 
         public void BuildStart(AssemblyName assembly, Type objectType)
         {
