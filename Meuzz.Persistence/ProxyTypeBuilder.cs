@@ -1,19 +1,14 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 
 namespace Meuzz.Persistence
 {
-    public class TypeProxyBuilder
+    public class ProxyTypeBuilder
     {
         private TypeBuilder _typeBuilder;
         private Type _objectType;
     
-        private List<PropertyInfo> _props = new List<PropertyInfo>();
-        private IDictionary<string, Delegate> _propLoaders = new Dictionary<string, Delegate>();
-
-
         /*public Type CreateTypeOverride(Type originalType, PropertyInfo originalProp, Delegate closureInfo)
         {
             var aName = Assembly.GetExecutingAssembly().GetName();
@@ -33,7 +28,7 @@ namespace Meuzz.Persistence
 
         }
 
-        public void BuildProperty(PropertyInfo prop, Delegate propLoader)
+        public void BuildOverrideProperty(PropertyInfo prop)
         {
             var loaderName = "__" + prop.Name + "Loader";
             FieldBuilder fieldBuilder = _typeBuilder.DefineField(loaderName, typeof(Func<,>).MakeGenericType(_objectType, prop.PropertyType), FieldAttributes.Public);
@@ -88,29 +83,12 @@ namespace Meuzz.Persistence
 
             PropertyBuilder newProp = _typeBuilder.DefineProperty(prop.Name, PropertyAttributes.None, prop.PropertyType, Type.EmptyTypes);
             newProp.SetGetMethod(pGet);
-
-            var ctorBuilder = _typeBuilder.DefineDefaultConstructor(MethodAttributes.Public);
-            var ctorIL = ctorBuilder.GetILGenerator();
-
-            ctorIL.Emit(OpCodes.Ldarg_0);
-            // ctorIL.Emit(OpCodes.Ld
-
-
-            _propLoaders.Add(loaderName, propLoader);
         }
 
 
         public Type BuildFinish()
         {
-            var returnType = _typeBuilder.CreateType();
-
-            foreach (var (name, loader) in _propLoaders)
-            {
-                var f = returnType.GetField(name);
-                f.SetValue(null, loader);
-            }
-
-            return returnType;
+            return _typeBuilder.CreateType();
         }
 
     }

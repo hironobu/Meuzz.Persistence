@@ -99,7 +99,7 @@ namespace Meuzz.Persistence
             foreach (var (name, loader) in _propLoaders)
             {
                 var f = returnType.GetField(name);
-                f.SetValue(null, loader);
+                // f.SetValue(null, loader);
             }
 
             return returnType;
