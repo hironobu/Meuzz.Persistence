@@ -7,14 +7,14 @@ namespace Meuzz.Persistence
     public class ReflectionEmit
     {
 
-        public Type CreateTypeOverride(Type originalType, PropertyInfo originalProp)
+        public Type CreateTypeOverride(Type originalType, PropertyInfo originalProp, Delegate closureInfo)
         {
             var aName = Assembly.GetExecutingAssembly().GetName();
 
-            return GetDynamicObject(aName, originalType, originalProp);
+            return GetDynamicObject(aName, originalType, originalProp, closureInfo);
         }
 
-        public static Type GetDynamicObject(AssemblyName assembly, Type objectType, PropertyInfo prop)
+        public static Type GetDynamicObject(AssemblyName assembly, Type objectType, PropertyInfo prop, Delegate propLoader)
         {
             AssemblyBuilder assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(assembly, AssemblyBuilderAccess.Run);
             ModuleBuilder moduleBuilder = assemblyBuilder.DefineDynamicModule(assembly.Name);
@@ -22,6 +22,8 @@ namespace Meuzz.Persistence
             //create the class
             var typeBuilder = moduleBuilder.DefineType(objectType.Name, TypeAttributes.Public | TypeAttributes.AutoClass | TypeAttributes.AnsiClass |
                                                                 TypeAttributes.BeforeFieldInit, objectType);
+
+            FieldBuilder fieldBuilder = typeBuilder.DefineField("__" + prop.Name + "Loader", typeof(Func<,>).MakeGenericType(objectType, prop.PropertyType), FieldAttributes.Public | FieldAttributes.Static);
 
             MethodBuilder pGet = typeBuilder.DefineMethod("get_" + prop.Name, MethodAttributes.NewSlot | MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig, prop.PropertyType, Type.EmptyTypes);
             ILGenerator pILGet = pGet.GetILGenerator();
@@ -32,7 +34,7 @@ namespace Meuzz.Persistence
             pILGet.Emit(OpCodes.Newobj, ctor);
             pILGet.Emit(OpCodes.Throw);
 #else
-            var ctor = prop.PropertyType.GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, new Type[] { }, null);
+            // var ctor = propertyType.GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, new Type[] { objectType }, null);
 
             var s0 = pILGet.DeclareLocal(prop.PropertyType);
             var s1 = pILGet.DeclareLocal(typeof(Int32));
@@ -52,22 +54,15 @@ namespace Meuzz.Persistence
             pILGet.Emit(OpCodes.Ldloc, s1);
             pILGet.Emit(OpCodes.Brfalse_S, label_IL_0015);
             pILGet.Emit(OpCodes.Nop);
-            /*
-            pILGet.Emit(OpCodes.Ldarg_0);
-            pILGet.Emit(OpCodes.Stloc, s2);
-            Label label_IL_002a = pILGet.DefineLabel();
-            pILGet.Emit(OpCodes.Br_S, label_IL_002a);
-            pILGet.MarkLabel(label_IL_0015);
-            var ctor = prop.PropertyType.GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, new Type[] { }, null);
-            pILGet.Emit(OpCodes.Newobj, ctor);
-            pILGet.EmitCall(OpCodes.Call, prop.GetSetMethod(), null);
-            pILGet.Emit(OpCodes.Nop);
-            */
             pILGet.Emit(OpCodes.Ldloc, s0);
             pILGet.Emit(OpCodes.Stloc, s2);
             pILGet.Emit(OpCodes.Br_S, label_IL_001e);
             pILGet.MarkLabel(label_IL_0015);
-            pILGet.Emit(OpCodes.Newobj, ctor);
+            //pILGet.Emit(OpCodes.Newobj, ctor);
+            //pILGet.EmitCall(OpCodes.Call, closureInfo, null);
+            pILGet.Emit(OpCodes.Ldsfld, fieldBuilder);
+            pILGet.Emit(OpCodes.Ldarg_0);
+            pILGet.Emit(OpCodes.Callvirt, typeof(Func<,>).MakeGenericType(objectType, prop.PropertyType).GetMethod("Invoke"));
             pILGet.Emit(OpCodes.Stloc, s0);
             pILGet.Emit(OpCodes.Ldarg_0);
             pILGet.Emit(OpCodes.Ldloc, s0);
@@ -145,7 +140,18 @@ namespace Meuzz.Persistence
 
             newProp.SetGetMethod(pGet);
 
-            return typeBuilder.CreateType();
+
+
+            /*ConstructorBuilder staticConstructorBuilder = typeBuilder.DefineConstructor(MethodAttributes.Public | MethodAttributes.Static, CallingConventions.Standard, Type.EmptyTypes);
+            ILGenerator staticConstructorILGenerator = staticConstructorBuilder.GetILGenerator();
+
+            staticConstructorILGenerator.Emit(OpCodes.Ldobj, propLoader);
+            staticConstructorILGenerator.Emit(OpCodes.Stsfld, fieldBuilder);*/
+
+            var returnType = typeBuilder.CreateType();
+            var f = returnType.GetField("__PlayerLoader");
+            f.SetValue(null, propLoader);
+            return returnType;
         }
 
     }

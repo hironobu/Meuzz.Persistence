@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -10,17 +11,37 @@ namespace Meuzz.Persistence.Tests
         {
             return new T1();
         }*/
-
-        public static Func<Character, Player> DefaultLoader = (x) =>
+        public void BeforeRun()
         {
-            Console.WriteLine(x);
-            return new Player() { Id = 999 };
-        };
+            var n = 0;
 
+            CharacterEx.NewPlayer = (x) =>
+            {
+                for (var i = 0; i < n; i++)
+                {
+                    Console.WriteLine(x);
+                }
+                return new Player() { Id = 999 };
+            };
+        }
+
+        public object Run()
+        {
+            BeforeRun();
+
+            var ch = new CharacterEx();
+
+            Console.WriteLine("<<<");
+            var n2 = ch.Player;
+            Console.WriteLine("<<< " + n2);
+            return n2;
+        }
     }
 
     public class CharacterEx : Character
     {
+        public static Func<Character, Player> NewPlayer = null;
+
         public new Player Player
         {
             get
@@ -31,15 +52,8 @@ namespace Meuzz.Persistence.Tests
                     return player;
                 }
 
-                //Func<Character, Player> f = CharacterExExtensions.DefaultLoader;
-
-                //player = f(this);
-                player = new Player();
+                player = NewPlayer(this);
                 base.Player = player;
-                /*
-                return base.Player;*/
-                // throw new NotImplementedException();
-
                 return player;
             }
         }
@@ -54,17 +68,23 @@ namespace Meuzz.Persistence.Tests
             _output = output;
         }
 
+        public static Player DummyLoader(Character x)
+        {
+            Console.WriteLine(x);
+            return new Player() { Id = 999 };
+        }
+
         [Fact]
         public void Test01()
         {
-            Func<Character, Player> f = (x) =>
+            Func<Character, Player> ff = (c) =>
             {
-                Console.WriteLine(x);
+                Console.WriteLine(c);
                 return new Player() { Id = 999 };
             };
 
             var body = new ReflectionEmit();
-            var t = body.CreateTypeOverride(typeof(Character), typeof(Character).GetPropertyInfo("Player"));
+            var t = body.CreateTypeOverride(typeof(Character), typeof(Character).GetPropertyInfo("Player"), ff);
 
             dynamic obj = Activator.CreateInstance(t);
             _output.WriteLine(t.ToString());
