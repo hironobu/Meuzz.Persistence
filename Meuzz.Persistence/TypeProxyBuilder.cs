@@ -5,7 +5,7 @@ using System.Reflection.Emit;
 
 namespace Meuzz.Persistence
 {
-    public class ReflectionEmit
+    public class TypeProxyBuilder
     {
         private TypeBuilder _typeBuilder;
         private Type _objectType;
@@ -36,7 +36,7 @@ namespace Meuzz.Persistence
         public void BuildProperty(PropertyInfo prop, Delegate propLoader)
         {
             var loaderName = "__" + prop.Name + "Loader";
-            FieldBuilder fieldBuilder = _typeBuilder.DefineField(loaderName, typeof(Func<,>).MakeGenericType(_objectType, prop.PropertyType), FieldAttributes.Public | FieldAttributes.Static);
+            FieldBuilder fieldBuilder = _typeBuilder.DefineField(loaderName, typeof(Func<,>).MakeGenericType(_objectType, prop.PropertyType), FieldAttributes.Public);
 
             MethodBuilder pGet = _typeBuilder.DefineMethod("get_" + prop.Name, MethodAttributes.NewSlot | MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig, prop.PropertyType, Type.EmptyTypes);
             ILGenerator pILGet = pGet.GetILGenerator();
@@ -69,7 +69,8 @@ namespace Meuzz.Persistence
             pILGet.Emit(OpCodes.Stloc, s2);
             pILGet.Emit(OpCodes.Br_S, label_IL_002d);
             pILGet.MarkLabel(label_IL_0015);
-            pILGet.Emit(OpCodes.Ldsfld, fieldBuilder);
+            pILGet.Emit(OpCodes.Ldarg_0);
+            pILGet.Emit(OpCodes.Ldfld, fieldBuilder);
             pILGet.Emit(OpCodes.Ldarg_0);
             pILGet.Emit(OpCodes.Callvirt, typeof(Func<,>).MakeGenericType(_objectType, prop.PropertyType).GetMethod("Invoke"));
             pILGet.Emit(OpCodes.Stloc, s0);
@@ -87,6 +88,13 @@ namespace Meuzz.Persistence
 
             PropertyBuilder newProp = _typeBuilder.DefineProperty(prop.Name, PropertyAttributes.None, prop.PropertyType, Type.EmptyTypes);
             newProp.SetGetMethod(pGet);
+
+            var ctorBuilder = _typeBuilder.DefineDefaultConstructor(MethodAttributes.Public);
+            var ctorIL = ctorBuilder.GetILGenerator();
+
+            ctorIL.Emit(OpCodes.Ldarg_0);
+            // ctorIL.Emit(OpCodes.Ld
+
 
             _propLoaders.Add(loaderName, propLoader);
         }

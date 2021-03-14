@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -84,13 +85,17 @@ namespace Meuzz.Persistence.Tests
             };
 
             var body = new ReflectionEmit();
-            var t = body.CreateTypeOverride(typeof(Character), typeof(Character).GetPropertyInfo("Player"), ff);
+            body.BuildStart(Assembly.GetExecutingAssembly().GetName(), typeof(Character));
+            body.BuildProperty(typeof(Character).GetPropertyInfo("Player"), ff);
+            var t = body.BuildFinish();
 
             dynamic obj = Activator.CreateInstance(t);
             _output.WriteLine(t.ToString());
             _output.WriteLine(obj.ToString());
             var p = obj.Player;
             _output.WriteLine(p.ToString());
+            var p2 = obj.Player;
+            _output.WriteLine(p2.ToString());
 
 
         }
