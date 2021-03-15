@@ -330,17 +330,18 @@ namespace Meuzz.Persistence
         }
 
     }
-
+/*
     public class ObjectRepository<T> : ObjectRepository<T, object> where T: class, new()
     {
-        public ObjectRepository(Connection conn, SqlBuilder<T> builder, SqlFormatter formatter, SqlCollator collator) : base(conn, builder, formatter, collator) { }
+        public ObjectRepository(Connection conn, SqlFormatter formatter, SqlCollator collator) : base(conn, formatter, collator) { }
     }
+*/
 
-    public class ObjectRepository<T, I> : ObjectRepositoryBase where T : class, new()
+    public class ObjectRepository : ObjectRepositoryBase
     {
         // private SqlBuilder<T> _sqlBuilder;
 
-        public ObjectRepository(Connection conn, SqlBuilder<T> builder, SqlFormatter formatter, SqlCollator collator)
+        public ObjectRepository(Connection conn, SqlFormatter formatter, SqlCollator collator)
         {
             _connection = conn;
             // _sqlBuilder = builder;
@@ -350,75 +351,44 @@ namespace Meuzz.Persistence
             _connection.Open();
         }
 
-        public IEnumerable<T> Load(Func<SelectStatement<T>, SelectStatement<T>> f)
+        public IEnumerable<T> Load<T>(Func<SelectStatement<T>, SelectStatement<T>> f) where T : class, new()
         {
             var statement = f(new SelectStatement<T>());
-            /*
-            return new StatementProcessor<T>()
-            {
-                Statement = statement,
-                OnExecute = (stmt) =>
-                {
-                    var (sql, parameters) = _formatter.Format(stmt, out var context);
-                    var rset = _connection.Execute(sql, parameters, context);
-                    return (IEnumerable<T>)PopulateObjects(rset, stmt, context);
-                }
-            };*/
             return Enumerable.Cast<T>(LoadObjects(typeof(T), statement));
         }
 
-        public IEnumerable<T> Load(Expression<Func<T, bool>> f = null)
+        public IEnumerable<T> Load<T>(Expression<Func<T, bool>> f = null) where T : class, new()
         {
             var statement = new SelectStatement<T>();
             if (f != null)
             {
                 statement.Where(f);
             }
-            /*
-            return new StatementProcessor<T>()
-            {
-                Statement = statement,
-                OnExecute = (stmt) =>
-                {
-                    var (sql, parameters) = _formatter.Format(stmt, out var context);
-                    var rset = _connection.Execute(sql, parameters, context);
-                    return (IEnumerable<T>)PopulateObjects(rset, stmt, context);
-                }
-            };*/
+
             return Enumerable.Cast<T>(LoadObjects(typeof(T), statement));
         }
 
-        public IEnumerable<T> Load(params object[] id)
+        public IEnumerable<T> Load<T>(params object[] id) where T : class, new()
         {
             var primaryKey = typeof(T).GetPrimaryKey();
 
             var statement = new SelectStatement<T>();
             statement.Where(primaryKey, id);
-            /*
-            return new StatementProcessor<T>()
-            {
-                Statement = statement,
-                OnExecute = (stmt) =>
-                {
-                    var (sql, parameters) = _formatter.Format(stmt, out var context);
-                    var rset = _connection.Execute(sql, parameters, context);
-                    return (IEnumerable<T>)PopulateObjects(rset, stmt, context);
-                }
-            };*/
+
             return Enumerable.Cast<T>(LoadObjects(typeof(T), statement));
         }
 
-        public bool Store(T obj)
+        public bool Store<T>(T obj) where T : class, new()
         {
             return Store(new T[] { obj });
         }
 
-        public bool Store(IEnumerable<T> objs)
+        public bool Store<T>(IEnumerable<T> objs) where T : class, new()
         {
             return StoreObjects(typeof(T), objs, null);
         }
 
-        public bool Delete(Expression<Func<T, bool>> f)
+        public bool Delete<T>(Expression<Func<T, bool>> f) where T : class, new()
         {
             var statement = new DeleteStatement<T>();
             statement.Where(f);
@@ -429,7 +399,7 @@ namespace Meuzz.Persistence
             return true;
         }
 
-        public bool Delete(params object[] id)
+        public bool Delete<T>(params object[] id) where T : class, new()
         {
             var primaryKey = typeof(T).GetPrimaryKey();
 
@@ -463,143 +433,7 @@ namespace Meuzz.Persistence
                 return obj.GetHashCode();
             }
         }
-        /*
-        private IEnumerable<T> PopulateObjects(Connection.ResultSet rset, SqlSelectStatement statement, SqlConnectionContext context)
-        {
-            var rows = rset.Results.Select(x =>
-            {
-                var xx = _collator.Collate(x, context);
-                var kvs = xx.Select(c => (c.Key.Split('.'), c.Value));
-                var d = new Dictionary<string, object>();
-                foreach (var (kk, v) in kvs)
-                {
-                    var dx = d;
-                    var k = string.Join('.', kk.Take(kk.Length - 1));
-                    {
-                        var dx0 = dx;
-                        if (dx0.TryGetValue(k, out var value))
-                        {
-                            dx = value as Dictionary<string, object>;
-                        }
-                        else
-                        {
-                            dx = new Dictionary<string, object>();
-                            dx0[k] = dx;
-                        }
-                    }
-                    dx[kk.Last().ToLower()] = v;
-                }
-
-                return d;
-            });
-
-            var resultDict = new Dictionary<string, IDictionary<dynamic, IDictionary<string, object>>>();
-            var resultObjects = new Dictionary<string, IDictionary<dynamic, IDictionary<string, object>>>();
-
-            foreach (var row in rows)
-            {
-                foreach (var (k, v) in row)
-                {
-                    var d = v as Dictionary<string, object>;
-                    var tt = statement.ParamInfo.GetParameterTypeByParamName(k);
-                    var pk = tt.GetPrimaryKey();
-
-                    if (!resultDict.TryGetValue(k, out var dd))
-                    {
-                        dd = new Dictionary<object, IDictionary<string, object>>();
-                        resultDict.Add(k, dd);
-                    }
-
-                    var pkval = d[pk];
-                    if (pkval != null && !dd.TryGetValue(pkval, out var _))
-                    {
-                        dd[pkval] = d;
-                    }
-                }
-            }
-
-            if (resultDict.Count() == 0)
-            {
-                return new List<T>();
-            }
-
-            foreach (var (k, v) in resultDict) {
-                var t = statement.ParamInfo.GetParameterTypeByParamName(k);
-                var objs = resultDict[k].Select(x =>
-                {
-                    var v = x.Value;
-                    v["__object"] = PopulateObject(t, v.Keys, v.Values);
-                    return v;
-                });
-                var primaryKeyValue = t.GetProperty(StringUtils.ToCamel(t.GetPrimaryKey(), true));
-                resultObjects.Add(k, objs.ToDictionary(x => primaryKeyValue.GetValue(x["__object"]), x => x));
-            }
-
-            BuildBindings(statement, resultObjects);
-
-            return (IEnumerable<T>)typeof(Enumerable)
-                            .GetMethod("Cast")
-                            .MakeGenericMethod(typeof(T))
-                            .Invoke(null, new object[] { resultObjects[statement.ParamInfo.GetDefaultParamName()].Values.Select(x => x["__object"]) });
-        }
-        */
-        /*
-        private void BuildBindings(SqlSelectStatement statement, IDictionary<string, IDictionary<dynamic, IDictionary<string, object>>> resultObjects)
-        {
-            Func<string, Action<dynamic, dynamic>> propertySetter = (string prop) => (dynamic x, dynamic value) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true))?.SetValue(x, value);
-            Action<dynamic, string, dynamic> memberUpdater = (x, memb, value) =>
-            {
-                propertySetter(memb)(x["__object"], value);
-            };
-
-            Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).GetValue(x);
-            Func<string, Func<dynamic, dynamic>> memberAccessor = (string memb) => (dynamic x) =>
-            {
-                if (x.ContainsKey(memb))
-                {
-                    return x[memb];
-                }
-                return propertyGetter(memb)(x["__object"]);
-            };
-
-            Func<Type, IEnumerable<object>, IEnumerable<object>> regularCollection
-                = (t, objs) => (IEnumerable<object>)typeof(Enumerable)
-                    .GetMethod("Cast")
-                    .MakeGenericMethod((t.IsGenericType) ? t.GetGenericArguments()[0] : t)
-                    .Invoke(null, new object[] { objs });
-
-            foreach (var bindingSpec in statement.GetAllBindings())
-            {
-                var fromObjs = resultObjects[bindingSpec.PrimaryParamName].Values;
-
-                Func<dynamic, Func<dynamic, bool>> filteringConditions = (x) => (y) => bindingSpec.ConditionFunc(x, y);
-                Func<IDictionary<string, object>, object> fmap = x =>
-                {
-                    var pkv = memberAccessor(bindingSpec.PrimaryKey)(x);
-                    var targetToObjs = resultObjects[bindingSpec.ForeignParamName].Values.Where(filteringConditions(x));
-                    if (targetToObjs.Count() > 0)
-                    {
-                        foreach (var o in targetToObjs)
-                        {
-                            var k0 = StringUtils.ToCamel(bindingSpec.ForeignKey.Replace("_id", ""), true);
-                            memberUpdater(o, k0, x["__object"]);
-                        }
-                        memberUpdater(x, bindingSpec.MemberInfo.Name, regularCollection((bindingSpec.MemberInfo as PropertyInfo).PropertyType, targetToObjs.Select(y => y["__object"])));
-                    }
-                    else
-                    {
-                        memberUpdater(x, bindingSpec.MemberInfo.Name, regularCollection((bindingSpec.MemberInfo as PropertyInfo).PropertyType, MakeGenerator(bindingSpec, x["__object"])));
-                    }
-                    return x;
-                };
-                var r = fromObjs.Select(fmap).ToList(); // just do it
-                Console.WriteLine(r);
-            }
-        }*/
-
     }
-
-    //     public class ObjectRepository<T>  : ObjectRepository<T, int>  where T new() { }
 
     public static class PersistentObjectExtensions
     {

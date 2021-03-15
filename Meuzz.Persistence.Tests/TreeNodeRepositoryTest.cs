@@ -24,7 +24,7 @@ namespace Meuzz.Persistence.Tests
     public class TreeNodeRepositoryTest
     {
         private Connection _connection;
-        private ObjectRepository<TreeNode> _repository;
+        private ObjectRepository _repository;
 
         public TreeNodeRepositoryTest()
         {
@@ -38,13 +38,13 @@ namespace Meuzz.Persistence.Tests
                 INSERT INTO TreeNodes VALUES (1, 'aa', NULL), (2, 'bbb', 1), (3, 'ccc', 1), (4, 'ddd', 1);
                 INSERT INTO TreeNodes VALUES (5, 'aaaa', 2), (6, 'bbbb', 3), (7, 'cccc', 4), (8, 'dddd', 4), (9, 'eeee', 4), (10, 'ffff', 4), (11, 'gggg', 4);
             ");
-            _repository = new ObjectRepository<TreeNode>(_connection, new SqliteSqlBuilder<TreeNode>(), new SqliteFormatter(), new SqliteCollator());
+            _repository = new ObjectRepository(_connection, new SqliteFormatter(), new SqliteCollator());
         }
 
         [Fact]
         public void TestLoadById()
         {
-            var objs = _repository.Load(s => s.Where(x => x.Id == 1)).ToList();
+            var objs = _repository.Load<TreeNode>(s => s.Where(x => x.Id == 1)).ToList();
             Assert.Single(objs);
             Assert.Equal(1, objs.ElementAt(0).Id);
             Assert.Equal(3, objs.ElementAt(0).Children.Count());
@@ -58,15 +58,13 @@ namespace Meuzz.Persistence.Tests
             Assert.NotNull(objs.ElementAt(0).Children.ElementAt(0).Parent);
             Assert.Equal(1, objs.ElementAt(0).Children.ElementAt(0).Parent.Id);
 
-            var objs2 = _repository.Load(2);
+            var objs2 = _repository.Load<TreeNode>(2);
             Assert.Single(objs2);
             Assert.Equal((Int64)2, objs2.ElementAt(0).Id);
-            var child = objs2.ElementAt(0);
-            var parent = child.Parent;
-            Assert.Equal(1, parent.Id);
+            Assert.Equal("aa", objs2.ElementAt(0).Parent.Name);
+            Assert.Equal(1, objs2.ElementAt(0).Parent.Id);
 
-
-            var objs3 = _repository.Load(1, 2, 3);
+            var objs3 = _repository.Load<TreeNode>(1, 2, 3);
             Assert.Equal(3, objs3.Count());
             Assert.Equal((Int64)1, objs3.ElementAt(0).Id);
             Assert.Equal("aa", objs3.ElementAt(0).Name);
