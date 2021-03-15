@@ -32,6 +32,14 @@ namespace Meuzz.Persistence
             yield break;
         }
 
+        protected object MakeDefaultReverseLoader(object value, Type targetType)
+        {
+            var statement = new SqlSelectStatement(targetType);
+            statement.BuildCondition(targetType.GetPrimaryKey(), value);
+
+            return LoadObjects(targetType, statement).First();
+        }
+
         protected IEnumerable<object> MakeDefaultLoader(object obj, ClassInfoManager.RelationInfoEntry reli)
         {
             var statement = new SqlSelectStatement(reli.TargetType);
@@ -62,6 +70,10 @@ namespace Meuzz.Persistence
             };
             var bindings = new List<MemberAssignment>();
 
+            var proxyTypeBuilder = new ProxyTypeBuilder();
+            proxyTypeBuilder.BuildStart(Assembly.GetExecutingAssembly().GetName(), t);
+            IDictionary<PropertyInfo, Delegate> reverseLoaders = new Dictionary<PropertyInfo, Delegate>();
+
             foreach (var (c, v) in cols.Zip(vals))
             {
                 var prop = t.GetPropertyInfoFromColumnName(c, true);
@@ -73,7 +85,12 @@ namespace Meuzz.Persistence
                 if (prop.PropertyType.IsPersistent())
                 {
                     // bindings.Add(mapper(prop, null));
-                    var getter = prop.GetGetMethod();
+                    proxyTypeBuilder.BuildOverrideProperty(prop);
+                    Func<dynamic, dynamic> f = (c) =>
+                    {
+                        return MakeDefaultReverseLoader(v, prop.PropertyType);
+                    };
+                    reverseLoaders.Add(prop, f);
                 }
                 else
                 {
@@ -83,7 +100,7 @@ namespace Meuzz.Persistence
 
             var ci = t.GetClassInfo();
 
-            NewExpression instance = Expression.New(t);
+            NewExpression instance = Expression.New(t.GetPersistentType(proxyTypeBuilder.BuildFinish()));
             Expression expr = Expression.MemberInit(instance, bindings);
 
             var ft = typeof(Func<>).MakeGenericType(t);
@@ -103,6 +120,15 @@ namespace Meuzz.Persistence
 
                     prop.SetValue(obj, conv.Invoke(null, new object[] { MakeDefaultLoader(obj, reli) }));
                 }
+            }
+
+            foreach (var (prop, loader) in reverseLoaders)
+            {
+                var field = obj.GetType().GetField($"__{prop.Name}Loader");
+                var px = Expression.Parameter(t);
+                var call = Expression.Call(Expression.Constant(loader.Target), loader.Method, px);
+                var ret = Expression.Lambda(Expression.Convert(call, prop.PropertyType), px);
+                field.SetValue(obj, ret.Compile());
             }
 
             return obj;
@@ -239,13 +265,19 @@ namespace Meuzz.Persistence
 
         private void BuildBindings(SqlSelectStatement statement, IDictionary<string, IDictionary<dynamic, IDictionary<string, object>>> resultObjects)
         {
-            Func<string, Action<dynamic, dynamic>> propertySetter = (string prop) => (dynamic x, dynamic value) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true))?.SetValue(x, value);
+            Func<string, Action<dynamic, dynamic>> propertySetter = (string prop) => (dynamic x, dynamic value) =>
+            {
+                x.GetType().GetProperty(StringUtils.ToCamel(prop, true), BindingFlags.InvokeMethod)?.SetValue(x, value);
+            };
             Action<dynamic, string, dynamic> memberUpdater = (x, memb, value) =>
             {
                 propertySetter(memb)(x["__object"], value);
             };
 
-            Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).GetValue(x);
+            Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) =>
+            {
+                return x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).GetValue(x);
+            };
             Func<string, Func<dynamic, dynamic>> memberAccessor = (string memb) => (dynamic x) =>
             {
                 if (x.ContainsKey(memb))

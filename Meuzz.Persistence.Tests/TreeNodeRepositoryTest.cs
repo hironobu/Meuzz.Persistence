@@ -18,7 +18,7 @@ namespace Meuzz.Persistence.Tests
         [HasMany(ForeignKey: "parent_id")]
         public IEnumerable<TreeNode> Children { get; set; }
 
-        public TreeNode Parent { get; set; }
+        public virtual TreeNode Parent { get; set; }
     }
 
     public class TreeNodeRepositoryTest
@@ -61,7 +61,9 @@ namespace Meuzz.Persistence.Tests
             var objs2 = _repository.Load(2);
             Assert.Single(objs2);
             Assert.Equal((Int64)2, objs2.ElementAt(0).Id);
-            Assert.Equal(1, objs2.ElementAt(0).Parent.Id);
+            var child = objs2.ElementAt(0);
+            var parent = child.Parent;
+            Assert.Equal(1, parent.Id);
 
 
             var objs3 = _repository.Load(1, 2, 3);

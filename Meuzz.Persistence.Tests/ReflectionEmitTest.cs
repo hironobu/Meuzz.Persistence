@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Reflection;
 using Xunit;
 using Xunit.Abstractions;
@@ -104,7 +103,7 @@ namespace Meuzz.Persistence.Tests
 
             dynamic obj2 = Activator.CreateInstance(t);
             var field2 = obj2.GetType().GetField("__PlayerLoader");
-            field.SetValue(obj2, ff2);
+            field2.SetValue(obj2, ff2);
 
             _output.WriteLine(t.ToString());
             _output.WriteLine(obj.ToString());
@@ -130,7 +129,44 @@ namespace Meuzz.Persistence.Tests
             Assert.Equal(999, p2.Id);
         }
 
-    }
+        [Fact]
+        public void TestNullLoader()
+        {
+            var body = new ProxyTypeBuilder();
+            body.BuildStart(Assembly.GetExecutingAssembly().GetName(), typeof(Character));
+            body.BuildOverrideProperty(typeof(Character).GetPropertyInfo("Player"));
+            var t = body.BuildFinish();
 
+            dynamic obj = Activator.CreateInstance(t);
+
+            dynamic obj2 = Activator.CreateInstance(t);
+            var field2 = obj2.GetType().GetField("__PlayerLoader");
+            field2.SetValue(obj2, null);
+
+            _output.WriteLine(obj.ToString());
+            var p = obj.Player;
+            Assert.Null(p);
+            var p2 = obj2.Player;
+            Assert.Null(p);
+        }
+
+
+        [Fact]
+        public void TestEquality()
+        {
+            var body = new ProxyTypeBuilder();
+            body.BuildStart(Assembly.GetExecutingAssembly().GetName(), typeof(Character));
+            body.BuildOverrideProperty(typeof(Character).GetPropertyInfo("Player"));
+            var t = body.BuildFinish();
+
+            var body2 = new ProxyTypeBuilder();
+            body2.BuildStart(Assembly.GetExecutingAssembly().GetName(), typeof(Character));
+            body2.BuildOverrideProperty(typeof(Character).GetPropertyInfo("Player"));
+            var t2 = body2.BuildFinish();
+
+            Assert.NotEqual(t, t2);
+            Assert.NotSame(t, t2);
+        }
+    }
 
 }

@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 
@@ -26,7 +28,7 @@ namespace Meuzz.Persistence
             var loaderName = "__" + prop.Name + "Loader";
             FieldBuilder fieldBuilder = _typeBuilder.DefineField(loaderName, typeof(Func<,>).MakeGenericType(_objectType, prop.PropertyType), FieldAttributes.Public);
 
-            MethodBuilder pGet = _typeBuilder.DefineMethod("get_" + prop.Name, MethodAttributes.NewSlot | MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig, prop.PropertyType, Type.EmptyTypes);
+            MethodBuilder pGet = _typeBuilder.DefineMethod("get_" + prop.Name, MethodAttributes.Virtual | MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig, prop.PropertyType, Type.EmptyTypes);
             ILGenerator pILGet = pGet.GetILGenerator();
 
 #if false
@@ -38,8 +40,10 @@ namespace Meuzz.Persistence
             var s0 = pILGet.DeclareLocal(prop.PropertyType);
             var s1 = pILGet.DeclareLocal(typeof(Int32));
             var s2 = pILGet.DeclareLocal(prop.PropertyType);
+            var s3 = pILGet.DeclareLocal(typeof(bool));
 
             var label_IL_0015 = pILGet.DefineLabel();
+            var label_IL_0039 = pILGet.DefineLabel();
             var label_IL_002d = pILGet.DefineLabel();
 
             pILGet.Emit(OpCodes.Nop);
@@ -59,6 +63,14 @@ namespace Meuzz.Persistence
             pILGet.MarkLabel(label_IL_0015);
             pILGet.Emit(OpCodes.Ldarg_0);
             pILGet.Emit(OpCodes.Ldfld, fieldBuilder);
+            pILGet.Emit(OpCodes.Ldnull);
+            pILGet.Emit(OpCodes.Cgt_Un);
+            pILGet.Emit(OpCodes.Stloc, s3);
+            pILGet.Emit(OpCodes.Ldloc, s3);
+            pILGet.Emit(OpCodes.Brfalse_S, label_IL_0039);
+            pILGet.Emit(OpCodes.Nop);
+            pILGet.Emit(OpCodes.Ldarg_0);
+            pILGet.Emit(OpCodes.Ldfld, fieldBuilder);
             pILGet.Emit(OpCodes.Ldarg_0);
             pILGet.Emit(OpCodes.Callvirt, typeof(Func<,>).MakeGenericType(_objectType, prop.PropertyType).GetMethod("Invoke"));
             pILGet.Emit(OpCodes.Stloc, s0);
@@ -66,6 +78,8 @@ namespace Meuzz.Persistence
             pILGet.Emit(OpCodes.Ldloc, s0);
             pILGet.EmitCall(OpCodes.Call, prop.GetSetMethod(), null);
             pILGet.Emit(OpCodes.Nop);
+            pILGet.Emit(OpCodes.Nop);
+            pILGet.MarkLabel(label_IL_0039);
             pILGet.Emit(OpCodes.Ldloc, s0);
             pILGet.Emit(OpCodes.Stloc, s2);
             pILGet.Emit(OpCodes.Br_S, label_IL_002d);
@@ -83,6 +97,60 @@ namespace Meuzz.Persistence
         {
             return _typeBuilder.CreateType();
         }
+    }
 
+    public class PersistentTypeManager
+    {
+        private IDictionary<Type, Type> _typeDict = new ConcurrentDictionary<Type, Type>();
+
+        public Type GetPersistentType(Type t, Type persistentType = null)
+        {
+            if (_typeDict.ContainsKey(t))
+            {
+                return _typeDict[t];
+            }
+            if (_typeDict.Values.Contains(t))
+            {
+                return t;
+            }
+
+            if (persistentType == null)
+            {
+                throw new NotImplementedException();
+            }
+
+            _typeDict.Add(t, persistentType);
+            return persistentType;
+        }
+
+
+
+        private static PersistentTypeManager _instance = null;
+        private static readonly object _instanceLock = new object();
+
+        public static PersistentTypeManager Instance()
+        {
+            if (_instance == null)
+            {
+                lock (_instanceLock)
+                {
+                    if (_instance == null)
+                    {
+                        _instance = new PersistentTypeManager();
+                    }
+                }
+            }
+
+            return _instance;
+        }
+    }
+
+
+    public static class PersistentTypeExtensions
+    {
+        public static Type GetPersistentType(this Type t, Type persistentType = null)
+        {
+            return PersistentTypeManager.Instance().GetPersistentType(t, persistentType);
+        }
     }
 }
