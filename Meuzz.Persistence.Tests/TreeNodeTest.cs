@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
-using System.Reflection.Emit;
 using Xunit;
 
 namespace Meuzz.Persistence.Tests
@@ -21,14 +19,14 @@ namespace Meuzz.Persistence.Tests
         public virtual TreeNode Parent { get; set; }
     }
 
-    public class TreeNodeRepositoryTest
+    public class TreeNodeTest
     {
         private Connection _connection;
         private ObjectRepository _repository;
 
-        public TreeNodeRepositoryTest()
+        public TreeNodeTest()
         {
-            _connection = new SqliteConnectionImpl("dummy.sqlite");
+            _connection = new ConnectionFactory().NewConnection("type=sqlite;file=:memory:");
             _connection.Open();
 
             _connection.Execute(@"
@@ -72,28 +70,6 @@ namespace Meuzz.Persistence.Tests
             Assert.Equal("bbb", objs3.ElementAt(1).Name);
             Assert.Equal((Int64)3, objs3.ElementAt(2).Id);
             Assert.Equal("ccc", objs3.ElementAt(2).Name);
-
-            IEnumerable<TreeNode> nodes = null;
-
-            nodes = GetList(new string[] { "hogehoge", "fugafuga" });
-
-            foreach (var n in nodes)
-            {
-                var nn = n;
-                Console.WriteLine(nn);
-            }
-        }
-
-        [Fact]
-        public void Test01()
-        {
-        }
-
-        private IEnumerable<TreeNode> GetList(IEnumerable<string> sources)
-        {
-            yield return new TreeNode() { Name = sources.ElementAt(0) };
-            yield return new TreeNode() { Name = sources.ElementAt(1) };
-            yield break;
         }
     }
 }

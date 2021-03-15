@@ -121,7 +121,7 @@ namespace Meuzz.Persistence.Tests
         private ObjectRepository _repository;
         public RepositoryTest()
         {
-            _connection = new SqliteConnectionImpl("dummy.sqlite");
+            _connection = new ConnectionFactory().NewConnection("type=sqlite;file=:memory:");
             _connection.Open();
 
             _connection.Execute(@"

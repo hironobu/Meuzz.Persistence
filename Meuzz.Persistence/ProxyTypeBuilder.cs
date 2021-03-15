@@ -25,7 +25,7 @@ namespace Meuzz.Persistence
 
         public void BuildOverrideProperty(PropertyInfo prop)
         {
-            var loaderName = "__" + prop.Name + "Loader";
+            // var loaderName = "__" + prop.Name + "Loader";
             FieldBuilder fieldBuilder = _typeBuilder.DefineField(loaderName, typeof(Func<,>).MakeGenericType(_objectType, prop.PropertyType), FieldAttributes.Public);
 
             MethodBuilder pGet = _typeBuilder.DefineMethod("get_" + prop.Name, MethodAttributes.Virtual | MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig, prop.PropertyType, Type.EmptyTypes);

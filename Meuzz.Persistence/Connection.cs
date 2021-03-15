@@ -18,6 +18,28 @@ namespace Meuzz.Persistence
         public ColumnAliasingInfo ColumnAliasingInfo { get; } = new ColumnAliasingInfo();
     }
 
+
+    public class ConnectionFactory
+    {
+        public Connection NewConnection(string connectionString)
+        {
+            var parameters = ParseConnectionString(connectionString);
+
+            switch (parameters["type"])
+            {
+                case "sqlite":
+                    return new SqliteConnectionImpl(parameters["file"]);
+            }
+
+            throw new NotImplementedException();
+        }
+
+        private IDictionary<string, string> ParseConnectionString(string connectionString)
+        {
+            return connectionString.Split(";").Select(x => x.Split("=", 2)).ToDictionary(x => x[0], x => x[1]);
+        }
+    }
+
     public abstract class Connection : IDisposable
     {
         private bool _disposed = false;
@@ -63,7 +85,7 @@ namespace Meuzz.Persistence
 
         public SqliteConnectionImpl(string path)
         {
-            var sqlConnectionSb = new SqliteConnectionStringBuilder { DataSource = ":memory:" };
+            var sqlConnectionSb = new SqliteConnectionStringBuilder { DataSource = path };
             _connection = new SqliteConnection(sqlConnectionSb.ToString());
         }
 
