@@ -9,7 +9,10 @@ namespace Meuzz.Persistence
     public class ProxyTypeBuilder
     {
         private TypeBuilder _typeBuilder;
+        private TypeBuilder _loaderTypeBuilder;
+        private FieldBuilder _loaderField;
         private Type _objectType;
+        private IDictionary<PropertyInfo, FieldBuilder> _propertyLoaders = new Dictionary<PropertyInfo, FieldBuilder>();
 
         public void BuildStart(AssemblyName assembly, Type objectType)
         {
@@ -20,81 +23,119 @@ namespace Meuzz.Persistence
             _objectType = objectType;
             _typeBuilder = moduleBuilder.DefineType(objectType.Name, TypeAttributes.Public | TypeAttributes.AutoClass | TypeAttributes.AnsiClass |
                                                                 TypeAttributes.BeforeFieldInit, objectType);
-
+            _loaderTypeBuilder = moduleBuilder.DefineType($"{objectType.Name}Loader", TypeAttributes.Public | TypeAttributes.AutoClass | TypeAttributes.AnsiClass |
+                TypeAttributes.BeforeFieldInit);
         }
 
         public void BuildOverrideProperty(PropertyInfo prop)
         {
-            // var loaderName = "__" + prop.Name + "Loader";
-            FieldBuilder fieldBuilder = _typeBuilder.DefineField(loaderName, typeof(Func<,>).MakeGenericType(_objectType, prop.PropertyType), FieldAttributes.Public);
+            //var loaderName = $"__{prop.Name}Loader__";
+            //FieldBuilder fieldBuilder = _typeBuilder.DefineField(loaderName, typeof(Func<,>).MakeGenericType(_objectType, prop.PropertyType), FieldAttributes.Public);
 
-            MethodBuilder pGet = _typeBuilder.DefineMethod("get_" + prop.Name, MethodAttributes.Virtual | MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig, prop.PropertyType, Type.EmptyTypes);
-            ILGenerator pILGet = pGet.GetILGenerator();
+            FieldBuilder propLoaderField = _loaderTypeBuilder.DefineField(prop.Name, typeof(Func<,>).MakeGenericType(_objectType, prop.PropertyType), FieldAttributes.Public);
 
-#if false
-            pILGet.Emit(OpCodes.Nop);
-            var ctor = typeof(System.NotImplementedException).GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, new Type[] { }, null);
-            pILGet.Emit(OpCodes.Newobj, ctor);
-            pILGet.Emit(OpCodes.Throw);
-#else
-            var s0 = pILGet.DeclareLocal(prop.PropertyType);
-            var s1 = pILGet.DeclareLocal(typeof(Int32));
-            var s2 = pILGet.DeclareLocal(prop.PropertyType);
-            var s3 = pILGet.DeclareLocal(typeof(bool));
-
-            var label_IL_0015 = pILGet.DefineLabel();
-            var label_IL_0039 = pILGet.DefineLabel();
-            var label_IL_002d = pILGet.DefineLabel();
-
-            pILGet.Emit(OpCodes.Nop);
-            pILGet.Emit(OpCodes.Ldarg_0);
-            pILGet.EmitCall(OpCodes.Call, prop.GetGetMethod(), null);
-            pILGet.Emit(OpCodes.Stloc, s0);
-            pILGet.Emit(OpCodes.Ldloc, s0);
-            pILGet.Emit(OpCodes.Ldnull);
-            pILGet.Emit(OpCodes.Cgt_Un);
-            pILGet.Emit(OpCodes.Stloc, s1);
-            pILGet.Emit(OpCodes.Ldloc, s1);
-            pILGet.Emit(OpCodes.Brfalse_S, label_IL_0015);
-            pILGet.Emit(OpCodes.Nop);
-            pILGet.Emit(OpCodes.Ldloc, s0);
-            pILGet.Emit(OpCodes.Stloc, s2);
-            pILGet.Emit(OpCodes.Br_S, label_IL_002d);
-            pILGet.MarkLabel(label_IL_0015);
-            pILGet.Emit(OpCodes.Ldarg_0);
-            pILGet.Emit(OpCodes.Ldfld, fieldBuilder);
-            pILGet.Emit(OpCodes.Ldnull);
-            pILGet.Emit(OpCodes.Cgt_Un);
-            pILGet.Emit(OpCodes.Stloc, s3);
-            pILGet.Emit(OpCodes.Ldloc, s3);
-            pILGet.Emit(OpCodes.Brfalse_S, label_IL_0039);
-            pILGet.Emit(OpCodes.Nop);
-            pILGet.Emit(OpCodes.Ldarg_0);
-            pILGet.Emit(OpCodes.Ldfld, fieldBuilder);
-            pILGet.Emit(OpCodes.Ldarg_0);
-            pILGet.Emit(OpCodes.Callvirt, typeof(Func<,>).MakeGenericType(_objectType, prop.PropertyType).GetMethod("Invoke"));
-            pILGet.Emit(OpCodes.Stloc, s0);
-            pILGet.Emit(OpCodes.Ldarg_0);
-            pILGet.Emit(OpCodes.Ldloc, s0);
-            pILGet.EmitCall(OpCodes.Call, prop.GetSetMethod(), null);
-            pILGet.Emit(OpCodes.Nop);
-            pILGet.Emit(OpCodes.Nop);
-            pILGet.MarkLabel(label_IL_0039);
-            pILGet.Emit(OpCodes.Ldloc, s0);
-            pILGet.Emit(OpCodes.Stloc, s2);
-            pILGet.Emit(OpCodes.Br_S, label_IL_002d);
-            pILGet.MarkLabel(label_IL_002d);
-            pILGet.Emit(OpCodes.Ldloc, s2);
-            pILGet.Emit(OpCodes.Ret);
-#endif
-
-            PropertyBuilder newProp = _typeBuilder.DefineProperty(prop.Name, PropertyAttributes.None, prop.PropertyType, Type.EmptyTypes);
-            newProp.SetGetMethod(pGet);
+            _propertyLoaders.Add(prop, propLoaderField);
         }
 
 
         public Type BuildFinish()
         {
+            ConstructorBuilder loaderCtorBuilder = _loaderTypeBuilder.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, new Type[] { });
+            ILGenerator pilLoader = loaderCtorBuilder.GetILGenerator();
+
+            foreach (var (prop, loader) in _propertyLoaders)
+            {
+                pilLoader.Emit(OpCodes.Ldarg_0);
+                pilLoader.Emit(OpCodes.Ldnull);
+                pilLoader.Emit(OpCodes.Stfld, loader);
+            }
+            pilLoader.Emit(OpCodes.Ldarg_0);
+            pilLoader.Emit(OpCodes.Call, typeof(Object).GetConstructor(new Type[] { }));
+            pilLoader.Emit(OpCodes.Nop);
+            pilLoader.Emit(OpCodes.Ret);
+
+
+            _loaderField = _typeBuilder.DefineField("__Loader__", _loaderTypeBuilder.CreateType(), FieldAttributes.Public);
+
+            foreach (var (prop, loader) in _propertyLoaders)
+            {
+                MethodBuilder pGet = _typeBuilder.DefineMethod("get_" + prop.Name, MethodAttributes.Virtual | MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig, prop.PropertyType, Type.EmptyTypes);
+                ILGenerator pILGet = pGet.GetILGenerator();
+
+#if false
+                pILGet.Emit(OpCodes.Nop);
+                var ctor = typeof(System.NotImplementedException).GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, new Type[] { }, null);
+                pILGet.Emit(OpCodes.Newobj, ctor);
+                pILGet.Emit(OpCodes.Throw);
+#else
+                var s0 = pILGet.DeclareLocal(prop.PropertyType);
+                var s1 = pILGet.DeclareLocal(typeof(Int32));
+                var s2 = pILGet.DeclareLocal(prop.PropertyType);
+                var s3 = pILGet.DeclareLocal(typeof(bool));
+
+                var label_IL_0015 = pILGet.DefineLabel();
+                var label_IL_0039 = pILGet.DefineLabel();
+                var label_IL_002d = pILGet.DefineLabel();
+
+                pILGet.Emit(OpCodes.Nop);
+                pILGet.Emit(OpCodes.Ldarg_0);
+                pILGet.EmitCall(OpCodes.Call, prop.GetGetMethod(), null);
+                pILGet.Emit(OpCodes.Stloc, s0);
+                pILGet.Emit(OpCodes.Ldloc, s0);
+                pILGet.Emit(OpCodes.Ldnull);
+                pILGet.Emit(OpCodes.Cgt_Un);
+                pILGet.Emit(OpCodes.Stloc, s1);
+                pILGet.Emit(OpCodes.Ldloc, s1);
+                pILGet.Emit(OpCodes.Brfalse_S, label_IL_0015);
+                pILGet.Emit(OpCodes.Nop);
+                pILGet.Emit(OpCodes.Ldloc, s0);
+                pILGet.Emit(OpCodes.Stloc, s2);
+                pILGet.Emit(OpCodes.Br_S, label_IL_002d);
+                pILGet.MarkLabel(label_IL_0015);
+                pILGet.Emit(OpCodes.Ldarg_0);
+                pILGet.Emit(OpCodes.Ldfld, _loaderField);
+                pILGet.Emit(OpCodes.Ldfld, loader);
+                pILGet.Emit(OpCodes.Ldnull);
+                pILGet.Emit(OpCodes.Cgt_Un);
+                pILGet.Emit(OpCodes.Stloc, s3);
+                pILGet.Emit(OpCodes.Ldloc, s3);
+                pILGet.Emit(OpCodes.Brfalse_S, label_IL_0039);
+                pILGet.Emit(OpCodes.Nop);
+                pILGet.Emit(OpCodes.Ldarg_0);
+                pILGet.Emit(OpCodes.Ldfld, _loaderField);
+                pILGet.Emit(OpCodes.Ldfld, loader);
+                pILGet.Emit(OpCodes.Ldarg_0);
+                pILGet.Emit(OpCodes.Callvirt, typeof(Func<,>).MakeGenericType(_objectType, prop.PropertyType).GetMethod("Invoke"));
+                pILGet.Emit(OpCodes.Stloc, s0);
+                pILGet.Emit(OpCodes.Ldarg_0);
+                pILGet.Emit(OpCodes.Ldloc, s0);
+                pILGet.EmitCall(OpCodes.Call, prop.GetSetMethod(), null);
+                pILGet.Emit(OpCodes.Nop);
+                pILGet.Emit(OpCodes.Nop);
+                pILGet.MarkLabel(label_IL_0039);
+                pILGet.Emit(OpCodes.Ldloc, s0);
+                pILGet.Emit(OpCodes.Stloc, s2);
+                pILGet.Emit(OpCodes.Br_S, label_IL_002d);
+                pILGet.MarkLabel(label_IL_002d);
+                pILGet.Emit(OpCodes.Ldloc, s2);
+                pILGet.Emit(OpCodes.Ret);
+#endif
+
+                PropertyBuilder newProp = _typeBuilder.DefineProperty(prop.Name, PropertyAttributes.None, prop.PropertyType, Type.EmptyTypes);
+                newProp.SetGetMethod(pGet);
+            }
+
+            ConstructorBuilder ctorBuilder = _typeBuilder.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, new Type[] { });
+            ILGenerator pil = ctorBuilder.GetILGenerator();
+
+            pil.Emit(OpCodes.Ldarg_0);
+            pil.Emit(OpCodes.Newobj, loaderCtorBuilder);
+            pil.Emit(OpCodes.Stfld, _loaderField);
+            pil.Emit(OpCodes.Ldarg_0);
+            pil.Emit(OpCodes.Call, _objectType.GetConstructor(new Type[] { }));
+            pil.Emit(OpCodes.Nop);
+            pil.Emit(OpCodes.Ret);
+
             return _typeBuilder.CreateType();
         }
     }

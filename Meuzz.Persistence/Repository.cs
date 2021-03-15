@@ -122,13 +122,15 @@ namespace Meuzz.Persistence
                 }
             }
 
-            foreach (var (prop, loader) in reverseLoaders)
+            foreach (var (prop, proploader) in reverseLoaders)
             {
-                var field = obj.GetType().GetField($"__{prop.Name}Loader");
+                var loaderField = obj.GetType().GetField("__Loader__");
+                var loader2 = loaderField.GetValue(obj);
+                var propLoaderField = loader2.GetType().GetField(prop.Name);
                 var px = Expression.Parameter(t);
-                var call = Expression.Call(Expression.Constant(loader.Target), loader.Method, px);
+                var call = Expression.Call(Expression.Constant(proploader.Target), proploader.Method, px);
                 var ret = Expression.Lambda(Expression.Convert(call, prop.PropertyType), px);
-                field.SetValue(obj, ret.Compile());
+                propLoaderField.SetValue(loader2, ret.Compile());
             }
 
             return obj;

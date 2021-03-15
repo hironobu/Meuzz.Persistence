@@ -22,7 +22,7 @@ namespace Meuzz.Persistence.Tests
 
 
             var ch = new CharacterEx();
-            ch.NewPlayer = (x) =>
+            ch.__Loader__.Player = (x) =>
             {
                 for (var i = 0; i < n; i++)
                 {
@@ -40,7 +40,11 @@ namespace Meuzz.Persistence.Tests
 
     public class CharacterEx : Character
     {
-        public Func<Character, Player> NewPlayer = null;
+        public class Loader
+        {
+            public Func<Character, Player> Player = null;
+        }
+        public Loader __Loader__ = new Loader();
 
         public new Player Player
         {
@@ -52,9 +56,9 @@ namespace Meuzz.Persistence.Tests
                     return player;
                 }
 
-                if (NewPlayer != null)
+                if (__Loader__.Player != null)
                 {
-                    player = NewPlayer(this);
+                    player = __Loader__.Player(this);
                     base.Player = player;
                 }
                 return player;
@@ -98,12 +102,16 @@ namespace Meuzz.Persistence.Tests
             var t = body.BuildFinish();
 
             dynamic obj = Activator.CreateInstance(t);
-            var field = obj.GetType().GetField("__PlayerLoader");
-            field.SetValue(obj, ff);
+            var loaderField = obj.GetType().GetField("__Loader__");
+            var loader = loaderField.GetValue(obj);
+            var field = loader.GetType().GetField("Player");
+            field.SetValue(loader, ff);
 
             dynamic obj2 = Activator.CreateInstance(t);
-            var field2 = obj2.GetType().GetField("__PlayerLoader");
-            field2.SetValue(obj2, ff2);
+            var loaderField2 = obj2.GetType().GetField("__Loader__");
+            var loader2 = loaderField2.GetValue(obj2);
+            var field2 = loader2.GetType().GetField("Player");
+            field2.SetValue(loader2, ff2);
 
             _output.WriteLine(t.ToString());
             _output.WriteLine(obj.ToString());
@@ -140,8 +148,10 @@ namespace Meuzz.Persistence.Tests
             dynamic obj = Activator.CreateInstance(t);
 
             dynamic obj2 = Activator.CreateInstance(t);
-            var field2 = obj2.GetType().GetField("__PlayerLoader");
-            field2.SetValue(obj2, null);
+            var loaderField2 = obj2.GetType().GetField("__Loader__");
+            var loader2 = loaderField2.GetValue(obj2);
+            var field2 = loader2.GetType().GetField("Player");
+            field2.SetValue(loader2, null);
 
             _output.WriteLine(obj.ToString());
             var p = obj.Player;
