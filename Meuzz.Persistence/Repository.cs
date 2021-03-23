@@ -70,7 +70,7 @@ namespace Meuzz.Persistence
             };
             var bindings = new List<MemberAssignment>();
 
-            var proxyTypeBuilder = new ProxyTypeBuilder();
+            var proxyTypeBuilder = new PersistentTypeBuilder();
             proxyTypeBuilder.BuildStart(Assembly.GetExecutingAssembly().GetName(), t);
             IDictionary<PropertyInfo, Delegate> reverseLoaders = new Dictionary<PropertyInfo, Delegate>();
 

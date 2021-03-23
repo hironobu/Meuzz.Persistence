@@ -589,8 +589,13 @@ namespace Meuzz.Persistence
         {
             var ti = t.GetTableInfo();
             return ti.Columns.Where(x => x.Name.StartsWith(prediction)
-            && (x.BindingToPrimaryKey == null || x.BindingToPrimaryKey == primaryKey)
-            && (x.BindingTo == null || x.BindingTo == primaryType.GetTableName())).Single().Name;
+                && (x.BindingToPrimaryKey == null || x.BindingToPrimaryKey == primaryKey)
+                && (x.BindingTo == null || x.BindingTo == primaryType.GetTableName())).Single().Name;
+        }
+
+        public static string[] GetForeignKeys(this Type t)
+        {
+            return null;
         }
     }
 

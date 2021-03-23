@@ -7,10 +7,6 @@ namespace Meuzz.Persistence.Tests
 {
     public class CharacterExExtensions
     {
-        /*public static T1 DummyLoader<T, T1>(T obj) where T1 : new()
-        {
-            return new T1();
-        }*/
         public void BeforeRun()
         {
         }
@@ -19,7 +15,6 @@ namespace Meuzz.Persistence.Tests
         {
             BeforeRun();
             var n = 0;
-
 
             var ch = new CharacterEx();
             ch.__Loader__.Player = (x) =>
@@ -40,6 +35,7 @@ namespace Meuzz.Persistence.Tests
 
     public class CharacterEx : Character
     {
+
         public class Loader
         {
             public Func<Character, Player> Player = null;
@@ -96,8 +92,8 @@ namespace Meuzz.Persistence.Tests
                 return new Player() { Id = 11111 };
             };
 
-            var body = new ProxyTypeBuilder();
-            body.BuildStart(Assembly.GetExecutingAssembly().GetName(), typeof(Character));
+            var body = new PersistentTypeBuilder();
+            body.BuildStart(typeof(Character));
             body.BuildOverrideProperty(typeof(Character).GetPropertyInfo("Player"));
             var t = body.BuildFinish();
 
@@ -140,7 +136,7 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestNullLoader()
         {
-            var body = new ProxyTypeBuilder();
+            var body = new PersistentTypeBuilder();
             body.BuildStart(Assembly.GetExecutingAssembly().GetName(), typeof(Character));
             body.BuildOverrideProperty(typeof(Character).GetPropertyInfo("Player"));
             var t = body.BuildFinish();
@@ -164,12 +160,12 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestEquality()
         {
-            var body = new ProxyTypeBuilder();
+            var body = new PersistentTypeBuilder();
             body.BuildStart(Assembly.GetExecutingAssembly().GetName(), typeof(Character));
             body.BuildOverrideProperty(typeof(Character).GetPropertyInfo("Player"));
             var t = body.BuildFinish();
 
-            var body2 = new ProxyTypeBuilder();
+            var body2 = new PersistentTypeBuilder();
             body2.BuildStart(Assembly.GetExecutingAssembly().GetName(), typeof(Character));
             body2.BuildOverrideProperty(typeof(Character).GetPropertyInfo("Player"));
             var t2 = body2.BuildFinish();

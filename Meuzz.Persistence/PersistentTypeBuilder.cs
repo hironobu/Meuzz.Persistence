@@ -6,7 +6,7 @@ using System.Reflection.Emit;
 
 namespace Meuzz.Persistence
 {
-    public class ProxyTypeBuilder
+    public class PersistentTypeBuilder
     {
         private TypeBuilder _typeBuilder;
         private TypeBuilder _loaderTypeBuilder;
@@ -14,8 +14,15 @@ namespace Meuzz.Persistence
         private Type _objectType;
         private IDictionary<PropertyInfo, FieldBuilder> _propertyLoaders = new Dictionary<PropertyInfo, FieldBuilder>();
 
+        public void BuildStart(Type objectType)
+        {
+            AssemblyName assembly = Assembly.GetExecutingAssembly().GetName();
+            BuildStart(assembly, objectType);
+        }
+
         public void BuildStart(AssemblyName assembly, Type objectType)
         {
+            // AssemblyName assembly = Assembly.GetExecutingAssembly().GetName();
             AssemblyBuilder assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(assembly, AssemblyBuilderAccess.Run);
             ModuleBuilder moduleBuilder = assemblyBuilder.DefineDynamicModule(assembly.Name);
 
@@ -23,20 +30,21 @@ namespace Meuzz.Persistence
             _objectType = objectType;
             _typeBuilder = moduleBuilder.DefineType(objectType.Name, TypeAttributes.Public | TypeAttributes.AutoClass | TypeAttributes.AnsiClass |
                                                                 TypeAttributes.BeforeFieldInit, objectType);
+            foreach (var f in objectType.GetFields())
+            {
+                _typeBuilder.DefineField(f.Name, f.FieldType, FieldAttributes.Private);
+            }
+
             _loaderTypeBuilder = moduleBuilder.DefineType($"{objectType.Name}Loader", TypeAttributes.Public | TypeAttributes.AutoClass | TypeAttributes.AnsiClass |
                 TypeAttributes.BeforeFieldInit);
         }
 
         public void BuildOverrideProperty(PropertyInfo prop)
         {
-            //var loaderName = $"__{prop.Name}Loader__";
-            //FieldBuilder fieldBuilder = _typeBuilder.DefineField(loaderName, typeof(Func<,>).MakeGenericType(_objectType, prop.PropertyType), FieldAttributes.Public);
-
             FieldBuilder propLoaderField = _loaderTypeBuilder.DefineField(prop.Name, typeof(Func<,>).MakeGenericType(_objectType, prop.PropertyType), FieldAttributes.Public);
 
             _propertyLoaders.Add(prop, propLoaderField);
         }
-
 
         public Type BuildFinish()
         {
@@ -53,7 +61,6 @@ namespace Meuzz.Persistence
             pilLoader.Emit(OpCodes.Call, typeof(Object).GetConstructor(new Type[] { }));
             pilLoader.Emit(OpCodes.Nop);
             pilLoader.Emit(OpCodes.Ret);
-
 
             _loaderField = _typeBuilder.DefineField("__Loader__", _loaderTypeBuilder.CreateType(), FieldAttributes.Public);
 
@@ -163,8 +170,6 @@ namespace Meuzz.Persistence
             _typeDict.Add(t, persistentType);
             return persistentType;
         }
-
-
 
         private static PersistentTypeManager _instance = null;
         private static readonly object _instanceLock = new object();
