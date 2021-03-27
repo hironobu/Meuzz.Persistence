@@ -5,116 +5,6 @@ using Xunit;
 
 namespace Meuzz.Persistence.Tests
 {
-    [PersistentClass("Players")]
-    public class Player
-    {
-        public int Id { get; set; }
-
-        [PersistentProperty]
-        public string Name { get; set; }
-
-        public int Age { get; set; }
-
-        public int PlayTime { get; set; }
-
-        [HasMany(ForeignKey: "player_id")]
-        public IEnumerable<Character> Characters { get; set; }
-
-        [HasMany(ForeignKey: "last_player_id")]
-        public IEnumerable<Character> LastCharacters { get; set; }
-
-        // public IEnumerable<Item> Items { get; set; }
-    }
-
-    public class Item
-    {
-        public int Id { get; set; }
-
-        public string Name { get; set; }
-
-        public string Description { get; set; }
-    }
-
-
-    [PersistentClass("Characters")]
-    public class Character
-    {
-        public int Id { get; set; }
-
-        public string Name { get; set; }
-
-        // public Geometry Location { get; set; }
-
-        public Player Player { get; set; }
-
-        public Player LastPlayer { get; set; }
-    }
-
-    public class Geometry
-    {
-        public double Latitude { get; set; }
-        public double Longitude { get; set; }
-
-        public double Altitude { get; set; }
-    }
-
-    [PersistentClass("Players")]
-    public class Player2
-    {
-        public int Id { get; set; }
-
-        [PersistentProperty]
-        public string Name { get; set; }
-
-        public int Age { get; set; }
-
-        public int PlayTime { get; set; }
-
-        [HasMany(ForeignKey: "player_id")]
-        public IEnumerable<Character2> Characters { get; set; }
-
-        [HasMany(ForeignKey: "last_player_id")]
-        public IEnumerable<Character2> LastCharacters { get; set; }
-    }
-
-    [PersistentClass("Characters")]
-    public class Character2
-    {
-        public int Id { get; set; }
-
-        public string Name { get; set; }
-
-        // public Geometry Location { get; set; }
-    }
-
-
-    [PersistentClass("Players")]
-    public class Player3
-    {
-        public int Id { get; set; }
-
-        [PersistentProperty]
-        public string Name { get; set; }
-
-        public int Age { get; set; }
-
-        public int PlayTime { get; set; }
-
-        [HasMany]
-        public IEnumerable<Character3> Characters { get; set; }
-    }
-
-    [PersistentClass("Characters")]
-    public class Character3
-    {
-        public int Id { get; set; }
-
-        public string Name { get; set; }
-
-        public Player3 Player { get; set; }
-    }
-
-
     public class RepositoryTest
     {
         private Connection _connection;
@@ -264,7 +154,7 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestLoadByLambdaWithJoinsAndHasManyOnPlayer2()
         {
-            var objs = _repository.Load<Player2>(st => st.Where(x => x.Age == 10)
+            var objs = _repository.Load<Models.NoForeignKeyProperty.Player>(st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters)
                 .Joins(x => x.LastCharacters));
             Assert.Equal(2, objs.Count());
@@ -279,7 +169,7 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestLoadByLambdaWithJoinsAndHasManyOnPlayer3()
         {
-            var objs = _repository.Load<Player3>(st => st.Where(x => x.Age == 10)
+            var objs = _repository.Load<Models.AutoForeignKey.Player>(st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters));
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
