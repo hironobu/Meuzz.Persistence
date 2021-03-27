@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 
-namespace Meuzz.Persistence
+namespace Meuzz.Persistence.Sql
 {
     public abstract class SqlCollator
     {

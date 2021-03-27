@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq.Expressions;
+using Meuzz.Persistence.Sql;
 using Xunit;
 
 namespace Meuzz.Persistence.Tests

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 
-namespace Meuzz.Persistence
+namespace Meuzz.Persistence.Sql
 {
     public abstract class SqlBuilderBase
     {/*

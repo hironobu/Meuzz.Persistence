@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Meuzz.Persistence.Sql;
 using Xunit;
 
 namespace Meuzz.Persistence.Tests

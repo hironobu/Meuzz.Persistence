@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 
-namespace Meuzz.Persistence
+namespace Meuzz.Persistence.Reflections
 {
     public class PersistentTypeBuilder
     {

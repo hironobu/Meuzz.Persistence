@@ -6,7 +6,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 
-namespace Meuzz.Persistence
+namespace Meuzz.Persistence.Sql
 {
     public abstract class SqlFormatter
     {
