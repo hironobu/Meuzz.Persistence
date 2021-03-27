@@ -53,7 +53,7 @@ namespace Meuzz.Persistence.Tests
             var ci = typeof(Models.AutoForeignKey.Player).GetClassInfo();
             Assert.NotNull(ci);
             Assert.Equal(typeof(Models.AutoForeignKey.Player), ci.ClassType);
-            Assert.Equal(1, ci.Relations.Length);
+            Assert.Single(ci.Relations);
 
             var ris = ci.Relations.OrderBy(x => x.ForeignKey);
             Assert.Equal("player_id", ris.ElementAt(0).ForeignKey);

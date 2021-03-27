@@ -4,6 +4,7 @@ using System.Data;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using Meuzz.Persistence.Core;
 
 namespace Meuzz.Persistence
 {
