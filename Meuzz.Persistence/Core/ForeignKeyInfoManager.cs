@@ -67,19 +67,7 @@ namespace Meuzz.Persistence.Core
 
         public string[] GetForeignKeysByTargetType(Type targetType)
         {
-            if (_typeToForeignKeysTable == null)
-            {
-                InitializeForeignKeyTable();
-            }
-
-            if (_typeToForeignKeysTable.ContainsKey(targetType))
-            {
-                return _typeToForeignKeysTable[targetType];
-            }
-            else
-            {
-                return new string[] { };
-            }
+            return _typeToForeignKeysTable.ContainsKey(targetType) ? _typeToForeignKeysTable[targetType] : new string[] { };
         }
 
         public string GetForeignKeyByPropertyInfo(PropertyInfo pi)
@@ -103,8 +91,10 @@ namespace Meuzz.Persistence.Core
                 {
                     if (_instance == null)
                     {
-                        _instance = new ForeignKeyInfoManager();
-                        _instance.InitializeForeignKeyTable();
+                        var instance = new ForeignKeyInfoManager();
+                        instance.InitializeForeignKeyTable();
+
+                        _instance = instance;
                     }
                 }
             }

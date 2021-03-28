@@ -273,8 +273,8 @@ namespace Meuzz.Persistence
                 else
                 {
                     var primaryTable = memberInfo.DeclaringType.GetTableName();
-                    var foreignTableInfo = foreignType.GetTableInfo();
-                    var matched = foreignTableInfo.Columns.Where(x => x.BindingTo == primaryTable).First();
+                    var foreignClassInfo = foreignType.GetClassInfo();
+                    var matched = foreignClassInfo.Columns.Where(x => x.BindingTo == primaryTable).First();
                     bindingSpec = new BindingSpec(matched.Name.ToLower(), matched.BindingToPrimaryKey.ToLower());
                 }
             }

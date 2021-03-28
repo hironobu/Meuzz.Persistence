@@ -252,7 +252,7 @@ namespace Meuzz.Persistence.Sql
             return pes.Select(x =>
             {
                 var (name, type) = x;
-                var colnames = type.GetTableInfo().Columns.Select(x => x.Name);
+                var colnames = type.GetClassInfo().Columns.Select(x => x.Name);
                 var aliasedDict = caInfo.MakeColumnAliasingDictionary(name, colnames);
                 return string.Join(", ", aliasedDict.Select(x => $"{x.Value} AS {x.Key}"));
             }).ToArray();

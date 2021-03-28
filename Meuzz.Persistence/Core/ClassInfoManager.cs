@@ -7,7 +7,7 @@ namespace Meuzz.Persistence.Core
 {
     public class ClassInfoManager
     {
-        private IDictionary<Type, Entry> _dict = null;
+        private ConcurrentDictionary<Type, Entry> _dict = null;
 
         public ClassInfoManager()
         {
@@ -25,7 +25,7 @@ namespace Meuzz.Persistence.Core
 
         public bool RegisterEntry(Type t, Entry entry)
         {
-            _dict.Add(t, entry);
+            _dict.TryAdd(t, entry);
             return true;
         }
 
@@ -57,10 +57,20 @@ namespace Meuzz.Persistence.Core
             public string PrimaryKey;
         }
 
+        public class ColumnInfoEntry
+        {
+            public string Name;
+            public MemberInfo MemberInfo;
+            public string BindingTo;
+            public string BindingToPrimaryKey;
+        }
+
+
         public class Entry
         {
             public Type ClassType;
 
+            public ColumnInfoEntry[] Columns;
             public RelationInfoEntry[] Relations;
         }
     }

@@ -11,9 +11,9 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void Test01()
         {
-            var ti = typeof(Player).GetTableInfo();
-            Assert.Equal(4, ti.Columns.Length);
-            var cis = ti.Columns.OrderBy(c => c.Name);
+            var ci = typeof(Player).GetClassInfo();
+            Assert.Equal(4, ci.Columns.Length);
+            var cis = ci.Columns.OrderBy(c => c.Name);
 
             Assert.Equal("age", cis.ElementAt(0).Name);
             Assert.Equal("id", cis.ElementAt(1).Name);
@@ -24,9 +24,9 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void Test02()
         {
-            var ti = typeof(Character).GetTableInfo();
-            Assert.Equal(4, ti.Columns.Length);
-            var cis = ti.Columns.OrderBy(c => c.Name);
+            var ci = typeof(Character).GetClassInfo();
+            Assert.Equal(4, ci.Columns.Length);
+            var cis = ci.Columns.OrderBy(c => c.Name);
 
             Assert.Equal("id", cis.ElementAt(0).Name);
             Assert.Equal("last_player_id", cis.ElementAt(1).Name);
@@ -40,9 +40,9 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void Test01()
         {
-            var ti = typeof(Models.UsingFields.Player).GetTableInfo();
-            Assert.Equal(4, ti.Columns.Length);
-            var cis = ti.Columns.OrderBy(c => c.Name);
+            var ci = typeof(Models.UsingFields.Player).GetClassInfo();
+            Assert.Equal(4, ci.Columns.Length);
+            var cis = ci.Columns.OrderBy(c => c.Name);
 
             Assert.Equal("age", cis.ElementAt(0).Name);
             Assert.Equal("id", cis.ElementAt(1).Name);
@@ -53,9 +53,9 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void Test02()
         {
-            var ti = typeof(Models.UsingFields.Character).GetTableInfo();
-            Assert.Equal(4, ti.Columns.Length);
-            var cis = ti.Columns.OrderBy(c => c.Name);
+            var ci = typeof(Models.UsingFields.Character).GetClassInfo();
+            Assert.Equal(4, ci.Columns.Length);
+            var cis = ci.Columns.OrderBy(c => c.Name);
 
             Assert.Equal("id", cis.ElementAt(0).Name);
             Assert.Equal("last_player_id", cis.ElementAt(1).Name);

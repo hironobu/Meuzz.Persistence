@@ -156,9 +156,9 @@ namespace Meuzz.Persistence.Sql
 
         public SqlInsertOrUpdateStatement(Type t, bool isInsert) : base(t)
         {
-            var tableInfo = t.GetTableInfo();
+            var ci = t.GetClassInfo();
             PrimaryKey = t.GetPrimaryKey();
-            Columns = tableInfo.Columns.Select(x => x.Name).Where(x => x != t.GetPrimaryKey()).ToArray();
+            Columns = ci.Columns.Select(x => x.Name).Where(x => x != t.GetPrimaryKey()).ToArray();
             IsInsert = isInsert;
         }
 

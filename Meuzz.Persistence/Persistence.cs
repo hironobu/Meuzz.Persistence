@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -9,7 +10,7 @@ using Meuzz.Persistence.Core;
 namespace Meuzz.Persistence
 {
     public static class TypeInfoExtensions
-    {
+    {/*
         public static TableInfoManager.Entry GetTableInfo(this Type t)
         {
             if (!t.IsPersistent())
@@ -57,11 +58,10 @@ namespace Meuzz.Persistence
             TableInfoManager.Instance().RegisterEntry(t, ti);
 
             return ti;
-        }
+        }*/
 
         // private static IDictionary<string, object> _tableInfo = new ConcurrentDictionary<string, object>();
 
-        [Obsolete("TO BE REVIEWED")]
         public static ClassInfoManager.Entry GetClassInfo(this Type t)
         {
             if (!t.IsPersistent())
@@ -75,24 +75,48 @@ namespace Meuzz.Persistence
                 return ti;
             }
 
+            var colinfos = new List<ClassInfoManager.ColumnInfoEntry>();
             var relinfos = new List<ClassInfoManager.RelationInfoEntry>();
             foreach (var prop in t.GetProperties())
             {
-                var fk = ForeignKeyInfoManager.Instance().GetForeignKeyByPropertyInfo(prop);
-                if (fk != null)
+                var fke = prop.GetForeignKeyInfo();
+
+                if (fke != null)
                 {
-                    var targetType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
-                    relinfos.Add(new ClassInfoManager.RelationInfoEntry()
+                    if (fke.ForeignKey != null)
                     {
-                        PropertyInfo = prop,
-                        InversePropertyInfo = targetType.GetPropertyInfoFromColumnName(fk, true),
-                        TargetType = targetType,
-                        ForeignKey = fk
+                        var targetType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
+                        relinfos.Add(new ClassInfoManager.RelationInfoEntry()
+                        {
+                            PropertyInfo = prop,
+                            InversePropertyInfo = targetType.GetPropertyInfoFromColumnName(fke.ForeignKey, true),
+                            TargetType = targetType,
+                            ForeignKey = fke.ForeignKey
+                        });
+                    }
+                }
+                else
+                {
+                    colinfos.Add(new ClassInfoManager.ColumnInfoEntry()
+                    {
+                        Name = StringUtils.ToSnake(prop.Name),
+                        MemberInfo = prop,
+                        BindingTo = fke != null ? fke.PrimaryTableName : null,
+                        BindingToPrimaryKey = fke != null ? fke.PrimaryKey : null
                     });
                 }
             }
 
-            ti = new ClassInfoManager.Entry() { Relations = relinfos.ToArray(), ClassType = t };
+            var fkeys = ForeignKeyInfoManager.Instance().GetForeignKeysByTargetType(t);
+            foreach (var fk in fkeys)
+            {
+                colinfos.Add(new ClassInfoManager.ColumnInfoEntry()
+                {
+                    Name = StringUtils.ToSnake(fk),
+                });
+            }
+
+            ti = new ClassInfoManager.Entry() { Columns = colinfos.ToArray(), Relations = relinfos.ToArray(), ClassType = t };
             ClassInfoManager.Instance().RegisterEntry(t, ti);
 
             return ti;
@@ -275,8 +299,8 @@ namespace Meuzz.Persistence
 
         public static string GetForeignKey(this Type t, string prediction, Type primaryType, string primaryKey)
         {
-            var ti = t.GetTableInfo();
-            return ti.Columns.Where(x => x.Name.StartsWith(prediction)
+            var ci = t.GetClassInfo();
+            return ci.Columns.Where(x => x.Name.StartsWith(prediction)
                 && (x.BindingToPrimaryKey == null || x.BindingToPrimaryKey == primaryKey)
                 && (x.BindingTo == null || x.BindingTo == primaryType.GetTableName())).Single().Name;
         }
@@ -313,7 +337,7 @@ namespace Meuzz.Persistence
             public string ForeignTableName;
         }
 
-        private static ForeignKeyInfo GetForeignKeyInfoReversed(Type t, PropertyInfo pi)
+        private static ForeignKeyInfo GetInversedForeignKeyInfo(Type t, PropertyInfo pi)
         {
             // dummy
             var fki = new ForeignKeyInfo();
@@ -323,7 +347,7 @@ namespace Meuzz.Persistence
         public static ForeignKeyInfo GetForeignKeyInfo(this PropertyInfo pi)
         {
             var pt = pi.PropertyType;
-            if (!(typeof(System.Collections.IEnumerable).IsAssignableFrom(pt) && !typeof(string).IsAssignableFrom(pt)))
+            if (!(typeof(IEnumerable).IsAssignableFrom(pt) && !typeof(string).IsAssignableFrom(pt)))
             {
                 if (!pt.IsPersistent())
                 {
@@ -331,7 +355,7 @@ namespace Meuzz.Persistence
                 }
                 else
                 {
-                    return GetForeignKeyInfoReversed(pt, pi);
+                    return GetInversedForeignKeyInfo(pt, pi);
                 }
             }
 
