@@ -2,8 +2,8 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Reflection;
 using Microsoft.Data.Sqlite;
+using Meuzz.Persistence.Sql;
 
 namespace Meuzz.Persistence
 {

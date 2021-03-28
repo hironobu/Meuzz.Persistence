@@ -7,6 +7,7 @@ using System.Reflection;
 using Meuzz.Persistence.Core;
 using Meuzz.Persistence.Reflections;
 using Meuzz.Persistence.Sql;
+using Meuzz.Foundation;
 
 namespace Meuzz.Persistence
 {

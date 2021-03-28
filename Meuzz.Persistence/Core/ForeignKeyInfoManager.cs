@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Reflection;
+using Meuzz.Foundation;
 
 namespace Meuzz.Persistence.Core
 {

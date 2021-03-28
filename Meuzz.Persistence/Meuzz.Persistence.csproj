@@ -8,4 +8,8 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="5.0.3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\Meuzz.Foundation\Meuzz.Foundation\Meuzz.Foundation.csproj" />
+  </ItemGroup>
+
 </Project>

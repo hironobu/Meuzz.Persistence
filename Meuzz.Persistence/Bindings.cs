@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using Meuzz.Foundation;
 
 namespace Meuzz.Persistence
 {
@@ -109,22 +110,6 @@ namespace Meuzz.Persistence
             }
 
             Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).GetValue(x);
-            // Func<dynamic, string, dynamic> dictionaryGetter = (dynamic x, string key) => x[StringUtils.ToSnake(key)];
-            /*
-            var arr = el.Evaluate().ToArray();
-            var obj = arr.First();
-            var propkeys = arr.Skip(1).Select(x => x.Name);
-            var prop = string.Join("_", propkeys);
-
-            Type t = obj.GetType();
-            if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Dictionary<,>))
-            {
-                return dictionaryGetter(obj, prop);
-            }
-            else
-            {
-                return propertyGetter(obj, prop);
-            }*/
             var arr = el.Evaluate().ToArray();
             var obj = arr.First();
             var propkeys = arr.Skip(1).Select(x => x.Name);

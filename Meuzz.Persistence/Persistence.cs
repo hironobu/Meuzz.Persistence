@@ -1,101 +1,13 @@
-﻿using Meuzz.Persistence.Core;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Reflection;
+using Meuzz.Foundation;
+using Meuzz.Persistence.Core;
 
 namespace Meuzz.Persistence
 {
-    public class BindingInfo
-    {
-        public string ForeignKey;
-        public string PrimaryKey;
-        public MemberInfo MemberInfo;
-        public Func<dynamic, dynamic, bool> Conditions;
-    }
-
-    public class ParamInfo
-    {
-        private IDictionary<string, Type> _parameters = new Dictionary<string, Type>();
-        private string _defaultParamName = null;
-        private Type _defaultParamType = null;
-
-        public void ResetParameters()
-        {
-            _parameters.Clear();
-        }
-
-        public string RegisterParameter(string name, Type t, bool asDefault)
-        {
-            var k = name;
-
-            if (name != null)
-            {
-                int i = 1;
-                while (_parameters.ContainsKey(k))
-                {
-                    k = $"{name}{i++}";
-                }
-                _parameters.Add(k, t);
-            }
-
-            if (asDefault)
-            {
-                _defaultParamType = t ?? _defaultParamType;
-                _defaultParamName = name ?? _defaultParamName;
-            }
-
-            return k;
-        }
-
-        public Type GetParameterTypeByParamName(string name)
-        {
-            return _parameters[name];
-        }
-
-        public (string, Type)[] GetAllParameters()
-        {
-            return _parameters.Select(x => (x.Key, x.Value)).ToArray();
-        }
-
-        public Type GetDefaultParamType()
-        {
-            return _defaultParamType;
-        }
-
-        public string GetDefaultParamName()
-        {
-            return _defaultParamName;
-        }
-    }
-
-
-    public class ColumnAliasingInfo
-    {
-        private IDictionary<string, string> _aliasingProperties = new Dictionary<string, string>();
-
-        public IDictionary<string, string> MakeColumnAliasingDictionary(string paramName, IEnumerable<string> props)
-        {
-            var propKeys = props.Select(x => $"{paramName}.{x}");
-            foreach (var k in propKeys)
-            {
-                if (!_aliasingProperties.ContainsKey(k))
-                {
-                    _aliasingProperties.Add($"_c{_aliasingProperties.Count()}", k);
-                }
-            }
-
-            return _aliasingProperties.Where(x => propKeys.Contains(x.Value)).ToDictionary(x => x.Key, x => x.Value);
-        }
-
-        public string GetOriginalColumnName(string c)
-        {
-            return _aliasingProperties[c];
-        }
-
-    }
-
     public static class TypeInfoExtensions
     {
         public static TableInfoManager.Entry GetTableInfo(this Type t)
