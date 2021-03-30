@@ -57,7 +57,7 @@ namespace Meuzz.Persistence.Sql
                         sb.Append($" VALUES");
                         foreach (var (row, idx) in rows.Select((x, i) => (x, i)))
                         {
-                            var d = row.GetValueDictFromColumnNames(insertOrUpdateStatement.Columns);
+                            var d = row.GetType().GetValueDictFromColumnNames(insertOrUpdateStatement.Columns, row);
                             var vals = insertOrUpdateStatement.Columns.Select(c => insertOrUpdateStatement.ExtraData != null && insertOrUpdateStatement.ExtraData.ContainsKey(c) ? insertOrUpdateStatement.ExtraData[c] : d[c]);
                             if (parameters != null)
                             {
@@ -85,7 +85,7 @@ namespace Meuzz.Persistence.Sql
                         foreach (var obj in insertOrUpdateStatement.Values)
                         {
                             sb.Append($"UPDATE {insertOrUpdateStatement.TableName} SET ");
-                            var d = obj.GetValueDictFromColumnNames(insertOrUpdateStatement.Columns);
+                            var d = obj.GetType().GetValueDictFromColumnNames(insertOrUpdateStatement.Columns, obj);
                             var valstr = string.Join(", ", d.Select(x => $"{x.Key} = {_f(x.Value)}"));
                             sb.Append(valstr);
                             sb.Append($" WHERE {insertOrUpdateStatement.PrimaryKey} = {obj.GetType().GetPrimaryValue(obj)};");

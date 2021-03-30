@@ -75,7 +75,7 @@ namespace Meuzz.Persistence
                 return ti;
             }
 
-            var colinfos = new List<ClassInfoManager.ColumnInfoEntry>();
+            /*var colinfos = new List<ClassInfoManager.ColumnInfoEntry>();
             var relinfos = new List<ClassInfoManager.RelationInfoEntry>();
             foreach (var prop in t.GetProperties())
             {
@@ -117,7 +117,7 @@ namespace Meuzz.Persistence
             }
 
             ti = new ClassInfoManager.Entry() { Columns = colinfos.ToArray(), Relations = relinfos.ToArray(), ClassType = t };
-            ClassInfoManager.Instance().RegisterEntry(t, ti);
+            ClassInfoManager.Instance().RegisterEntry(t, ti);*/
 
             return ti;
         }
@@ -286,14 +286,12 @@ namespace Meuzz.Persistence
             return propInfo?.GetValue(obj);
         }
 
-        public static IDictionary<string, object> GetValueDictFromColumnNames(this object obj, string[] cols)
+        public static IDictionary<string, object> GetValueDictFromColumnNames(this Type t, string[] cols, object obj)
         {
-            Type t = obj.GetType();
-            return cols.Zip(obj.GetValuesFromColumnNames(cols), (x, y) => new { x, y }).ToDictionary(x => x.x, x => x.y);
+            return cols.Zip(t.GetValuesFromColumnNames(cols, obj), (x, y) => new { x, y }).ToDictionary(x => x.x, x => x.y);
         }
-        public static IEnumerable<object> GetValuesFromColumnNames(this object obj, string[] cols)
+        public static IEnumerable<object> GetValuesFromColumnNames(this Type t, string[] cols, object obj)
         {
-            Type t = obj.GetType();
             return cols.Select(c => t.GetValueForColumnName(c, obj));
         }
 
@@ -303,11 +301,6 @@ namespace Meuzz.Persistence
             return ci.Columns.Where(x => x.Name.StartsWith(prediction)
                 && (x.BindingToPrimaryKey == null || x.BindingToPrimaryKey == primaryKey)
                 && (x.BindingTo == null || x.BindingTo == primaryType.GetTableName())).Single().Name;
-        }
-
-        public static string[] GetForeignKeys(this Type t)
-        {
-            return null;
         }
     }
 
@@ -324,55 +317,6 @@ namespace Meuzz.Persistence
 
             return attr.Column.ToLower();
         }
-
-
-
-
-
-        public class ForeignKeyInfo
-        {
-            public string PrimaryKey;
-            public string PrimaryTableName;
-            public string ForeignKey;
-            public string ForeignTableName;
-        }
-
-        private static ForeignKeyInfo GetInversedForeignKeyInfo(Type t, PropertyInfo pi)
-        {
-            // dummy
-            var fki = new ForeignKeyInfo();
-            return fki;
-        }
-
-        public static ForeignKeyInfo GetForeignKeyInfo(this PropertyInfo pi)
-        {
-            var pt = pi.PropertyType;
-            if (!(typeof(IEnumerable).IsAssignableFrom(pt) && !typeof(string).IsAssignableFrom(pt)))
-            {
-                if (!pt.IsPersistent())
-                {
-                    return null;
-                }
-                else
-                {
-                    return GetInversedForeignKeyInfo(pt, pi);
-                }
-            }
-
-            var fki = new ForeignKeyInfo();
-
-            var hasmany = pi.GetCustomAttribute<HasManyAttribute>();
-            fki.PrimaryKey = hasmany?.PrimaryKey ?? pi.DeclaringType.GetPrimaryKey();
-            fki.PrimaryTableName = pi.DeclaringType.GetTableName();
-            fki.ForeignKey = hasmany?.ForeignKey ?? ForeignKeyInfoManager.Instance().GetForeignKeyByPropertyInfo(pi);
-            fki.ForeignTableName = pi.PropertyType.GetTableName();
-
-            return fki;
-        }
-    }
-
-    public static class PropertyInfoExtensions
-    {
     }
 
     [AttributeUsage(AttributeTargets.Class)]

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -42,7 +43,6 @@ namespace Meuzz.Persistence.Core
 
                             var revprop = t.GetProperties().Where(x => x.PropertyType == prop.DeclaringType).Single();
                             fk = StringUtils.ToSnake(revprop.Name) + "_id";
-
                         }
                         propertyInfoToForeignKeyTable.Add(prop, fk);
 
@@ -79,6 +79,47 @@ namespace Meuzz.Persistence.Core
         {
             return _foreignKeyToInversePropertyInfoTable[fk];
         }*/
+
+        private Entry GetInversedForeignKeyInfo(Type t, PropertyInfo pi)
+        {
+            // dummy
+            var fki = new Entry();
+            return fki;
+        }
+
+        public Entry GetForeignKeyInfoByPropertyInfo(PropertyInfo pi)
+        {
+            var pt = pi.PropertyType;
+            if (!(typeof(IEnumerable).IsAssignableFrom(pt) && !typeof(string).IsAssignableFrom(pt)))
+            {
+                if (!pt.IsPersistent())
+                {
+                    return null;
+                }
+                else
+                {
+                    return GetInversedForeignKeyInfo(pt, pi);
+                }
+            }
+
+            var fki = new Entry();
+
+            var hasmany = pi.GetCustomAttribute<HasManyAttribute>();
+            fki.PrimaryKey = hasmany?.PrimaryKey ?? pi.DeclaringType.GetPrimaryKey();
+            fki.PrimaryTableName = pi.DeclaringType.GetTableName();
+            fki.ForeignKey = hasmany?.ForeignKey ?? ForeignKeyInfoManager.Instance().GetForeignKeyByPropertyInfo(pi);
+            fki.ForeignTableName = pi.PropertyType.GetTableName();
+
+            return fki;
+        }
+
+        public class Entry
+        {
+            public string PrimaryKey;
+            public string PrimaryTableName;
+            public string ForeignKey;
+            public string ForeignTableName;
+        }
 
         private static ForeignKeyInfoManager _instance = null;
         private static readonly object _instanceLocker = new object();

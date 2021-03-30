@@ -4,6 +4,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using Meuzz.Foundation;
+using Meuzz.Persistence.Core;
 
 namespace Meuzz.Persistence
 {
@@ -265,7 +266,7 @@ namespace Meuzz.Persistence
 
             if (bindingSpec == null)
             {
-                var fki = propinfo.GetForeignKeyInfo();
+                var fki = ForeignKeyInfoManager.Instance().GetForeignKeyInfoByPropertyInfo(propinfo);
                 if (fki != null)
                 {
                     bindingSpec = new BindingSpec(fki.ForeignKey, fki.PrimaryKey ?? "id");

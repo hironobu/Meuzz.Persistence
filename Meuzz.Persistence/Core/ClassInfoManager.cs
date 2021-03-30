@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Meuzz.Foundation;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
@@ -18,15 +19,59 @@ namespace Meuzz.Persistence.Core
         {
             if (!_dict.TryGetValue(t, out var entry))
             {
-                return null;
+                var ti = MakeReadyEntryForType(t);
+                return ti;
             }
             return entry;
         }
 
-        public bool RegisterEntry(Type t, Entry entry)
+        private Entry MakeReadyEntryForType(Type t)
         {
-            _dict.TryAdd(t, entry);
-            return true;
+            var colinfos = new List<ClassInfoManager.ColumnInfoEntry>();
+            var relinfos = new List<ClassInfoManager.RelationInfoEntry>();
+            foreach (var prop in t.GetProperties())
+            {
+                var fke = ForeignKeyInfoManager.Instance().GetForeignKeyInfoByPropertyInfo(prop);
+
+                if (fke != null)
+                {
+                    if (fke.ForeignKey != null)
+                    {
+                        var targetType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
+                        relinfos.Add(new ClassInfoManager.RelationInfoEntry()
+                        {
+                            PropertyInfo = prop,
+                            InversePropertyInfo = targetType.GetPropertyInfoFromColumnName(fke.ForeignKey, true),
+                            TargetType = targetType,
+                            ForeignKey = fke.ForeignKey
+                        });
+                    }
+                }
+                else
+                {
+                    colinfos.Add(new ClassInfoManager.ColumnInfoEntry()
+                    {
+                        Name = StringUtils.ToSnake(prop.Name),
+                        MemberInfo = prop,
+                        BindingTo = fke != null ? fke.PrimaryTableName : null,
+                        BindingToPrimaryKey = fke != null ? fke.PrimaryKey : null
+                    });
+                }
+            }
+
+            var fkeys = ForeignKeyInfoManager.Instance().GetForeignKeysByTargetType(t);
+            foreach (var fk in fkeys)
+            {
+                colinfos.Add(new ClassInfoManager.ColumnInfoEntry()
+                {
+                    Name = StringUtils.ToSnake(fk),
+                });
+            }
+
+            var ti = new ClassInfoManager.Entry() { Columns = colinfos.ToArray(), Relations = relinfos.ToArray(), ClassType = t };
+            _dict.TryAdd(t, ti);
+
+            return ti;
         }
 
         public static ClassInfoManager Instance()
