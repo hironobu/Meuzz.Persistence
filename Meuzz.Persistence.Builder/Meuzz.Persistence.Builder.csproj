@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build.Framework" Version="16.9.0" />
+    <PackageReference Include="Microsoft.Build.Utilities.Core" Version="16.9.0" />
+    <PackageReference Include="Mono.Cecil" Version="0.11.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Meuzz.Persistence.Classes\Meuzz.Persistence.Classes.csproj" />
+  </ItemGroup>
+
+  <Target Name="CustomBeforeBuild" BeforeTargets="BeforeBuild">
+    <Message Text="CustomBeforeBuild" Importance="High"></Message>
+    <Message Text="Current Root Targets: $(MSBuildProjectDefaultTargets)" Importance="high"></Message>
+  </Target>
+  <Target Name="CustomAfterBuild" BeforeTargets="AfterBuild">
+    <Message Text="CustomAfterBuild" Importance="High"></Message>
+    <Message Text="TargetFramework: $(TargetFramework)" Importance="high"></Message>
+  </Target>
+  <Target Name="CustomAfterCompile" BeforeTargets="AfterCompile">
+    <Message Text="CustomAfterCompile" Importance="High"></Message>
+  </Target>
+  <Target Name="CustomBeforePublish" BeforeTargets="BeforePublish">
+    <Message Text="CustomBeforePublish" Importance="High"></Message>
+  </Target>
+  <Target Name="CustomAfterPublish" BeforeTargets="AfterPublish">
+    <Message Text="CustomAfterPublish" Importance="High"></Message>
+  </Target>
+  <Target Name="CustomGatherAllFilesToPublish" AfterTargets="GatherAllFilesToPublish">
+    <Message Text="HOGEHOGE" Importance="High"></Message>
+  </Target>
+</Project>

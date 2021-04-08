@@ -1,15 +1,56 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Version>0.0.4</Version>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <NoWarn>1701;1702;5100</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Build.Framework" Version="16.9.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="5.0.3" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Meuzz.Foundation\Meuzz.Foundation\Meuzz.Foundation.csproj" />
+    <ProjectReference Include="..\..\Meuzz.Foundation\Meuzz.Foundation\Meuzz.Foundation.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\Meuzz.Persistence.Builder\Meuzz.Persistence.Builder.csproj" />
+    <ProjectReference Include="..\Meuzz.Persistence.Classes\Meuzz.Persistence.Classes.csproj" />
   </ItemGroup>
 
+  <!--<UsingTask TaskName="NotifyPropertyWeaverMsBuildTask.WeavingTask" AssemblyFile="$(SolutionDir)Libs\NotifyPropertyWeaverMsBuildTask.dll" />
+  <Target Name="AfterCompile">
+    <NotifyPropertyWeaverMsBuildTask.WeavingTask TargetPath="$(TargetPath)" TryToWeaveAllTypes="true" EventInvokerName="RaisePropertyChanged" />
+  </Target>-->
+
+  <ItemGroup>
+    <Content Include="..\..\Meuzz.Foundation\Meuzz.Foundation\bin\Debug\netcoreapp3.1\Meuzz.Foundation.dll">
+      <Pack>true</Pack>
+      <PackagePath>lib/netcoreapp3.1</PackagePath>
+    </Content>
+    <Content Include="..\Meuzz.Persistence.Builder\bin\Debug\netstandard2.0\Meuzz.Persistence.Builder.dll">
+      <Pack>true</Pack>
+      <PackagePath>tasks/netstandard2.0</PackagePath>
+    </Content>
+    <Content Include="..\Meuzz.Persistence.Builder\bin\Debug\netstandard2.0\Meuzz.Persistence.Classes.dll">
+      <Pack>true</Pack>
+      <PackagePath>tasks/netstandard2.0</PackagePath>
+    </Content>
+    <Content Include="..\Meuzz.Persistence.Builder\bin\Debug\netstandard2.0\publish\Mono.Cecil*">
+      <Pack>true</Pack>
+      <PackagePath>tasks/netstandard2.0</PackagePath>
+    </Content>
+    <Content Include="..\Meuzz.Persistence.Builder\Meuzz.Persistence.targets">
+      <Pack>true</Pack>
+      <PackagePath>build</PackagePath>
+    </Content>
+  </ItemGroup>
+
+  <Target Name="CustomAfterBuild" AfterTargets="AfterBuild">
+    <Exec Command="dotnet publish -f netstandard2.0" WorkingDirectory="..\Meuzz.Persistence.Builder"></Exec>
+  </Target>
 </Project>

@@ -17,7 +17,7 @@ namespace Meuzz.Persistence.Tests
         [HasMany(ForeignKey: "parent_id")]
         public IEnumerable<TreeNode> Children { get; set; }
 
-        public virtual TreeNode Parent { get; set; }
+        public TreeNode Parent { get; set; }
     }
 
     public class TreeNodeTest

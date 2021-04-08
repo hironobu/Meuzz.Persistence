@@ -1,0 +1,29 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MeuzzPersistencePath Condition="$(MeuzzPersistencePath) == ''">$(MSBuildThisFileDirectory)..\</MeuzzPersistencePath>
+    <MeuzzPersistenceDirectory Condition="$(MSBuildRuntimeType) == 'Core'">$(MeuzzPersistencePath)tasks\netstandard2.0</MeuzzPersistenceDirectory>
+    <MeuzzPersistenceDirectory Condition="$(MSBuildRuntimeType) != 'Core'">$(MeuzzPersistencePath)tasks\netstandard2.0</MeuzzPersistenceDirectory>
+    <MeuzzPersistenceAssembly Condition="$(MeuzzPersistenceAssembly) == ''">$(MeuzzPersistenceDirectory)\Meuzz.Persistence.Builder.dll</MeuzzPersistenceAssembly>
+  </PropertyGroup>
+
+  <UsingTask AssemblyFile="$(MeuzzPersistenceAssembly)" TaskName="Meuzz.Persistence.Builder.WeavingTask" Condition="$(MSBuildProjectName) != 'Meuzz.Persistence.Builder'"></UsingTask>
+
+  <Target Name="Persistentize" AfterTargets="AfterCompile" Condition="$(MSBuildProjectName) != 'Meuzz.Persistence.Builder'">
+    <Meuzz.Persistence.Builder.WeavingTask
+      AssemblyFile="@(IntermediateAssembly)"
+      IntermediateDirectory="$(ProjectDir)$(IntermediateOutputPath)"
+      PackageReferences="@(PackageReference)"
+      ProjectDirectory="$(MSBuildProjectDirectory)"
+      ProjectFile="$(MSBuildProjectFullPath)"
+      References="@(ReferencePath)"
+      SolutionDirectory="$(SolutionDir)"
+      KeyOriginatorFile="$(KeyOriginatorFile)"
+      AssemblyOriginatorKeyFile="$(AssemblyOriginatorKeyFile)"
+      SignAssembly="$(SignAssembly)"
+      DelaySign="$(DelaySign)"
+    />
+    <Message Text="Current Root Targets: $(MSBuildProjectDefaultTargets)" Importance="high"></Message>
+    <!-- <Exec Command="echo $(MeuzzPersistenceDirectory)"></Exec> -->
+  </Target>
+</Project>

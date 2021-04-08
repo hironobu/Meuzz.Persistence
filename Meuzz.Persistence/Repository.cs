@@ -36,12 +36,12 @@ namespace Meuzz.Persistence
             yield break;
         }
 
-        protected object MakeDefaultReverseLoader(object value, Type targetType)
+        protected IEnumerable<object> MakeDefaultReverseLoader(object value, Type targetType)
         {
             var statement = new SqlSelectStatement(targetType);
             statement.BuildCondition(targetType.GetPrimaryKey(), value);
 
-            return LoadObjects(targetType, statement).First();
+            return LoadObjects(targetType, statement);
         }
 
         protected IEnumerable<object> MakeDefaultLoader(object obj, ClassInfoManager.RelationInfoEntry reli)
@@ -74,9 +74,9 @@ namespace Meuzz.Persistence
             };
             var bindings = new List<MemberAssignment>();
 
-            var proxyTypeBuilder = new PersistentTypeBuilder();
-            proxyTypeBuilder.BuildStart(Assembly.GetExecutingAssembly().GetName(), t);
-            IDictionary<PropertyInfo, Delegate> reverseLoaders = new Dictionary<PropertyInfo, Delegate>();
+            // var proxyTypeBuilder = new PersistentTypeBuilder();
+            // proxyTypeBuilder.BuildStart(Assembly.GetExecutingAssembly().GetName(), t);
+            IDictionary<PropertyInfo, IEnumerable<object>> reverseLoaders = new Dictionary<PropertyInfo, IEnumerable<object>>();
 
             foreach (var (c, v) in cols.Zip(vals))
             {
@@ -89,12 +89,12 @@ namespace Meuzz.Persistence
                 if (prop.PropertyType.IsPersistent())
                 {
                     // bindings.Add(mapper(prop, null));
-                    proxyTypeBuilder.BuildOverrideProperty(prop);
-                    Func<dynamic, dynamic> f = (c) =>
+                    // proxyTypeBuilder.BuildOverrideProperty(prop);
+                    if (v != null)
                     {
-                        return MakeDefaultReverseLoader(v, prop.PropertyType);
-                    };
-                    reverseLoaders.Add(prop, f);
+                        var loader = MakeDefaultReverseLoader(v, prop.PropertyType);
+                        reverseLoaders.Add(prop, loader);
+                    }
                 }
                 else
                 {
@@ -104,7 +104,7 @@ namespace Meuzz.Persistence
 
             var ci = t.GetClassInfo();
 
-            NewExpression instance = Expression.New(t.GetPersistentType(proxyTypeBuilder.BuildFinish()));
+            NewExpression instance = Expression.New(t);
             Expression expr = Expression.MemberInit(instance, bindings);
 
             var ft = typeof(Func<>).MakeGenericType(t);
@@ -128,13 +128,22 @@ namespace Meuzz.Persistence
 
             foreach (var (prop, proploader) in reverseLoaders)
             {
-                var loaderField = obj.GetType().GetField("__Loader__");
-                var loader2 = loaderField.GetValue(obj);
+                var loaderField = obj.GetType().GetField($"__load_{prop.Name}", BindingFlags.NonPublic | BindingFlags.Instance);
+
+                var tt = prop.PropertyType;
+                var conv = typeof(Enumerable)
+                    .GetMethod("Cast")
+                    .MakeGenericMethod((tt.IsGenericType) ? tt.GetGenericArguments()[0] : tt);
+
+                loaderField.SetValue(obj, conv.Invoke(null, new object[] { proploader }));
+
+
+                /*var loader2 = loaderField.GetValue(obj);
                 var propLoaderField = loader2.GetType().GetField(prop.Name);
                 var px = Expression.Parameter(t);
                 var call = Expression.Call(Expression.Constant(proploader.Target), proploader.Method, px);
                 var ret = Expression.Lambda(Expression.Convert(call, prop.PropertyType), px);
-                propLoaderField.SetValue(loader2, ret.Compile());
+                propLoaderField.SetValue(loader2, ret.Compile());*/
             }
 
             return obj;
