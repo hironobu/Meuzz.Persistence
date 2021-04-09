@@ -2,6 +2,7 @@
 using Microsoft.Build.Utilities;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using Mono.Collections.Generic;
 using System;
 using System.IO;
 using System.Linq;
@@ -125,98 +126,221 @@ namespace Meuzz.Persistence.Builder
             return instance;
         }
 
+
+        private static MethodReference MakeHostInstanceGeneric(MethodReference self, params TypeReference[] genericArguments)
+        {
+            GenericInstanceType genericDeclaringType = new GenericInstanceType(self.DeclaringType);
+            foreach (TypeReference genericArgument in genericArguments)
+            {
+                genericDeclaringType.GenericArguments.Add(genericArgument);
+            }
+
+            MethodReference reference = new MethodReference(self.Name, self.ReturnType, genericDeclaringType)
+            {
+                HasThis = self.HasThis,
+                ExplicitThis = self.ExplicitThis,
+                CallingConvention = self.CallingConvention
+            };
+
+            foreach (ParameterDefinition parameter in self.Parameters)
+            {
+                reference.Parameters.Add(new ParameterDefinition(parameter.ParameterType));
+            }
+
+            foreach (GenericParameter genericParam in self.GenericParameters)
+            {
+                reference.GenericParameters.Add(new GenericParameter(genericParam.Name, reference));
+            }
+
+            return reference;
+        }
+
+        private void AddPropertyGetterLoader(ModuleDefinition module, TypeDefinition td, PropertyDefinition pd, Instruction[] originalSetterInstructions)
+        {
+            try
+            {
+                var ptr = pd.PropertyType;
+                var loadertype = MakeGenericType(module.ImportReference(typeof(IEnumerable<>)), ptr);
+                var loadername = $"__load_{pd.Name}";
+                var loader = new FieldDefinition(loadername, Mono.Cecil.FieldAttributes.Private, loadertype);
+                if (td.Fields.Any(x => x.Name == loadername))
+                {
+                    return;
+                }
+
+                td.Fields.Add(loader);
+
+                var enumerable = module.ImportReference(typeof(Enumerable)).Resolve();
+                var singleOrDefault = module.ImportReference(enumerable.Methods.Single(x => x.Name == "SingleOrDefault" && x.Parameters.Count == 1));
+                // var singleOrDefault = loader.FieldType.Resolve().Methods.Single(x => x.Name == "SingleOrDefault");
+                singleOrDefault = MakeGenericMethod(singleOrDefault, pd.PropertyType);
+                Log.LogMessage(MessageImportance.High, $"singleOrDefault: [{singleOrDefault.GetType()}]{singleOrDefault}");
+
+                //var ptd = ptr.Resolve();
+                //Log.LogMessage(MessageImportance.High, $"pd: {ptd.Name} {ptd.FullName} {ptd.Module} {ptd.DeclaringType}");
+
+                var getter = pd.GetMethod;
+                var ilp = getter.Body.GetILProcessor();
+                var first = getter.Body.Instructions[0];
+                var ret = getter.Body.Instructions.Last();
+
+                var setter = pd.SetMethod;
+                // var setterInstructions = setter.Body.Instructions;
+
+                getter.Body.Variables.Add(new VariableDefinition(ptr));
+                getter.Body.Variables.Add(new VariableDefinition(module.ImportReference(typeof(bool))));
+                getter.Body.Variables.Add(new VariableDefinition(ptr));
+                getter.Body.Variables.Add(new VariableDefinition(module.ImportReference(typeof(bool))));
+
+                var il_0015 = Instruction.Create(OpCodes.Ldarg_0);
+                var il_0038 = Instruction.Create(OpCodes.Ldloc_0);
+                var il_003c = Instruction.Create(OpCodes.Ldloc_2);
+
+                ilp.InsertBefore(first, Instruction.Create(OpCodes.Nop));
+
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Stloc_0));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldloc_0));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldnull));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Cgt_Un));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Stloc_1));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldloc_1));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Brfalse_S, il_0015));
+
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldloc_0));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Stloc_2));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Br_S, il_003c));
+
+                ilp.InsertBefore(ret, il_0015);
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldfld, loader));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldnull));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Cgt_Un));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Stloc_3));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldloc_3));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Brfalse_S, il_0038));
+
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldarg_0));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldfld, loader));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Call, singleOrDefault));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Stloc_0));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldarg_0));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldloc_0));
+                // ilp.InsertBefore(ret, Instruction.Create(OpCodes.Call, pr.SetMethod));
+                foreach (var si in originalSetterInstructions.Skip(2))
+                {
+                    if (si.OpCode == OpCodes.Ret) { break; }
+
+                    ilp.InsertBefore(ret, si);
+                }
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
+
+                ilp.InsertBefore(ret, il_0038);
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Stloc_2));
+                ilp.InsertBefore(ret, Instruction.Create(OpCodes.Br_S, il_003c));
+
+                ilp.InsertBefore(ret, il_003c);
+            }
+            catch (Exception ex)
+            {
+                Log.LogMessage(MessageImportance.High, $"{ex.Message}");
+                Log.LogMessage(MessageImportance.High, $"{ex.StackTrace}");
+                throw ex;
+            }
+        }
+
+        private void AddPropertyDirtySetter(ModuleDefinition module, TypeDefinition td, PropertyDefinition pd, FieldDefinition dirtyDict, Instruction[] originalGetterInstructions)
+        {
+            var dictionary = module.ImportReference(typeof(IDictionary<,>)).Resolve();
+            var setItem = module.ImportReference(MakeHostInstanceGeneric(dictionary.Methods.Single(x => x.Name == "set_Item" && x.Parameters.Count == 2), module.ImportReference(typeof(string)), module.ImportReference(typeof(bool))));
+
+            var setter = pd.SetMethod;
+            var ilp = setter.Body.GetILProcessor();
+            var first = setter.Body.Instructions[0];
+            var ret = setter.Body.Instructions.Last();
+
+            var getter = pd.GetMethod;
+            var getterInstructions = getter.Body.Instructions;
+
+            setter.Body.Variables.Add(new VariableDefinition(module.ImportReference(typeof(bool))));
+
+            var il_002c = ret;
+
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Nop));
+            foreach (var i in originalGetterInstructions)
+            {
+                if (i.OpCode == OpCodes.Ret) { break; }
+
+                ilp.InsertBefore(first, i);
+            }
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Ldarg_1));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Ceq));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Ldc_I4_0));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Ceq));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Stloc_0));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Ldloc_0));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Brfalse_S, il_002c));
+
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Nop));
+
+            // original code here
+
+            ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldarg_0));
+            ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldfld, dirtyDict));
+            ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldstr, pd.Name));
+            ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldc_I4_1));
+            ilp.InsertBefore(ret, Instruction.Create(OpCodes.Callvirt, setItem));
+            ilp.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
+            ilp.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
+        }
+
         private void WeaveTypeAsPersistent(ModuleDefinition module, TypeDefinition td)
         {
+            var dirtyDictName = "__dirty";
+
+            if (td.Fields.Any(x => x.Name == dirtyDictName))
+            {
+                return;
+            }
+            
+            var dirtydict = module.ImportReference(MakeGenericType(module.ImportReference(typeof(IDictionary<,>)), module.ImportReference(typeof(string)), module.ImportReference(typeof(bool))));
+            var dirtydictfield = new FieldDefinition(dirtyDictName, Mono.Cecil.FieldAttributes.Private, dirtydict);
+            td.Fields.Add(dirtydictfield);
+
+            var dirtydictInstance = module.ImportReference(typeof(Dictionary<,>)).Resolve();
+            foreach (var m in dirtydictInstance.Resolve().Methods)
+            {
+                Log.LogMessage(MessageImportance.High, $" m: {m}");
+            }
+            var dirtydictInstanceCtor = module.ImportReference(MakeHostInstanceGeneric(dirtydictInstance.Methods.Single(x => x.Name == ".ctor" && x.Parameters.Count == 0), module.ImportReference(typeof(string)), module.ImportReference(typeof(bool))));
+            Log.LogMessage(MessageImportance.High, $".ctor: {dirtydictInstanceCtor}");
+            foreach (var m in td.Methods)
+            {
+                Log.LogMessage(MessageImportance.High, $"  m: {m}");
+            }
+            var ctor = td.Methods.Single(x => x.Name == ".ctor");
+            var ilp = ctor.Body.GetILProcessor();
+            var first = ctor.Body.Instructions[0];
+
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Ldarg_0));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Newobj, dirtydictInstanceCtor));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Stfld, dirtydictfield));
+
             // here
             var props = td.Properties;
             foreach (var pr in props)
             {
                 var ptr = pr.PropertyType;
-                if (ptr.IsGenericInstance || ptr.FullName.StartsWith("System."))
+                var originalGetterInstructions = pr.GetMethod.Body.Instructions.ToArray();
+                var originalSetterInstructions = pr.SetMethod.Body.Instructions.ToArray();
+
+                if (!ptr.IsGenericInstance && !ptr.FullName.StartsWith("System."))
                 {
-                    var t = module.ImportReference(ptr);
-                    Log.LogMessage(MessageImportance.High, $"t: {t} skipped");
-                    continue;
+                    AddPropertyGetterLoader(module, td, pr, originalSetterInstructions);
                 }
 
-                try
-                {
-                    var loadertype = MakeGenericType(module.ImportReference(typeof(IEnumerable<>)), ptr);
-                    var loadername = $"__load_{pr.Name}";
-                    var loader = new FieldDefinition(loadername, Mono.Cecil.FieldAttributes.Private, loadertype);
-                    if (td.Fields.Any(x => x.Name == loadername)) { continue; }
-
-                    td.Fields.Add(loader);
-
-                    var enumerable = module.ImportReference(typeof(System.Linq.Enumerable)).Resolve();
-                    var singleOrDefault = module.ImportReference(enumerable.Methods.Single(x => x.Name == "SingleOrDefault" && x.Parameters.Count == 1));
-                    // var singleOrDefault = loader.FieldType.Resolve().Methods.Single(x => x.Name == "SingleOrDefault");
-                    singleOrDefault = MakeGenericMethod(singleOrDefault, pr.PropertyType);
-                    Log.LogMessage(MessageImportance.High, $"singleOrDefault: [{singleOrDefault.GetType()}]{singleOrDefault}");
-
-                    var pd = ptr.Resolve();
-                    Log.LogMessage(MessageImportance.High, $"pd: {pd.Name} {pd.FullName} {pd.Module} {pd.DeclaringType}");
-
-                    var getter = pr.GetMethod;
-                    var ilp = getter.Body.GetILProcessor();
-                    var first = getter.Body.Instructions[0];
-                    var ret = getter.Body.Instructions.Last();
-
-                    getter.Body.Variables.Add(new VariableDefinition(ptr));
-                    getter.Body.Variables.Add(new VariableDefinition(module.ImportReference(typeof(bool))));
-                    getter.Body.Variables.Add(new VariableDefinition(ptr));
-                    getter.Body.Variables.Add(new VariableDefinition(module.ImportReference(typeof(bool))));
-
-                    var il_0015 = Instruction.Create(OpCodes.Ldarg_0);
-                    var il_0038 = Instruction.Create(OpCodes.Ldloc_0);
-                    var il_003c = Instruction.Create(OpCodes.Ldloc_2);
-
-                    ilp.InsertBefore(first, Instruction.Create(OpCodes.Nop));
-
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Stloc_0));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldloc_0));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldnull));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Cgt_Un));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Stloc_1));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldloc_1));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Brfalse_S, il_0015));
-                    
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldloc_0));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Stloc_2));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Br_S, il_003c));
-
-                    ilp.InsertBefore(ret, il_0015);
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldfld, loader));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldnull));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Cgt_Un));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Stloc_3));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldloc_3));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Brfalse_S, il_0038));
-
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldarg_0));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldfld, loader));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Call, singleOrDefault));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Stloc_0));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldarg_0));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldloc_0));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Call, pr.SetMethod));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
-
-                    ilp.InsertBefore(ret, il_0038);
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Stloc_2));
-                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Br_S, il_003c));
-
-                    ilp.InsertBefore(ret, il_003c);
-                }
-                catch (Exception ex)
-                {
-                    Log.LogMessage(MessageImportance.High, $"{ex.Message}");
-                    Log.LogMessage(MessageImportance.High, $"{ex.StackTrace}");
-                    throw ex;
-                }
+                AddPropertyDirtySetter(module, td, pr, dirtydictfield, originalGetterInstructions);
             }
         }
     }

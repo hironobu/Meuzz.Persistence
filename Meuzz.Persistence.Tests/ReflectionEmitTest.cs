@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Reflection;
 using Meuzz.Persistence.Reflections;
 using Xunit;
@@ -36,18 +37,29 @@ namespace Meuzz.Persistence.Tests
 
     public class CharacterEx : Character
     {
-
         public class Loader
         {
             public Func<Character, Player> Player = null;
         }
         public Loader __Loader__ = new Loader();
 
+        private Player __player = null;
+        private IDictionary<string, bool> __dirty = new Dictionary<string, bool>();
+
         public new Player Player
         {
+            set
+            {
+                if (__player != value)
+                {
+                    __player = value;
+                    __dirty["Player"] = true;
+                }
+            }
+
             get
             {
-                var player = base.Player;
+                var player = __player;
                 if (player != null)
                 {
                     return player;
@@ -56,7 +68,7 @@ namespace Meuzz.Persistence.Tests
                 if (__Loader__.Player != null)
                 {
                     player = __Loader__.Player(this);
-                    base.Player = player;
+                    __player = player;
                 }
                 return player;
             }
