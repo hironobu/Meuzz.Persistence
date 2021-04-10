@@ -65,6 +65,32 @@ namespace Meuzz.Persistence.Tests
             Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) IN (1, 2, 3)", objs3.Item1);
             Assert.Null(objs3.Item2);
         }
+
+
+        [Fact]
+        public void TestUpdate()
+        {
+            var obj = new Player() { Id = 1 };
+            PersistenceContext.Generate(obj); // dummy
+
+            obj.Name = "aaa";
+
+            var statement = new UpdateStatement<Player>();
+            statement.Append(new[] { obj });
+
+            var update = _formatter.Format(statement, out var _);
+            Assert.Equal("UPDATE Players SET name = 'aaa' WHERE id = 1;", update.Item1);
+            update = _formatter.Format(statement, out var _);
+            Assert.Equal("", update.Item1);
+
+            obj.Name = "bbb";
+            obj.PlayTime = 10000;
+
+            update = _formatter.Format(statement, out var _);
+            Assert.Equal("UPDATE Players SET name = 'bbb', play_time = 10000 WHERE id = 1;", update.Item1);
+        }
+
+
         /*
         [Fact]
         public void TestLoadByLambda()

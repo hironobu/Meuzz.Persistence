@@ -36,6 +36,17 @@ namespace Meuzz.Persistence.Tests
         }
     }
 
+    public class TestMain
+    {
+        public static void Run()
+        {
+            var c = new CharacterEx() { Id = 111, Name = "aaa" };
+
+            Console.WriteLine("HOGEHOGE");
+            Console.WriteLine($"Name: {c.Name}");
+        }
+    }
+
     public class CharacterEx : Character, IPersistable
     {
         public class Loader
@@ -54,7 +65,10 @@ namespace Meuzz.Persistence.Tests
                 if (__player != value)
                 {
                     __player = value;
-                    __dirty["Player"] = true;
+                    if (__dirty != null)
+                    {
+                        __dirty["Player"] = true;
+                    }
                 }
             }
 
@@ -75,11 +89,11 @@ namespace Meuzz.Persistence.Tests
             }
         }
 
-        public PersistentContext GeneratePersistentContext()
+        public PersistenceContext GeneratePersistenceContext()
         {
             var keys = __dirty.Keys.ToArray();
             __dirty.Clear();
-            return new PersistentContext(keys);
+            return new PersistenceContext(keys);
         }
     }
 

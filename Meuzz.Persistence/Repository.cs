@@ -138,6 +138,7 @@ namespace Meuzz.Persistence
                 loaderField.SetValue(obj, conv.Invoke(null, new object[] { proploader }));
             }
 
+            PersistenceContext.Generate(obj); // for reset
             return obj;
         }
 

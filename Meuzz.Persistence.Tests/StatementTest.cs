@@ -49,7 +49,5 @@ namespace Meuzz.Persistence.Tests
 
             Assert.Equal("x => value(System.Object[]).Contains(Convert(x.Id, Object))", statement.Condition.ToString());
         }
-
-
     }
 }

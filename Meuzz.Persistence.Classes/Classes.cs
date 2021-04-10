@@ -42,28 +42,28 @@ namespace Meuzz.Persistence
         }
     }
 
-    public class PersistentContext
+    public class PersistenceContext
     {
         public string[] DirtyKeys { get; }
 
-        public PersistentContext(string[] dirtyKeys)
+        public PersistenceContext(string[] dirtyKeys)
         {
             DirtyKeys = dirtyKeys;
         }
 
-        public static PersistentContext Generate(object obj)
+        public static PersistenceContext Generate(object obj)
         {
             if (!(obj is IPersistable ip))
             {
                 return null;
             }
 
-            return ip.GeneratePersistentContext();
+            return ip.GeneratePersistenceContext();
         }
     }
 
     public interface IPersistable
     {
-        PersistentContext GeneratePersistentContext();
+        PersistenceContext GeneratePersistenceContext();
     }
 }
