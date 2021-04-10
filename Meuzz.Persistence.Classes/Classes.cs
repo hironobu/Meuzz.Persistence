@@ -41,4 +41,29 @@ namespace Meuzz.Persistence
             this.PrimaryKey = PrimaryKey;
         }
     }
+
+    public class PersistentContext
+    {
+        public string[] DirtyKeys { get; }
+
+        public PersistentContext(string[] dirtyKeys)
+        {
+            DirtyKeys = dirtyKeys;
+        }
+
+        public static PersistentContext Generate(object obj)
+        {
+            if (!(obj is IPersistable ip))
+            {
+                return null;
+            }
+
+            return ip.GeneratePersistentContext();
+        }
+    }
+
+    public interface IPersistable
+    {
+        PersistentContext GeneratePersistentContext();
+    }
 }

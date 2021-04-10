@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using Meuzz.Persistence.Reflections;
 using Xunit;
@@ -35,7 +36,7 @@ namespace Meuzz.Persistence.Tests
         }
     }
 
-    public class CharacterEx : Character
+    public class CharacterEx : Character, IPersistable
     {
         public class Loader
         {
@@ -72,6 +73,13 @@ namespace Meuzz.Persistence.Tests
                 }
                 return player;
             }
+        }
+
+        public PersistentContext GeneratePersistentContext()
+        {
+            var keys = __dirty.Keys.ToArray();
+            __dirty.Clear();
+            return new PersistentContext(keys);
         }
     }
 
