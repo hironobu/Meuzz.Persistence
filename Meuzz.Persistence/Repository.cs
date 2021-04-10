@@ -136,14 +136,6 @@ namespace Meuzz.Persistence
                     .MakeGenericMethod((tt.IsGenericType) ? tt.GetGenericArguments()[0] : tt);
 
                 loaderField.SetValue(obj, conv.Invoke(null, new object[] { proploader }));
-
-
-                /*var loader2 = loaderField.GetValue(obj);
-                var propLoaderField = loader2.GetType().GetField(prop.Name);
-                var px = Expression.Parameter(t);
-                var call = Expression.Call(Expression.Constant(proploader.Target), proploader.Method, px);
-                var ret = Expression.Lambda(Expression.Convert(call, prop.PropertyType), px);
-                propLoaderField.SetValue(loader2, ret.Compile());*/
             }
 
             return obj;

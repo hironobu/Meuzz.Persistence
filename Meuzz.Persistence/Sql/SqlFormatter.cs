@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Meuzz.Foundation;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -84,11 +85,17 @@ namespace Meuzz.Persistence.Sql
                     {
                         foreach (var obj in insertOrUpdateStatement.Values)
                         {
-                            sb.Append($"UPDATE {insertOrUpdateStatement.TableName} SET ");
-                            var d = obj.GetType().GetValueDictFromColumnNames(insertOrUpdateStatement.Columns, obj);
-                            var valstr = string.Join(", ", d.Select(x => $"{x.Key} = {_f(x.Value)}"));
-                            sb.Append(valstr);
-                            sb.Append($" WHERE {insertOrUpdateStatement.PrimaryKey} = {obj.GetType().GetPrimaryValue(obj)};");
+                            /* var d = obj.GetType().GetValueDictFromColumnNames(insertOrUpdateStatement.Columns, obj); */
+                            var pcontext = PersistentContext.Generate(obj);
+                            var dirtyKeys = pcontext.DirtyKeys;
+                            if (dirtyKeys != null && dirtyKeys.Length > 0)
+                            {
+                                sb.Append($"UPDATE {insertOrUpdateStatement.TableName} SET ");
+                                var d = obj.GetType().GetValueDictFromColumnNames(dirtyKeys.Select(x => StringUtils.ToSnake(x)).ToArray(), obj);
+                                var valstr = string.Join(", ", d.Select(x => $"{x.Key} = {_f(x.Value)}"));
+                                sb.Append(valstr);
+                                sb.Append($" WHERE {insertOrUpdateStatement.PrimaryKey} = {obj.GetType().GetPrimaryValue(obj)};");
+                            }
                         }
                     }
                     break;
