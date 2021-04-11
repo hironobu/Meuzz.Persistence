@@ -6,6 +6,7 @@ using System.Reflection.Emit;
 
 namespace Meuzz.Persistence.Reflections
 {
+    [Obsolete]
     public class PersistentTypeBuilder
     {
         private TypeBuilder _typeBuilder;

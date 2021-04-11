@@ -11,16 +11,8 @@ namespace Meuzz.Persistence.Sql
 {
     public abstract class SqlFormatter
     {
-        public abstract (string Sql, IDictionary<string, object> Parameters) Format(SqlStatement statement, out SqlConnectionContext context);
-    }
 
-    public class SqliteFormatter : SqlFormatter
-    {
-        public SqliteFormatter()
-        {
-        }
-
-        public override (string Sql, IDictionary<string, object> Parameters) Format(SqlStatement statement, out SqlConnectionContext context)
+        public (string Sql, IDictionary<string, object> Parameters) Format(SqlStatement statement, out SqlConnectionContext context)
         {
             var sb = new StringBuilder();
             var sqliteContext = new SqliteConnectionContext();
@@ -42,7 +34,7 @@ namespace Meuzz.Persistence.Sql
                         var cond = bindingSpec.ConditionSql;
                         sb.Append($" LEFT JOIN {bindingSpec.ForeignType.GetTableName()} {bindingSpec.ForeignParamName} ON {cond}");
                     }
-                    sb.Append($" WHERE {FormatElement(selectStatement.Condition, true, parameters)}");
+                    sb.Append($" WHERE {FormatElement(selectStatement.Condition, true, true, parameters)}");
                     break;
 
                 case SqlInsertOrUpdateStatement insertOrUpdateStatement:
@@ -54,8 +46,9 @@ namespace Meuzz.Persistence.Sql
                         object[] rows = insertOrUpdateStatement.Values;
 
                         sb.Append($"INSERT INTO {insertOrUpdateStatement.TableName}");
-                        sb.Append($" ({string.Join(", ", insertOrUpdateStatement.Columns)})");
-                        sb.Append($" VALUES");
+                        sb.Append($"  ({string.Join(", ", insertOrUpdateStatement.Columns)})");
+                        sb.Append($"  {GetInsertIntoOutputString() ?? ""}");
+                        sb.Append($"  VALUES");
                         foreach (var (row, idx) in rows.Select((x, i) => (x, i)))
                         {
                             var d = row.GetType().GetValueDictFromColumnNames(insertOrUpdateStatement.Columns, row);
@@ -79,7 +72,8 @@ namespace Meuzz.Persistence.Sql
                                     sb.Append(",");
                             }
                         }
-                        sb.Append($"; SELECT last_insert_rowid() AS new_id; ");
+                        sb.Append($"; {GetLastInsertedIdString(insertOrUpdateStatement.PrimaryKey) ?? ""}");
+                        // sb.Append($"; SELECT last_insert_rowid() AS new_id;");
                     }
                     else
                     {
@@ -102,7 +96,7 @@ namespace Meuzz.Persistence.Sql
 
                 case SqlDeleteStatement deleteStatement:
                     sb.Append($"DELETE FROM {deleteStatement.TableName}");
-                    sb.Append($" WHERE {FormatElement(deleteStatement.Condition, false, parameters)}");
+                    sb.Append($" WHERE {FormatElement(deleteStatement.Condition, false, true, parameters)}");
                     break;
 
                 default:
@@ -114,50 +108,50 @@ namespace Meuzz.Persistence.Sql
             return (ret.Length > 0 ? ret : null, parameters);
         }
 
-        private string ValueToString(object value)
+        private string ValueToString(object value, bool useQueue)
         {
             switch (value)
             {
                 case string s:
-                    return Quote(s);
+                    return useQueue ? Quote(s) : s;
 
                 case int[] ns:
                     return string.Join(", ", ns);
 
                 case object[] objs:
-                    return string.Join(", ", objs.Select(x => ValueToString(x)));
+                    return string.Join(", ", objs.Select(x => ValueToString(x, useQueue)));
 
                 default:
                     return value.ToString();
             }
         }
 
-        protected string FormatElement(Expression exp, bool showsParameterName, IDictionary<string, object> parameters)
+        protected string FormatElement(Expression exp, bool showsParameterName, bool useQueue, IDictionary<string, object> parameters)
         {
             switch (exp)
             {
                 case LambdaExpression lmbe:
-                    return FormatElement(lmbe.Body, showsParameterName, parameters);
+                    return FormatElement(lmbe.Body, showsParameterName, useQueue, parameters);
 
                 case BinaryExpression bine:
                     switch (bine.NodeType)
                     {
                         case ExpressionType.AndAlso:
-                            return $"({FormatElement(bine.Left, showsParameterName, parameters)}) AND ({FormatElement(bine.Right, showsParameterName, parameters)})";
+                            return $"({FormatElement(bine.Left, showsParameterName, useQueue, parameters)}) AND ({FormatElement(bine.Right, showsParameterName, useQueue, parameters)})";
                         case ExpressionType.Or:
-                            return $"({FormatElement(bine.Left, showsParameterName, parameters)}) OR ({FormatElement(bine.Right, showsParameterName, parameters)})";
+                            return $"({FormatElement(bine.Left, showsParameterName, useQueue, parameters)}) OR ({FormatElement(bine.Right, showsParameterName, useQueue, parameters)})";
                         case ExpressionType.LessThan:
-                            return $"({FormatElement(bine.Left, showsParameterName, parameters)}) < ({FormatElement(bine.Right, showsParameterName, parameters)})";
+                            return $"({FormatElement(bine.Left, showsParameterName, useQueue, parameters)}) < ({FormatElement(bine.Right, showsParameterName, useQueue, parameters)})";
                         case ExpressionType.LessThanOrEqual:
-                            return $"({FormatElement(bine.Left, showsParameterName, parameters)}) <= ({FormatElement(bine.Right, showsParameterName, parameters)})";
+                            return $"({FormatElement(bine.Left, showsParameterName, useQueue, parameters)}) <= ({FormatElement(bine.Right, showsParameterName, useQueue, parameters)})";
                         case ExpressionType.GreaterThan:
-                            return $"({FormatElement(bine.Left, showsParameterName, parameters)}) > ({FormatElement(bine.Right, showsParameterName, parameters)})";
+                            return $"({FormatElement(bine.Left, showsParameterName, useQueue, parameters)}) > ({FormatElement(bine.Right, showsParameterName, useQueue, parameters)})";
                         case ExpressionType.GreaterThanOrEqual:
-                            return $"({FormatElement(bine.Left, showsParameterName, parameters)}) >= ({FormatElement(bine.Right, showsParameterName, parameters)})";
+                            return $"({FormatElement(bine.Left, showsParameterName, useQueue, parameters)}) >= ({FormatElement(bine.Right, showsParameterName, useQueue, parameters)})";
                         case ExpressionType.Equal:
-                            return $"({FormatElement(bine.Left, showsParameterName, parameters)}) = ({FormatElement(bine.Right, showsParameterName, parameters)})";
+                            return $"({FormatElement(bine.Left, showsParameterName, useQueue, parameters)}) = ({FormatElement(bine.Right, showsParameterName, useQueue, parameters)})";
                         case ExpressionType.NotEqual:
-                            return $"({FormatElement(bine.Left, showsParameterName, parameters)}) != ({FormatElement(bine.Right, showsParameterName, parameters)})";
+                            return $"({FormatElement(bine.Left, showsParameterName, useQueue, parameters)}) != ({FormatElement(bine.Right, showsParameterName, useQueue, parameters)})";
 
                         // case ExpressionType.MemberAccess:
                         // return $"{FormatElement(bine.Left)}.{FormatElement(bine.Right)}";
@@ -166,7 +160,7 @@ namespace Meuzz.Persistence.Sql
                     }
 
                 case ConstantExpression ce:
-                    return ValueToString(ce.Value);
+                    return ValueToString(ce.Value, useQueue);
 
                 case ParameterExpression pe:
                     return showsParameterName ? pe.Name : "";
@@ -222,24 +216,24 @@ namespace Meuzz.Persistence.Sql
                                 }
                                 else
                                 {
-                                    return ValueToString(value);
+                                    return ValueToString(value, useQueue);
                                 }
                         }
                         throw new NotImplementedException();
                     }
                     else
                     {
-                        return $"{FormatElement(me.Expression, showsParameterName, parameters)}.{(me.Member.Name)}";
+                        return $"{FormatElement(me.Expression, showsParameterName, useQueue, parameters)}.{(me.Member.Name)}";
                     }
 
                 case MethodCallExpression mce:
                     switch (mce.Method.Name)
                     {
                         case "Contains":
-                            return $"({FormatElement(mce.Arguments[1], showsParameterName, parameters)}) IN ({FormatElement(mce.Arguments[0], showsParameterName, parameters)})";
+                            return $"({FormatElement(mce.Arguments[1], showsParameterName, useQueue, parameters)}) IN ({FormatElement(mce.Arguments[0], showsParameterName, useQueue, parameters)})";
 
                         case "get_Item":
-                            return $"{FormatElement(mce.Object, showsParameterName, parameters)}.{FormatElement(mce.Arguments[0], showsParameterName, parameters)}";
+                            return $"{FormatElement(mce.Object, showsParameterName, useQueue, parameters)}.{FormatElement(mce.Arguments[0], showsParameterName, false, parameters)}";
                     }
                     break;
 
@@ -247,7 +241,7 @@ namespace Meuzz.Persistence.Sql
                     switch (ue.NodeType)
                     {
                         case ExpressionType.Convert:
-                            return $"{FormatElement(ue.Operand, showsParameterName, parameters)}";
+                            return $"{FormatElement(ue.Operand, showsParameterName, useQueue, parameters)}";
                     }
                     break;
             }
@@ -270,5 +264,27 @@ namespace Meuzz.Persistence.Sql
         {
             return $"'{s.Replace(@"'", @"''")}'";
         }
+
+        protected virtual string GetInsertIntoOutputString() => null;
+
+        protected virtual string GetLastInsertedIdString(string pkey) => null;
     }
+
+    public class SqliteFormatter : SqlFormatter
+    {
+        public SqliteFormatter()
+        {
+        }
+
+        protected override string GetLastInsertedIdString(string pkey)
+        {
+            return $"SELECT last_insert_rowid() AS {pkey};";
+        }
+    }
+
+    public class MssqlFormatter : SqlFormatter
+    {
+        protected override string GetInsertIntoOutputString() => $"OUTPUT INSERTED.ID";
+    }
+
 }

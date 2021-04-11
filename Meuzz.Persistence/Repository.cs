@@ -160,7 +160,8 @@ namespace Meuzz.Persistence
                 var prop = t.GetProperty(StringUtils.ToCamel(pkey, true));
                 var classinfo = t.GetClassInfo();
 
-                int newPrimaryId = (int)Convert.ChangeType(rset.Results.First()["new_id"], prop.PropertyType) - inserted.Count() + 1;
+                var results = rset.Results;
+                int newPrimaryId = (int)Convert.ChangeType(results.Last()["id"], prop.PropertyType) - inserted.Count() + 1;
 
                 foreach (var (y, i) in inserted.Select((x, i) => (x, i)))
                 {

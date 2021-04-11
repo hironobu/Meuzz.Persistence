@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using Microsoft.Data.Sqlite;
+using Microsoft.Data.SqlClient;
 using Meuzz.Persistence.Sql;
 
 namespace Meuzz.Persistence
@@ -29,6 +30,9 @@ namespace Meuzz.Persistence
             {
                 case "sqlite":
                     return new SqliteConnectionImpl(parameters["file"]);
+
+                case "mssql":
+                    return new MssqlConnectionImpl(parameters["host"], Int32.Parse(parameters["port"]), parameters["database"], parameters["user"], parameters["password"]);
             }
 
             throw new NotImplementedException();
@@ -96,7 +100,7 @@ namespace Meuzz.Persistence
 
         public override ResultSet Execute(string sql, IDictionary<string, object> parameters, SqlConnectionContext context)
         {
-            var cmd = _connection.CreateCommand();
+            using var cmd = _connection.CreateCommand();
             cmd.CommandText = sql.ToString();
             if (parameters != null)
             {
@@ -117,6 +121,74 @@ namespace Meuzz.Persistence
         class SqliteResultSet : ResultSet
         {
             public SqliteResultSet(/*SqliteSelectStatement statement, */ SqliteDataReader reader)
+            {
+                var results = new List<IDictionary<string, object>>();
+
+                while (reader.HasRows)
+                {
+                    // var table = reader.GetSchemaTable().Rows[0]["BaseTableName"];
+                    // var t = statement.GetTableType();
+                    var cols = Enumerable.Range(0, reader.FieldCount).Select(x => reader.GetName(x)).ToArray<string>();
+                    while (reader.Read())
+                    {
+                        var vals = Enumerable.Range(0, reader.FieldCount).Select(x => reader.IsDBNull(x) ? null : reader.GetValue(x)).ToArray();
+                        var dict = cols.Zip(vals, (k, v) => new { K = k, V = v }).ToDictionary(x => x.K.ToLower(), x => x.V);
+
+                        // var entity = PopulateEntity(t, cols, vals);
+
+                        results.Add(dict);
+                    }
+                    reader.NextResult();
+                }
+
+                Results = results;
+            }
+        }
+    }
+
+    public class MssqlConnectionImpl : Connection
+    {
+        private SqlConnection _connection;
+
+        public MssqlConnectionImpl(string host, int port, string databaseName, string user, string password)
+        {
+            var builder = new SqlConnectionStringBuilder();
+            builder.DataSource = $"{host},{port}";
+            builder.InitialCatalog = databaseName;
+            builder.UserID = user;
+            builder.Password = password;
+
+            _connection = new SqlConnection(builder.ConnectionString);
+        }
+
+        public override void Close()
+        {
+            _connection.Close();
+        }
+
+        public override ResultSet Execute(string sql, IDictionary<string, object> parameters, SqlConnectionContext context = null)
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = sql.ToString();
+            if (parameters != null)
+            {
+                foreach (var (k, v) in parameters)
+                {
+                    cmd.Parameters.AddWithValue(k, v != null ? v : DBNull.Value);
+                }
+            }
+            using var reader = cmd.ExecuteReader(CommandBehavior.KeyInfo);
+            return new MssqlResultSet(reader);
+        }
+
+        public override void Open()
+        {
+            _connection.Open();
+        }
+
+        class MssqlResultSet : ResultSet
+        {
+            public MssqlResultSet(SqlDataReader reader)
             {
                 var results = new List<IDictionary<string, object>>();
 
