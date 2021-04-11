@@ -14,7 +14,7 @@
     <ProjectReference Include="..\Meuzz.Persistence.Classes\Meuzz.Persistence.Classes.csproj" />
   </ItemGroup>
 
-  <Target Name="CustomBeforeBuild" BeforeTargets="BeforeBuild">
+  <!--<Target Name="CustomBeforeBuild" BeforeTargets="BeforeBuild">
     <Message Text="CustomBeforeBuild" Importance="High"></Message>
     <Message Text="Current Root Targets: $(MSBuildProjectDefaultTargets)" Importance="high"></Message>
   </Target>
@@ -32,6 +32,6 @@
     <Message Text="CustomAfterPublish" Importance="High"></Message>
   </Target>
   <Target Name="CustomGatherAllFilesToPublish" AfterTargets="GatherAllFilesToPublish">
-    <Message Text="HOGEHOGE" Importance="High"></Message>
-  </Target>
+    <Message Text="CustomGatherAllFilesToPublish" Importance="High"></Message>
+  </Target>-->
 </Project>

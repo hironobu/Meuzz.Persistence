@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <NoWarn>1701;1702;5100</NoWarn>
+    <NoWarn>1701;1702;NU5100</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,29 +22,24 @@
     <ProjectReference Include="..\Meuzz.Persistence.Classes\Meuzz.Persistence.Classes.csproj" />
   </ItemGroup>
 
-  <!--<UsingTask TaskName="NotifyPropertyWeaverMsBuildTask.WeavingTask" AssemblyFile="$(SolutionDir)Libs\NotifyPropertyWeaverMsBuildTask.dll" />
-  <Target Name="AfterCompile">
-    <NotifyPropertyWeaverMsBuildTask.WeavingTask TargetPath="$(TargetPath)" TryToWeaveAllTypes="true" EventInvokerName="RaisePropertyChanged" />
-  </Target>-->
-
   <ItemGroup>
-    <Content Include="..\..\Meuzz.Foundation\Meuzz.Foundation\bin\Debug\netcoreapp3.1\Meuzz.Foundation.dll">
+    <Content Include="..\..\Meuzz.Foundation\Meuzz.Foundation\bin\Debug\netcoreapp3.1\Meuzz.Foundation.dll" Visible="false">
       <Pack>true</Pack>
       <PackagePath>lib/netcoreapp3.1</PackagePath>
     </Content>
-    <Content Include="..\Meuzz.Persistence.Builder\bin\Debug\netstandard2.0\Meuzz.Persistence.Builder.dll">
+    <Content Include="..\Meuzz.Persistence.Builder\bin\Debug\netstandard2.0\Meuzz.Persistence.Builder.dll" Visible="false">
       <Pack>true</Pack>
       <PackagePath>tasks/netstandard2.0</PackagePath>
     </Content>
-    <Content Include="..\Meuzz.Persistence.Builder\bin\Debug\netstandard2.0\Meuzz.Persistence.Classes.dll">
+    <Content Include="..\Meuzz.Persistence.Builder\bin\Debug\netstandard2.0\Meuzz.Persistence.Classes.dll" Visible="false">
       <Pack>true</Pack>
       <PackagePath>tasks/netstandard2.0</PackagePath>
     </Content>
-    <Content Include="..\Meuzz.Persistence.Builder\bin\Debug\netstandard2.0\publish\Mono.Cecil*">
+    <Content Include="..\Meuzz.Persistence.Builder\bin\Debug\netstandard2.0\publish\Mono.Cecil*" Visible="false">
       <Pack>true</Pack>
       <PackagePath>tasks/netstandard2.0</PackagePath>
     </Content>
-    <Content Include="..\Meuzz.Persistence.Builder\Meuzz.Persistence.targets">
+    <Content Include="..\Meuzz.Persistence.Builder\Meuzz.Persistence.targets" Visible="false">
       <Pack>true</Pack>
       <PackagePath>build</PackagePath>
     </Content>

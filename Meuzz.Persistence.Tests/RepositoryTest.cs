@@ -202,6 +202,8 @@ namespace Meuzz.Persistence.Tests
 
             Assert.Equal(5, rset.Results.Count());
             Assert.Equal("Update Test", rset.Results.ElementAt(0)["name"]);
+            Assert.Equal((Int64)10, rset.Results.ElementAt(0)["age"]);
+            Assert.Equal((Int64)100, rset.Results.ElementAt(0)["play_time"]);
             Assert.Equal("bbb", rset.Results.ElementAt(1)["name"]);
             Assert.Equal("ccc's", rset.Results.ElementAt(2)["name"]);
             Assert.Equal("Create Test", rset.Results.ElementAt(3)["name"]);

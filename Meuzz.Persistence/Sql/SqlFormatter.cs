@@ -11,7 +11,7 @@ namespace Meuzz.Persistence.Sql
 {
     public abstract class SqlFormatter
     {
-        public abstract (string, IDictionary<string, object>) Format(SqlStatement statement, out SqlConnectionContext context);
+        public abstract (string Sql, IDictionary<string, object> Parameters) Format(SqlStatement statement, out SqlConnectionContext context);
     }
 
     public class SqliteFormatter : SqlFormatter
@@ -20,7 +20,7 @@ namespace Meuzz.Persistence.Sql
         {
         }
 
-        public override (string, IDictionary<string, object>) Format(SqlStatement statement, out SqlConnectionContext context)
+        public override (string Sql, IDictionary<string, object> Parameters) Format(SqlStatement statement, out SqlConnectionContext context)
         {
             var sb = new StringBuilder();
             var sqliteContext = new SqliteConnectionContext();
@@ -110,7 +110,8 @@ namespace Meuzz.Persistence.Sql
             }
 
             context = sqliteContext;
-            return (sb.ToString(), parameters);
+            var ret = sb.ToString();
+            return (ret.Length > 0 ? ret : null, parameters);
         }
 
         private string ValueToString(object value)
