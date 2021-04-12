@@ -4,7 +4,7 @@ using System.Linq;
 using Meuzz.Persistence.Sql;
 using Xunit;
 
-namespace Meuzz.Persistence.Tests
+namespace Meuzz.Persistence.Tests.Sqlite
 {
     public class RepositoryTest
     {
