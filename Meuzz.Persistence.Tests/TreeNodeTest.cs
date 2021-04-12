@@ -37,7 +37,7 @@ namespace Meuzz.Persistence.Tests
                 INSERT INTO TreeNodes VALUES (1, 'aa', NULL), (2, 'bbb', 1), (3, 'ccc', 1), (4, 'ddd', 1);
                 INSERT INTO TreeNodes VALUES (5, 'aaaa', 2), (6, 'bbbb', 3), (7, 'cccc', 4), (8, 'dddd', 4), (9, 'eeee', 4), (10, 'ffff', 4), (11, 'gggg', 4);
             ");
-            _repository = new ObjectRepository(_connection, new SqliteFormatter(), new SqliteCollator());
+            _repository = new ObjectRepository(_connection, new SqliteFormatter(), new SqlCollator());
         }
 
         [Fact]

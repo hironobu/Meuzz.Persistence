@@ -20,7 +20,9 @@ namespace Meuzz.Persistence
 
         protected IEnumerable<object> LoadObjects(Type t, SqlSelectStatement statement, Action<IEnumerable<object>> propertySetter = null)
         {
-            var (sql, parameters) = _formatter.Format(statement, out var context);
+            var context = _collator != null ? new SqlConnectionContext() : null;
+
+            var (sql, parameters) = _formatter.Format(statement, context);
             var rset = _connection.Execute(sql, parameters, context);
 
             var results = PopulateObjects(t, rset, statement, context);
@@ -153,7 +155,8 @@ namespace Meuzz.Persistence
                 dynamic insertStatement = Convert.ChangeType(Activator.CreateInstance(tt), tt);
                 insertStatement.Append(inserted);
                 insertStatement.ExtraData = extraData;
-                var (sql, parameters) = _formatter.Format(insertStatement as SqlStatement, out SqlConnectionContext context);
+                var context = new SqlConnectionContext();
+                var (sql, parameters) = _formatter.Format(insertStatement as SqlStatement, context);
                 var rset = _connection.Execute(sql, parameters, context);
 
                 var pkey = t.GetPrimaryKey();
@@ -185,7 +188,8 @@ namespace Meuzz.Persistence
                 var tt = typeof(UpdateStatement<>).MakeGenericType(t);
                 dynamic updateStatement = Convert.ChangeType(Activator.CreateInstance(tt), tt);
                 updateStatement.Append(updated);
-                var (sql2, parameters) = _formatter.Format(updateStatement as SqlStatement, out SqlConnectionContext context2);
+                var context2 = new SqlConnectionContext();
+                var (sql2, parameters) = _formatter.Format(updateStatement as SqlStatement, context2);
                 _connection.Execute(sql2, parameters, context2);
             }
 
@@ -402,7 +406,8 @@ namespace Meuzz.Persistence
             var statement = new DeleteStatement<T>();
             statement.Where(f);
 
-            var (sql, parameters) = _formatter.Format(statement, out var context);
+            var context = new SqlConnectionContext();
+            var (sql, parameters) = _formatter.Format(statement, context);
             var rset = _connection.Execute(sql, parameters, context);
 
             return true;
@@ -415,7 +420,8 @@ namespace Meuzz.Persistence
             var statement = new DeleteStatement<T>();
             statement.Where(primaryKey, id);
 
-            var (sql, parameters) = _formatter.Format(statement, out var context);
+            var context = new SqlConnectionContext();
+            var (sql, parameters) = _formatter.Format(statement, context);
             var rset = _connection.Execute(sql, parameters, context);
 
             return true;

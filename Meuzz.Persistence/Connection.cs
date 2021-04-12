@@ -10,15 +10,15 @@ using MySql.Data.MySqlClient;
 namespace Meuzz.Persistence
 {
 
-    public abstract class SqlConnectionContext
+    public class SqlConnectionContext
     {
-
+        public ColumnAliasingInfo ColumnAliasingInfo { get; set; } = null;
     }
 
-    public class SqliteConnectionContext : SqlConnectionContext
+    /*public class SqliteConnectionContext : SqlConnectionContext
     {
-        public ColumnAliasingInfo ColumnAliasingInfo { get; } = new ColumnAliasingInfo();
-    }
+        public ColumnAliasingInfo ColumnAliasingInfo { get; set; } = new ColumnAliasingInfo();
+    }*/
 
 
     public class ConnectionFactory

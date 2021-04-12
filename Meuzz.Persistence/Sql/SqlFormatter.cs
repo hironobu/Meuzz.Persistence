@@ -12,10 +12,13 @@ namespace Meuzz.Persistence.Sql
     public abstract class SqlFormatter
     {
 
-        public (string Sql, IDictionary<string, object> Parameters) Format(SqlStatement statement, out SqlConnectionContext context)
+        public (string Sql, IDictionary<string, object> Parameters) Format(SqlStatement statement, SqlConnectionContext context)
         {
             var sb = new StringBuilder();
-            var sqliteContext = new SqliteConnectionContext();
+            if (context != null)
+            {
+                context.ColumnAliasingInfo = new ColumnAliasingInfo();
+            }
 
             IDictionary<string, object> parameters = null; //  new Dictionary<string, object>();
 
@@ -25,7 +28,7 @@ namespace Meuzz.Persistence.Sql
                     var parameterName = selectStatement.ParamInfo.GetDefaultParamName();
                     var parameterType = selectStatement.ParamInfo.GetParameterTypeByParamName(parameterName);
 
-                    sb.Append($"SELECT {string.Join(", ", GetColumnsToString(selectStatement.ParamInfo.GetAllParameters(), sqliteContext.ColumnAliasingInfo))}");
+                    sb.Append($"SELECT {string.Join(", ", GetColumnsToString(selectStatement.ParamInfo.GetAllParameters(), context != null ? context.ColumnAliasingInfo : null))}");
 
                     sb.Append($" FROM {parameterType.GetTableName()} {parameterName}");
 
@@ -103,7 +106,6 @@ namespace Meuzz.Persistence.Sql
                     throw new NotImplementedException();
             }
 
-            context = sqliteContext;
             var ret = sb.ToString();
             return (ret.Length > 0 ? ret : null, parameters);
         }
@@ -255,8 +257,15 @@ namespace Meuzz.Persistence.Sql
             {
                 var (name, type) = x;
                 var colnames = type.GetClassInfo().Columns.Select(x => x.Name);
-                var aliasedDict = caInfo.MakeColumnAliasingDictionary(name, colnames);
-                return string.Join(", ", aliasedDict.Select(x => $"{x.Value} AS {x.Key}"));
+                if (caInfo != null)
+                {
+                    var aliasedDict = caInfo.MakeColumnAliasingDictionary(name, colnames);
+                    return string.Join(", ", aliasedDict.Select(x => $"{x.Value} AS {x.Key}"));
+                }
+                else
+                {
+                    return string.Join(", ", colnames.Select(x => $"{name}.{x}"));
+                }
             }).ToArray();
         }
 

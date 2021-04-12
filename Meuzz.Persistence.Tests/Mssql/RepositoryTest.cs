@@ -30,7 +30,7 @@ namespace Meuzz.Persistence.Tests.Mssql
                 INSERT INTO Characters VALUES ('cccc', 2, 3);
             ");
             _connection.Close();
-            _repository = new ObjectRepository(_connection, new MssqlFormatter(), new SqliteCollator());
+            _repository = new ObjectRepository(_connection, new MssqlFormatter(), new SqlCollator());
         }
 
         [Fact]

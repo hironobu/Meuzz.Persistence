@@ -27,7 +27,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
                 INSERT INTO Characters VALUES (2, 'bbbb', 1, NULL);
                 INSERT INTO Characters VALUES (3, 'cccc', 2, 3);
             ");
-            _repository = new ObjectRepository(_connection, new SqliteFormatter(), new SqliteCollator());
+            _repository = new ObjectRepository(_connection, new SqliteFormatter(), new SqlCollator());
         }
 
         [Fact]
