@@ -196,7 +196,7 @@ namespace Meuzz.Persistence
         {
             var rows = rset.Results.Select(x =>
             {
-                var xx = _collator.Collate(x, context);
+                var xx = _collator != null ? _collator.Collate(x, context) : x;
                 var kvs = xx.Select(c => (c.Key.Split('.'), c.Value));
                 var d = new Dictionary<string, object>();
                 foreach (var (kk, v) in kvs)
