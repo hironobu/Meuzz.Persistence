@@ -1,17 +1,35 @@
 version: '3'
 services:
-  db:
-    image: microsoft/mssql-server-linux #:2017-GA
-    #volumes:
-      #- db-data:/var/opt/mssql/
+  mysql:
+    build: ./docker/mysql
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: persistence
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: password
+      TZ: 'Asia/Tokyo'
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./docker/mysql/initdb.d:/docker-entrypoint-initdb.d
+      - ./docker/mysql/conf.d:/etc/mysql/conf.d
+  mssql:
+    build:
+      context: ./docker/mssql
     environment:
       ACCEPT_EULA: Y
-      MSSQL_SA_PASSWORD: P@ssw0rd!
+      SA_PASSWORD: P@ssw0rd!
       MSSQL_PID: Express
       MSSQL_LCID: 1041
       MSSQL_COLLATION: Japanese_CI_AS
     ports:
       - "1433:1433"
+    volumes:
+      - ./docker/mssql/initdb.d:/docker-entrypoint-initdb.d
+      - ./docker/mssql/data:/var/opt/mssql/data
+      - ./docker/mssql/log:/var/opt/mssql/log
+      - ./docker/mssql/secrets:/var/opt/mssql/sec
 
 volumes:
   db-data:

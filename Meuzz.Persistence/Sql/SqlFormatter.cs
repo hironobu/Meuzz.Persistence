@@ -72,7 +72,7 @@ namespace Meuzz.Persistence.Sql
                                     sb.Append(",");
                             }
                         }
-                        sb.Append($"; {GetLastInsertedIdString(insertOrUpdateStatement.PrimaryKey) ?? ""}");
+                        sb.Append($"; {GetLastInsertedIdString(insertOrUpdateStatement.PrimaryKey, rows.Length) ?? ""}");
                         // sb.Append($"; SELECT last_insert_rowid() AS new_id;");
                     }
                     else
@@ -267,16 +267,12 @@ namespace Meuzz.Persistence.Sql
 
         protected virtual string GetInsertIntoOutputString() => null;
 
-        protected virtual string GetLastInsertedIdString(string pkey) => null;
+        protected virtual string GetLastInsertedIdString(string pkey, int rows) => null;
     }
 
     public class SqliteFormatter : SqlFormatter
     {
-        public SqliteFormatter()
-        {
-        }
-
-        protected override string GetLastInsertedIdString(string pkey)
+        protected override string GetLastInsertedIdString(string pkey, int rows)
         {
             return $"SELECT last_insert_rowid() AS {pkey};";
         }
@@ -285,6 +281,14 @@ namespace Meuzz.Persistence.Sql
     public class MssqlFormatter : SqlFormatter
     {
         protected override string GetInsertIntoOutputString() => $"OUTPUT INSERTED.ID";
+    }
+
+    public class MySqlFormatter : SqlFormatter
+    {
+        protected override string GetLastInsertedIdString(string pkey, int rows)
+        {
+            return $"SELECT (last_insert_id() + {rows - 1}) AS {pkey};";
+        }
     }
 
 }
