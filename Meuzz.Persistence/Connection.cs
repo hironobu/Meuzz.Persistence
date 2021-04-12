@@ -46,12 +46,12 @@ namespace Meuzz.Persistence
 
     public abstract class Connection : IDisposable
     {
-        private bool _disposed = false;
+        private bool _disposed;
 
-        ~Connection()
-        {
-            Dispose();
-        }
+        // ~Connection()
+        // {
+        //     Dispose(disposing: false);
+        // }
 
         public abstract void Open();
 
@@ -61,20 +61,25 @@ namespace Meuzz.Persistence
 
         public abstract void Close();
 
-        public void Dispose()
-        {
-            Dispose(true);
-        }
-
-        public void Dispose(bool disposing)
+        protected virtual void Dispose(bool disposing)
         {
             if (!_disposed)
             {
                 if (disposing)
                 {
+                    // for managed resources
                     Close();
                 }
+
+                // here for unmanaged resources
+                _disposed = true;
             }
+        }
+
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
 
         public class ResultSet
