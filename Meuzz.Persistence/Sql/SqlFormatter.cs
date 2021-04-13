@@ -17,10 +17,10 @@ namespace Meuzz.Persistence.Sql
             var sb = new StringBuilder();
             if (context != null)
             {
-                context.ColumnAliasingInfo = new ColumnAliasingInfo();
+                context.ColumnCollationInfo = new ColumnCollationInfo();
             }
 
-            IDictionary<string, object> parameters = null; //  new Dictionary<string, object>();
+            IDictionary<string, object> parameters = null;
 
             switch (statement)
             {
@@ -28,7 +28,7 @@ namespace Meuzz.Persistence.Sql
                     var parameterName = selectStatement.ParamInfo.GetDefaultParamName();
                     var parameterType = selectStatement.ParamInfo.GetParameterTypeByParamName(parameterName);
 
-                    sb.Append($"SELECT {string.Join(", ", GetColumnsToString(selectStatement.ParamInfo.GetAllParameters(), context != null ? context.ColumnAliasingInfo : null))}");
+                    sb.Append($"SELECT {string.Join(", ", GetColumnsToString(selectStatement.ParamInfo.GetAllParameters(), context != null ? context.ColumnCollationInfo : null))}");
 
                     sb.Append($" FROM {parameterType.GetTableName()} {parameterName}");
 
@@ -251,7 +251,7 @@ namespace Meuzz.Persistence.Sql
             throw new NotImplementedException();
         }
 
-        private string[] GetColumnsToString((string, Type)[] pes, ColumnAliasingInfo caInfo)
+        private string[] GetColumnsToString((string, Type)[] pes, ColumnCollationInfo caInfo)
         {
             return pes.Select(x =>
             {

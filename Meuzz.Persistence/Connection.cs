@@ -12,7 +12,7 @@ namespace Meuzz.Persistence
 
     public class SqlConnectionContext
     {
-        public ColumnAliasingInfo ColumnAliasingInfo { get; set; } = null;
+        public ColumnCollationInfo ColumnCollationInfo { get; set; } = null;
     }
 
     /*public class SqliteConnectionContext : SqlConnectionContext

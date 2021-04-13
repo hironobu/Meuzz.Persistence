@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace Meuzz.Persistence.Sql
 {
-    public class ColumnAliasingInfo
+    public class ColumnCollationInfo
     {
         private IDictionary<string, string> _aliasingProperties = new Dictionary<string, string>();
 
