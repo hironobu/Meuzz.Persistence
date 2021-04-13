@@ -34,8 +34,7 @@ namespace Meuzz.Persistence.Sql
 
                     foreach (var bindingSpec in selectStatement.GetAllBindings())
                     {
-                        var cond = bindingSpec.ConditionSql;
-                        sb.Append($" LEFT JOIN {bindingSpec.ForeignType.GetTableName()} {bindingSpec.ForeignParamName} ON {cond}");
+                        sb.Append($" LEFT JOIN {bindingSpec.ForeignType.GetTableName()} {bindingSpec.ForeignParamName} ON {bindingSpec.ConditionSql}");
                     }
                     sb.Append($" WHERE {FormatElement(selectStatement.Condition, true, true, parameters)}");
                     break;
