@@ -20,6 +20,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Meuzz.Persistence.Mssql\Meuzz.Persistence.Mssql.csproj" />
+    <ProjectReference Include="..\Meuzz.Persistence.MySql\Meuzz.Persistence.MySql.csproj" />
+    <ProjectReference Include="..\Meuzz.Persistence.Sqlite\Meuzz.Persistence.Sqlite.csproj" />
     <ProjectReference Include="..\Meuzz.Persistence\Meuzz.Persistence.csproj" />
   </ItemGroup>
 

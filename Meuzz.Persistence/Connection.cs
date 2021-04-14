@@ -2,11 +2,9 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using Microsoft.Data.Sqlite;
-using Microsoft.Data.SqlClient;
 using Meuzz.Persistence.Sql;
-using MySql.Data.MySqlClient;
 using System.Data.Common;
+using System.Reflection;
 
 namespace Meuzz.Persistence
 {
@@ -21,31 +19,71 @@ namespace Meuzz.Persistence
         public ColumnAliasingInfo ColumnAliasingInfo { get; set; } = new ColumnAliasingInfo();
     }*/
 
+    public interface IPersistenceServiceProvider
+    {
+        void Register(ConnectionFactory connectionFactory);
+    }
 
     public class ConnectionFactory
     {
+        private IDictionary<string, Type> _connectionTypes = new Dictionary<string, Type>();
+
+        public ConnectionFactory()
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                CallServiceProvidersOnAssembly(assembly);
+            }
+        }
+
+        public void RegisterConnectionType(string name, Type conntype)
+        {
+            _connectionTypes.Add(name, conntype);
+        }
+
+        private void CallServiceProvidersOnAssembly(Assembly asm)
+        {
+            foreach (var type in asm.GetTypes())
+            {
+                if (typeof(IPersistenceServiceProvider).IsAssignableFrom(type) && !(type == typeof(IPersistenceServiceProvider)))
+                {
+                    var provider = Activator.CreateInstance(type) as IPersistenceServiceProvider;
+                    provider.Register(this);
+                }
+            }
+        }
+
         public Connection NewConnection(string connectionString)
         {
             var parameters = ParseConnectionString(connectionString);
 
-            switch (parameters["type"])
+            if (!_connectionTypes.TryGetValue(parameters["type"].ToString(), out var connectionType))
             {
-                case "sqlite":
-                    return new SqliteConnectionImpl(parameters["file"]);
+                // switch (parameters["type"])
+                // {
+                    //case "sqlite":
+                    //    return new SqliteConnectionImpl(parameters["file"]);
 
-                case "mssql":
-                    return new MssqlConnectionImpl(parameters["host"], Int32.Parse(parameters["port"]), parameters["database"], parameters["user"], parameters["password"]);
+                    //case "mssql":
+                    //    return new MssqlConnectionImpl(parameters);
 
-                case "mysql":
-                    return new MySqlConnectionImpl(parameters["host"], Int32.Parse(parameters["port"]), parameters["database"], parameters["user"], parameters["password"]);
+                    // case "mysql":
+                    //     return new MySqlConnectionImpl(parameters);
+                // }
+
+                throw new NotImplementedException();
             }
 
-            throw new NotImplementedException();
+            if (!typeof(Connection).IsAssignableFrom(connectionType))
+            {
+                throw new ArgumentException();
+            }
+            return (Connection)Activator.CreateInstance(connectionType, parameters);
         }
 
-        private IDictionary<string, string> ParseConnectionString(string connectionString)
+        private IDictionary<string, object> ParseConnectionString(string connectionString)
         {
-            return connectionString.Split(";").Select(x => x.Split("=", 2)).ToDictionary(x => x[0], x => x[1]);
+            return connectionString.Split(";").Select(x => x.Split("=", 2)).ToDictionary(x => x[0], x => (object)x[1]);
         }
     }
 
@@ -119,7 +157,7 @@ namespace Meuzz.Persistence
     {
         private T _connection;
 
-        public DbConnectionImpl(T conn)
+        protected void SetupConnection(T conn)
         {
             _connection = conn;
         }
@@ -149,58 +187,6 @@ namespace Meuzz.Persistence
         public override void Close()
         {
             _connection.Close();
-        }
-    }
-
-    public class SqliteConnectionImpl : DbConnectionImpl<SqliteConnection, SqliteCommand>
-    {
-        public SqliteConnectionImpl(string path)
-            : base(new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path }.ToString()))
-        {
-        }
-
-        protected override void RegisterParameter(SqliteCommand cmd, string k, object v)
-        {
-            cmd.Parameters.AddWithValue(k, v != null ? v : DBNull.Value);
-        }
-    }
-
-    public class MssqlConnectionImpl : DbConnectionImpl<SqlConnection, SqlCommand>
-    {
-        public MssqlConnectionImpl(string host, int port, string databaseName, string user, string password)
-            : base(new SqlConnection(new SqlConnectionStringBuilder()
-            {
-                DataSource = $"{host},{port}",
-                InitialCatalog = databaseName,
-                UserID = user,
-                Password = password
-            }.ConnectionString))
-        {
-        }
-
-        protected override void RegisterParameter(SqlCommand cmd, string k, object v)
-        {
-            cmd.Parameters.AddWithValue(k, v != null ? v : DBNull.Value);
-        }
-    }
-
-    public class MySqlConnectionImpl : DbConnectionImpl<MySqlConnection, MySqlCommand>
-    {
-        public MySqlConnectionImpl(string host, int port, string databaseName, string user, string password)
-            : base(new MySqlConnection(new MySqlConnectionStringBuilder()
-            {
-                Server = host,
-                Port = (uint)port,
-                Database = databaseName,
-                UserID = user,
-                Password = password 
-            }.ConnectionString))
-        {
-        }
-
-        protected override void RegisterParameter(MySqlCommand cmd, string k, object v)
-        {
-            cmd.Parameters.AddWithValue(k, v != null ? v : DBNull.Value);
         }
     }
 }
