@@ -14,6 +14,8 @@ services:
     volumes:
       - ./docker/mysql/initdb.d:/docker-entrypoint-initdb.d
       - ./docker/mysql/conf.d:/etc/mysql/conf.d
+    cap_add:
+      - SYS_NICE
   mssql:
     build:
       context: ./docker/mssql

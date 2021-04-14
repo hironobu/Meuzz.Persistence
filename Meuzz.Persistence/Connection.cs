@@ -6,6 +6,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Data.SqlClient;
 using Meuzz.Persistence.Sql;
 using MySql.Data.MySqlClient;
+using System.Data.Common;
 
 namespace Meuzz.Persistence
 {
@@ -89,206 +90,117 @@ namespace Meuzz.Persistence
         public class ResultSet
         {
             public IEnumerable<IDictionary<string, object>> Results { get; set; }
+
+            public ResultSet(DbDataReader reader)
+            {
+                var results = new List<IDictionary<string, object>>();
+
+                while (reader.HasRows)
+                {
+                    var cols = Enumerable.Range(0, reader.FieldCount).Select(x => reader.GetName(x)).ToArray<string>();
+                    while (reader.Read())
+                    {
+                        var vals = Enumerable.Range(0, reader.FieldCount).Select(x => reader.IsDBNull(x) ? null : reader.GetValue(x)).ToArray();
+                        var dict = cols.Zip(vals, (k, v) => new { K = k, V = v }).ToDictionary(x => x.K.ToLower(), x => x.V);
+
+                        results.Add(dict);
+                    }
+                    reader.NextResult();
+                }
+
+                Results = results;
+            }
         }
     }
 
-    public class SqliteConnectionImpl : Connection
+    public abstract class DbConnectionImpl<T, T1> : Connection
+        where T : DbConnection
+        where T1 : DbCommand
     {
-        private SqliteConnection _connection;
+        private T _connection;
 
+        public DbConnectionImpl(T conn)
+        {
+            _connection = conn;
+        }
+
+        public override void Open()
+        {
+            _connection.Open();
+        }
+
+        public override ResultSet Execute(string sql, IDictionary<string, object> parameters, SqlConnectionContext context)
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = sql.ToString();
+            if (parameters != null)
+            {
+                foreach (var (k, v) in parameters)
+                {
+                    RegisterParameter(cmd as T1, k, v != null ? v : DBNull.Value);
+                }
+            }
+            using var reader = cmd.ExecuteReader(CommandBehavior.KeyInfo);
+            return new ResultSet(reader);
+        }
+
+        protected abstract void RegisterParameter(T1 cmd, string k, object v);
+
+        public override void Close()
+        {
+            _connection.Close();
+        }
+    }
+
+    public class SqliteConnectionImpl : DbConnectionImpl<SqliteConnection, SqliteCommand>
+    {
         public SqliteConnectionImpl(string path)
+            : base(new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path }.ToString()))
         {
-            var sqlConnectionSb = new SqliteConnectionStringBuilder { DataSource = path };
-            _connection = new SqliteConnection(sqlConnectionSb.ToString());
         }
 
-        public override void Open()
+        protected override void RegisterParameter(SqliteCommand cmd, string k, object v)
         {
-            _connection.Open();
-        }
-
-        public override ResultSet Execute(string sql, IDictionary<string, object> parameters, SqlConnectionContext context)
-        {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = sql.ToString();
-            if (parameters != null)
-            {
-                foreach (var (k, v) in parameters)
-                {
-                    cmd.Parameters.AddWithValue(k, v != null ? v : DBNull.Value);
-                }
-            }
-            using var reader = cmd.ExecuteReader(CommandBehavior.KeyInfo);
-            return new SqliteResultSet(reader);
-        }
-
-        public override void Close()
-        {
-            _connection.Close();
-        }
-
-        class SqliteResultSet : ResultSet
-        {
-            public SqliteResultSet(/*SqliteSelectStatement statement, */ SqliteDataReader reader)
-            {
-                var results = new List<IDictionary<string, object>>();
-
-                while (reader.HasRows)
-                {
-                    // var table = reader.GetSchemaTable().Rows[0]["BaseTableName"];
-                    // var t = statement.GetTableType();
-                    var cols = Enumerable.Range(0, reader.FieldCount).Select(x => reader.GetName(x)).ToArray<string>();
-                    while (reader.Read())
-                    {
-                        var vals = Enumerable.Range(0, reader.FieldCount).Select(x => reader.IsDBNull(x) ? null : reader.GetValue(x)).ToArray();
-                        var dict = cols.Zip(vals, (k, v) => new { K = k, V = v }).ToDictionary(x => x.K.ToLower(), x => x.V);
-
-                        // var entity = PopulateEntity(t, cols, vals);
-
-                        results.Add(dict);
-                    }
-                    reader.NextResult();
-                }
-
-                Results = results;
-            }
+            cmd.Parameters.AddWithValue(k, v != null ? v : DBNull.Value);
         }
     }
 
-    public class MssqlConnectionImpl : Connection
+    public class MssqlConnectionImpl : DbConnectionImpl<SqlConnection, SqlCommand>
     {
-        private SqlConnection _connection;
-
         public MssqlConnectionImpl(string host, int port, string databaseName, string user, string password)
-        {
-            var builder = new SqlConnectionStringBuilder();
-            builder.DataSource = $"{host},{port}";
-            builder.InitialCatalog = databaseName;
-            builder.UserID = user;
-            builder.Password = password;
-
-            _connection = new SqlConnection(builder.ConnectionString);
-        }
-
-        public override void Close()
-        {
-            _connection.Close();
-        }
-
-        public override ResultSet Execute(string sql, IDictionary<string, object> parameters, SqlConnectionContext context = null)
-        {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = sql.ToString();
-            if (parameters != null)
+            : base(new SqlConnection(new SqlConnectionStringBuilder()
             {
-                foreach (var (k, v) in parameters)
-                {
-                    cmd.Parameters.AddWithValue(k, v != null ? v : DBNull.Value);
-                }
-            }
-            using var reader = cmd.ExecuteReader(CommandBehavior.KeyInfo);
-            return new MssqlResultSet(reader);
+                DataSource = $"{host},{port}",
+                InitialCatalog = databaseName,
+                UserID = user,
+                Password = password
+            }.ConnectionString))
+        {
         }
 
-        public override void Open()
+        protected override void RegisterParameter(SqlCommand cmd, string k, object v)
         {
-            _connection.Open();
-        }
-
-        class MssqlResultSet : ResultSet
-        {
-            public MssqlResultSet(SqlDataReader reader)
-            {
-                var results = new List<IDictionary<string, object>>();
-
-                while (reader.HasRows)
-                {
-                    // var table = reader.GetSchemaTable().Rows[0]["BaseTableName"];
-                    // var t = statement.GetTableType();
-                    var cols = Enumerable.Range(0, reader.FieldCount).Select(x => reader.GetName(x)).ToArray<string>();
-                    while (reader.Read())
-                    {
-                        var vals = Enumerable.Range(0, reader.FieldCount).Select(x => reader.IsDBNull(x) ? null : reader.GetValue(x)).ToArray();
-                        var dict = cols.Zip(vals, (k, v) => new { K = k, V = v }).ToDictionary(x => x.K.ToLower(), x => x.V);
-
-                        // var entity = PopulateEntity(t, cols, vals);
-
-                        results.Add(dict);
-                    }
-                    reader.NextResult();
-                }
-
-                Results = results;
-            }
+            cmd.Parameters.AddWithValue(k, v != null ? v : DBNull.Value);
         }
     }
 
-    public class MySqlConnectionImpl : Connection
+    public class MySqlConnectionImpl : DbConnectionImpl<MySqlConnection, MySqlCommand>
     {
-        private MySqlConnection _connection;
-
         public MySqlConnectionImpl(string host, int port, string databaseName, string user, string password)
-        {
-            var builder = new MySqlConnectionStringBuilder();
-            builder.Server = host;
-            builder.Port = (uint)port;
-            builder.Database = databaseName;
-            builder.UserID = user;
-            builder.Password = password;
-
-            _connection = new MySqlConnection(builder.ConnectionString);
-        }
-
-        public override void Open()
-        {
-            _connection.Open();
-        }
-
-        public override ResultSet Execute(string sql, IDictionary<string, object> parameters, SqlConnectionContext context)
-        {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = sql.ToString();
-            if (parameters != null)
+            : base(new MySqlConnection(new MySqlConnectionStringBuilder()
             {
-                foreach (var (k, v) in parameters)
-                {
-                    cmd.Parameters.AddWithValue(k, v != null ? v : DBNull.Value);
-                }
-            }
-            using var reader = cmd.ExecuteReader(CommandBehavior.KeyInfo);
-            return new MySqlResultSet(reader);
+                Server = host,
+                Port = (uint)port,
+                Database = databaseName,
+                UserID = user,
+                Password = password 
+            }.ConnectionString))
+        {
         }
 
-        public override void Close()
+        protected override void RegisterParameter(MySqlCommand cmd, string k, object v)
         {
-            _connection.Close();
-        }
-
-        class MySqlResultSet : ResultSet
-        {
-            public MySqlResultSet(MySqlDataReader reader)
-            {
-                var results = new List<IDictionary<string, object>>();
-
-                while (reader.HasRows)
-                {
-                    // var table = reader.GetSchemaTable().Rows[0]["BaseTableName"];
-                    // var t = statement.GetTableType();
-                    var cols = Enumerable.Range(0, reader.FieldCount).Select(x => reader.GetName(x)).ToArray<string>();
-                    while (reader.Read())
-                    {
-                        var vals = Enumerable.Range(0, reader.FieldCount).Select(x => reader.IsDBNull(x) ? null : reader.GetValue(x)).ToArray();
-                        var dict = cols.Zip(vals, (k, v) => new { K = k, V = v }).ToDictionary(x => x.K.ToLower(), x => x.V);
-
-                        // var entity = PopulateEntity(t, cols, vals);
-
-                        results.Add(dict);
-                    }
-                    reader.NextResult();
-                }
-
-                Results = results;
-            }
+            cmd.Parameters.AddWithValue(k, v != null ? v : DBNull.Value);
         }
     }
 }
