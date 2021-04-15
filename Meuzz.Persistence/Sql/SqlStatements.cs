@@ -104,7 +104,7 @@ namespace Meuzz.Persistence.Sql
         {
             foreach (var spec in _bindings)
             {
-                if (spec.PrimaryParamName == from && spec.ForeignParamName == to)
+                if (spec.Primary.Name == from && spec.Foreign.Name == to)
                 {
                     return spec;
                 }
@@ -114,7 +114,7 @@ namespace Meuzz.Persistence.Sql
 
         public void SetBindingSpecByParamName(BindingSpec spec)
         {
-            if (GetBindingSpecByParamName(spec.PrimaryParamName, spec.ForeignParamName) != null)
+            if (GetBindingSpecByParamName(spec.Primary.Name, spec.Foreign.Name) != null)
             {
                 throw new NotImplementedException();
             }
@@ -136,7 +136,7 @@ namespace Meuzz.Persistence.Sql
             var memberInfo = (bodyexp as MemberExpression).Member;
 
             var bindingSpec = BindingSpec.Build(paramexp.Type, paramexp.Name, memberInfo, paramexp.Name, cond);
-            bindingSpec.ForeignParamName = ParamInfo.RegisterParameter(bindingSpec.ForeignParamName, bindingSpec.ForeignType, false);
+            bindingSpec.Foreign.Name = ParamInfo.RegisterParameter(bindingSpec.Foreign.Name, bindingSpec.Foreign.Type, false);
             SetBindingSpecByParamName(bindingSpec);
         }
     }

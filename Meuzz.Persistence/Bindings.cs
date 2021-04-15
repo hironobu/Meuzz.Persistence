@@ -26,12 +26,17 @@ namespace Meuzz.Persistence
     {
         public string PrimaryKey { get; set; } = null;
         public string ForeignKey { get; set; } = null;
-        public string[] Parameters { get; set; } = null;
+        // public string[] Parameters { get; set; } = null;
 
-        public Type PrimaryType = null;
-        public string PrimaryParamName { get; set; } = null;
-        public Type ForeignType = null;
-        public string ForeignParamName { get; set; }
+        //public Type PrimaryType = null;
+        // public string PrimaryParamName { get; set; } = null;
+
+        public Parameter Primary { get; set; }
+
+        //public Type ForeignType = null;
+        //public string ForeignParamName { get; set; }
+
+        public Parameter Foreign { get; set; }
 
         public string ConditionSql { get => GetConditionSql(); }
 
@@ -67,7 +72,7 @@ namespace Meuzz.Persistence
 
         private string GetConditionSql()
         {
-            return $"{PrimaryParamName}.{PrimaryKey ?? PrimaryType.GetPrimaryKey()} {"="} {ForeignParamName}.{ForeignKey}";
+            return $"{Primary.Name}.{PrimaryKey ?? Primary.Type.GetPrimaryKey()} {"="} {Foreign.Name}.{ForeignKey}";
         }
 
         private Func<dynamic, dynamic, bool> GetConditionFunc()
@@ -135,6 +140,13 @@ namespace Meuzz.Persistence
             };
 
             return memberAccessor(prop)(obj);
+        }
+
+        public class Parameter
+        {
+            public Type Type { get; set; }
+
+            public string Name { get; set; }
         }
 
         public class BindingConditionEntry
@@ -280,15 +292,12 @@ namespace Meuzz.Persistence
                 }
             }
 
-            bindingSpec.PrimaryType = primaryType;
-            bindingSpec.PrimaryParamName = primaryName;
-            bindingSpec.ForeignType = foreignType;
-            bindingSpec.ForeignParamName = defaultForeignParamName;
+            bindingSpec.Primary = new Parameter() { Type = primaryType, Name = primaryName };
+            bindingSpec.Foreign = new Parameter() { Type = foreignType, Name = defaultForeignParamName };
             bindingSpec.MemberInfo = memberInfo;
 
             return bindingSpec;
         }
-
 
         public class BindingConditionElement
         {
@@ -326,5 +335,4 @@ namespace Meuzz.Persistence
             }
         }
     }
-
 }

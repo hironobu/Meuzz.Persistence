@@ -308,13 +308,13 @@ namespace Meuzz.Persistence
 
             foreach (var bindingSpec in statement.GetAllBindings())
             {
-                var fromObjs = resultObjects[bindingSpec.PrimaryParamName].Values;
+                var fromObjs = resultObjects[bindingSpec.Primary.Name].Values;
 
                 Func<dynamic, Func<dynamic, bool>> filteringConditions = (x) => (y) => bindingSpec.ConditionFunc(x, y);
                 Func<IDictionary<string, object>, object> fmap = x =>
                 {
                     var pkv = memberAccessor(bindingSpec.PrimaryKey)(x);
-                    var targetToObjs = resultObjects[bindingSpec.ForeignParamName].Values.Where(filteringConditions(x));
+                    var targetToObjs = resultObjects[bindingSpec.Foreign.Name].Values.Where(filteringConditions(x));
                     if (targetToObjs.Count() > 0)
                     {
                         foreach (var o in targetToObjs)
