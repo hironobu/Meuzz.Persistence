@@ -164,7 +164,7 @@ namespace Meuzz.Persistence
                 var classinfo = t.GetClassInfo();
 
                 var results = rset.Results;
-                int newPrimaryId = (int)Convert.ChangeType(results.Last()["id"], prop.PropertyType) - inserted.Count() + 1;
+                int newPrimaryId = (int)Convert.ChangeType(results.First()["id"], prop.PropertyType);
 
                 foreach (var (y, i) in inserted.Select((x, i) => (x, i)))
                 {

@@ -282,7 +282,7 @@ namespace Meuzz.Persistence.Sql
     {
         protected override string GetLastInsertedIdString(string pkey, int rows)
         {
-            return $"SELECT last_insert_rowid() AS {pkey};";
+            return $"SELECT (last_insert_rowid() - {rows - 1}) AS {pkey};";
         }
     }
 
@@ -295,7 +295,7 @@ namespace Meuzz.Persistence.Sql
     {
         protected override string GetLastInsertedIdString(string pkey, int rows)
         {
-            return $"SELECT (last_insert_id() + {rows - 1}) AS {pkey};";
+            return $"SELECT last_insert_id() AS {pkey};";
         }
     }
 
