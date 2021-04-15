@@ -20,9 +20,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Meuzz.Persistence.Mssql\Meuzz.Persistence.Mssql.csproj" />
-    <ProjectReference Include="..\Meuzz.Persistence.MySql\Meuzz.Persistence.MySql.csproj" />
-    <ProjectReference Include="..\Meuzz.Persistence.Sqlite\Meuzz.Persistence.Sqlite.csproj" />
+    <ProjectReference Include="..\Meuzz.Persistence.Engine.Mssql\Meuzz.Persistence.Engine.Mssql.csproj" />
+    <ProjectReference Include="..\Meuzz.Persistence.Engine.MySql\Meuzz.Persistence.Engine.MySql.csproj" />
+    <ProjectReference Include="..\Meuzz.Persistence.Engine.Sqlite\Meuzz.Persistence.Engine.Sqlite.csproj" />
     <ProjectReference Include="..\Meuzz.Persistence\Meuzz.Persistence.csproj" />
   </ItemGroup>
 

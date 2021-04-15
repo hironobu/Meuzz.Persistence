@@ -1,14 +1,28 @@
 ﻿using System;
 using System.Collections.Generic;
+using Meuzz.Persistence.Sql;
 using MySql.Data.MySqlClient;
 
 namespace Meuzz.Persistence.MySql
 {
-    public class PersistenceServiceProvider : IPersistenceServiceProvider
+    public class PersistenceEngineProvider : IPersistenceEngineProvider
     {
-        public void Register(ConnectionFactory connectionFactory)
+        public void Register(PersistenceEngineFactory factory)
         {
-            connectionFactory.RegisterConnectionType("mysql", typeof(MySqlConnectionImpl));
+            factory.Register("mysql", new MySqlEngine());
+        }
+    }
+
+    public class MySqlEngine : IPersistenceEngine
+    {
+        public Connection CreateConnection(IDictionary<string, object> parameters)
+        {
+            return new MySqlConnectionImpl(parameters);
+        }
+
+        public SqlFormatter CreateFormatter()
+        {
+            return new MySqlFormatter();
         }
     }
 
@@ -29,6 +43,14 @@ namespace Meuzz.Persistence.MySql
         protected override void RegisterParameter(MySqlCommand cmd, string k, object v)
         {
             cmd.Parameters.AddWithValue(k, v != null ? v : DBNull.Value);
+        }
+    }
+
+    public class MySqlFormatter : SqlFormatter
+    {
+        protected override string GetLastInsertedIdString(string pkey, int rows)
+        {
+            return $"SELECT last_insert_id() AS {pkey};";
         }
     }
 }

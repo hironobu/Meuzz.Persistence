@@ -12,7 +12,9 @@ namespace Meuzz.Persistence.Tests.Mssql
         private ObjectRepository _repository;
         public RepositoryTest()
         {
-            _connection = new ConnectionFactory().NewConnection("type=mssql;host=localhost;port=1433;database=Persistence;user=sa;password=P@ssw0rd!");
+            var engine = PersistenceEngineFactory.Instance().GetEngine("mssql");
+
+            _connection = engine.CreateConnection("type=mssql;host=localhost;port=1433;database=Persistence;user=sa;password=P@ssw0rd!");
             _connection.Open();
 
             _connection.Execute(@"
@@ -30,7 +32,7 @@ namespace Meuzz.Persistence.Tests.Mssql
                 INSERT INTO Characters VALUES ('cccc', 2, 3);
             ");
             _connection.Close();
-            _repository = new ObjectRepository(_connection, new MssqlFormatter(), new SqlCollator());
+            _repository = new ObjectRepository(_connection, engine.CreateFormatter(), new SqlCollator());
         }
 
         [Fact]

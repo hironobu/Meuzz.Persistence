@@ -12,7 +12,9 @@ namespace Meuzz.Persistence.Tests.Sqlite
         private ObjectRepository _repository;
         public RepositoryTest()
         {
-            _connection = new ConnectionFactory().NewConnection("type=sqlite;file=:memory:");
+            var engine = PersistenceEngineFactory.Instance().GetEngine("sqlite");
+
+            _connection = engine.CreateConnection("type=sqlite;file=:memory:");
             _connection.Open();
 
             _connection.Execute(@"
@@ -27,7 +29,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
                 INSERT INTO Characters VALUES (2, 'bbbb', 1, NULL);
                 INSERT INTO Characters VALUES (3, 'cccc', 2, 3);
             ");
-            _repository = new ObjectRepository(_connection, new SqliteFormatter(), new SqlCollator());
+            _repository = new ObjectRepository(_connection, engine.CreateFormatter(), new SqlCollator());
         }
 
         [Fact]

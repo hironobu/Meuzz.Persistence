@@ -4,7 +4,6 @@ using System.Data;
 using System.Linq;
 using Meuzz.Persistence.Sql;
 using System.Data.Common;
-using System.Reflection;
 
 namespace Meuzz.Persistence
 {
@@ -19,72 +18,16 @@ namespace Meuzz.Persistence
         public ColumnAliasingInfo ColumnAliasingInfo { get; set; } = new ColumnAliasingInfo();
     }*/
 
-    public interface IPersistenceServiceProvider
+    public interface IPersistenceEngineProvider
     {
-        void Register(ConnectionFactory connectionFactory);
+        void Register(PersistenceEngineFactory factory);
     }
 
-    public class ConnectionFactory
+    public interface IPersistenceEngine
     {
-        private IDictionary<string, Type> _connectionTypes = new Dictionary<string, Type>();
+        Connection CreateConnection(IDictionary<string, object> parameters);
 
-        public ConnectionFactory()
-        {
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                CallServiceProvidersOnAssembly(assembly);
-            }
-        }
-
-        public void RegisterConnectionType(string name, Type conntype)
-        {
-            _connectionTypes.Add(name, conntype);
-        }
-
-        private void CallServiceProvidersOnAssembly(Assembly asm)
-        {
-            foreach (var type in asm.GetTypes())
-            {
-                if (typeof(IPersistenceServiceProvider).IsAssignableFrom(type) && !(type == typeof(IPersistenceServiceProvider)))
-                {
-                    var provider = Activator.CreateInstance(type) as IPersistenceServiceProvider;
-                    provider.Register(this);
-                }
-            }
-        }
-
-        public Connection NewConnection(string connectionString)
-        {
-            var parameters = ParseConnectionString(connectionString);
-
-            if (!_connectionTypes.TryGetValue(parameters["type"].ToString(), out var connectionType))
-            {
-                // switch (parameters["type"])
-                // {
-                    //case "sqlite":
-                    //    return new SqliteConnectionImpl(parameters["file"]);
-
-                    //case "mssql":
-                    //    return new MssqlConnectionImpl(parameters);
-
-                    // case "mysql":
-                    //     return new MySqlConnectionImpl(parameters);
-                // }
-
-                throw new NotImplementedException();
-            }
-
-            if (!typeof(Connection).IsAssignableFrom(connectionType))
-            {
-                throw new ArgumentException();
-            }
-            return (Connection)Activator.CreateInstance(connectionType, parameters);
-        }
-
-        private IDictionary<string, object> ParseConnectionString(string connectionString)
-        {
-            return connectionString.Split(";").Select(x => x.Split("=", 2)).ToDictionary(x => x[0], x => (object)x[1]);
-        }
+        SqlFormatter CreateFormatter();
     }
 
     public abstract class Connection : IDisposable

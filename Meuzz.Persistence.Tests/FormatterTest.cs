@@ -17,7 +17,9 @@ namespace Meuzz.Persistence.Tests
 
         public FormatterTest()
         {
-            _connection = new ConnectionFactory().NewConnection("type=sqlite;file=:memory:");
+            var engine = PersistenceEngineFactory.Instance().GetEngine("sqlite");
+
+            _connection = engine.CreateConnection("type=sqlite;file=:memory:");
             _connection.Open();
 
             _connection.Execute(@"
@@ -33,7 +35,7 @@ namespace Meuzz.Persistence.Tests
                 INSERT INTO Characters VALUES (3, 'cccc', 2, 3);
             ");
 
-            _formatter = new SqliteFormatter();
+            _formatter = engine.CreateFormatter();
 
 /*            _repository = new ObjectRepository<Player>(_connection, new SqliteSqlBuilder<Player>(), new SqliteFormatter(), new SqliteCollator());
             _characterRepository = new ObjectRepository<Character>(_connection, new SqliteSqlBuilder<Character>(), new SqliteFormatter(), new SqliteCollator());

@@ -12,7 +12,9 @@ namespace Meuzz.Persistence.Tests.MySql
         private ObjectRepository _repository;
         public RepositoryTest()
         {
-            _connection = new ConnectionFactory().NewConnection("type=mysql;host=localhost;port=3306;database=persistence;user=user;password=password");
+            var engine = PersistenceEngineFactory.Instance().GetEngine("mysql");
+
+            _connection = engine.CreateConnection("type=mysql;host=localhost;port=3306;database=persistence;user=user;password=password");
             _connection.Open();
 
             _connection.Execute(@"
@@ -30,7 +32,7 @@ namespace Meuzz.Persistence.Tests.MySql
                 INSERT INTO Characters VALUES (3, 'cccc', 2, 3);
             ");
             _connection.Close();
-            _repository = new ObjectRepository(_connection, new MySqlFormatter(), new SqlCollator());
+            _repository = new ObjectRepository(_connection, engine.CreateFormatter(), new SqlCollator());
         }
 
         [Fact]

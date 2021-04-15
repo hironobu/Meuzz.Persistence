@@ -1,14 +1,28 @@
 ﻿using System;
 using System.Collections.Generic;
+using Meuzz.Persistence.Sql;
 using Microsoft.Data.SqlClient;
 
-namespace Meuzz.Persistence.Mssql
+namespace Meuzz.Persistence.Engine.Mssql
 {
-    public class PersistenceServiceProvider : IPersistenceServiceProvider
+    public class PersistenceEngineProvider : IPersistenceEngineProvider
     {
-        public void Register(ConnectionFactory connectionFactory)
+        public void Register(PersistenceEngineFactory factory)
         {
-            connectionFactory.RegisterConnectionType("mssql", typeof(MssqlConnectionImpl));
+            factory.Register("mssql", new MssqlEngine());
+        }
+    }
+
+    public class MssqlEngine : IPersistenceEngine
+    {
+        public Connection CreateConnection(IDictionary<string, object> parameters)
+        {
+            return new MssqlConnectionImpl(parameters);
+        }
+
+        public SqlFormatter CreateFormatter()
+        {
+            return new MssqlFormatter();
         }
     }
 
@@ -29,5 +43,10 @@ namespace Meuzz.Persistence.Mssql
         {
             cmd.Parameters.AddWithValue(k, v != null ? v : DBNull.Value);
         }
+    }
+
+    public class MssqlFormatter : SqlFormatter
+    {
+        protected override string GetInsertIntoOutputString() => $"OUTPUT INSERTED.ID";
     }
 }

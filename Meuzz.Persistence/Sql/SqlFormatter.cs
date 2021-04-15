@@ -277,26 +277,4 @@ namespace Meuzz.Persistence.Sql
 
         protected virtual string GetLastInsertedIdString(string pkey, int rows) => null;
     }
-
-    public class SqliteFormatter : SqlFormatter
-    {
-        protected override string GetLastInsertedIdString(string pkey, int rows)
-        {
-            return $"SELECT (last_insert_rowid() - {rows - 1}) AS {pkey};";
-        }
-    }
-
-    public class MssqlFormatter : SqlFormatter
-    {
-        protected override string GetInsertIntoOutputString() => $"OUTPUT INSERTED.ID";
-    }
-
-    public class MySqlFormatter : SqlFormatter
-    {
-        protected override string GetLastInsertedIdString(string pkey, int rows)
-        {
-            return $"SELECT last_insert_id() AS {pkey};";
-        }
-    }
-
 }
