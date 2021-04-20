@@ -46,25 +46,23 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestLoadById()
         {
-            var context = new SqlConnectionContext();
-
             var statement = new SelectStatement<Player>();
             statement.Where("id", 1);
-            var objs = _context.Formatter.Format(statement, context);
+            var objs = _context.Formatter.Format(statement);
 
             Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) = (1)", objs.Sql);
             Assert.Null(objs.Parameters);
 
             var statement2 = new SelectStatement<Player>();
             statement.Where("id", 2);
-            var objs2 = _context.Formatter.Format(statement, context);
+            var objs2 = _context.Formatter.Format(statement);
 
             Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) = (2)", objs2.Sql);
             Assert.Null(objs2.Parameters);
 
             var statement3 = new SelectStatement<Player>();
             statement.Where("id", 1, 2, 3);
-            var objs3 = _context.Formatter.Format(statement, context);
+            var objs3 = _context.Formatter.Format(statement);
 
             Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) IN (1, 2, 3)", objs3.Sql);
             Assert.Null(objs3.Parameters);
@@ -82,17 +80,15 @@ namespace Meuzz.Persistence.Tests
             var statement = new UpdateStatement<Player>();
             statement.Append(new[] { obj });
 
-            var context = new SqlConnectionContext();
-
-            var update = _context.Formatter.Format(statement, context);
+            var update = _context.Formatter.Format(statement);
             Assert.Equal("UPDATE Players SET name = 'aaa' WHERE id = 1;", update.Sql);
-            update = _context.Formatter.Format(statement, context);
+            update = _context.Formatter.Format(statement);
             Assert.Null(update.Sql);
 
             obj.Name = "bbb";
             obj.PlayTime = 10000;
 
-            update = _context.Formatter.Format(statement, context);
+            update = _context.Formatter.Format(statement);
             Assert.Equal("UPDATE Players SET name = 'bbb', play_time = 10000 WHERE id = 1;", update.Sql);
         }
 

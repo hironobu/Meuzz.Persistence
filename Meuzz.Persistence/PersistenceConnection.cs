@@ -7,17 +7,6 @@ using System.Data.Common;
 
 namespace Meuzz.Persistence
 {
-
-    public class SqlConnectionContext
-    {
-        public ColumnCollationInfo ColumnCollationInfo { get; set; } = null;
-    }
-
-    /*public class SqliteConnectionContext : SqlConnectionContext
-    {
-        public ColumnAliasingInfo ColumnAliasingInfo { get; set; } = new ColumnAliasingInfo();
-    }*/
-
     public interface IPersistenceEngineProvider
     {
         void Register(PersistenceEngineFactory factory);
@@ -25,10 +14,6 @@ namespace Meuzz.Persistence
 
     public interface IPersistenceEngine
     {
-        // Connection CreateConnection(IDictionary<string, object> parameters);
-
-        // SqlFormatter CreateFormatter();
-
         IPersistenceContext CreateContext(IDictionary<string, object> parameters);
     }
 
@@ -61,9 +46,9 @@ namespace Meuzz.Persistence
 
         public abstract void Open();
 
-        public virtual ResultSet Execute(string sql, SqlConnectionContext context = null) { return Execute(sql, null, context); }
+        public virtual ResultSet Execute(string sql) { return Execute(sql, null); }
 
-        public abstract ResultSet Execute(string sql, IDictionary<string, object> parameters, SqlConnectionContext context = null);
+        public abstract ResultSet Execute(string sql, IDictionary<string, object> parameters);
 
         public abstract void Close();
 
@@ -90,7 +75,12 @@ namespace Meuzz.Persistence
 
         public class ResultSet
         {
-            public IEnumerable<IDictionary<string, object>> Results { get; set; }
+            public IEnumerable<IDictionary<string, object>> Results { get; }
+
+            public ResultSet(IEnumerable<IDictionary<string, object>> results)
+            {
+                Results = results;
+            }
 
             public ResultSet(DbDataReader reader)
             {
@@ -130,7 +120,7 @@ namespace Meuzz.Persistence
             _connection.Open();
         }
 
-        public override ResultSet Execute(string sql, IDictionary<string, object> parameters, SqlConnectionContext context)
+        public override ResultSet Execute(string sql, IDictionary<string, object> parameters)
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = sql.ToString();

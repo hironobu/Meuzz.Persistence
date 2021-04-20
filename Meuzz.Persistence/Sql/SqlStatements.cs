@@ -168,6 +168,20 @@ namespace Meuzz.Persistence.Sql
         }
     }
 
+    public class SqlInsertStatement : SqlInsertOrUpdateStatement 
+    {
+        public SqlInsertStatement(Type t) : base(t, true)
+        {
+        }
+    }
+
+    public class SqlUpdateStatement : SqlInsertOrUpdateStatement
+    {
+        public SqlUpdateStatement(Type t) : base(t, false)
+        {
+        }
+    }
+
     public class SqlDeleteStatement : SqlConditionalStatement
     {
         public SqlDeleteStatement(Type t) : base(t)
@@ -175,12 +189,12 @@ namespace Meuzz.Persistence.Sql
         }
     }
 
-    public class InsertOrUpdateStatement<T> : SqlInsertOrUpdateStatement where T : class, new()
+    /*public class InsertOrUpdateStatement<T> : SqlInsertOrUpdateStatement where T : class, new()
     {
         public InsertOrUpdateStatement(bool isInsert) : base(typeof(T), isInsert)
         {
         }
-    }
+    }*/
 
     public class Joined<T0, T1>
         where T0 : class
@@ -231,15 +245,18 @@ namespace Meuzz.Persistence.Sql
         }
     }
 
-
-    public class InsertStatement<T> : InsertOrUpdateStatement<T> where T : class, new()
+    public class InsertStatement<T> : SqlInsertStatement where T : class, new()
     {
-        public InsertStatement() : base(true) { }
+        public InsertStatement() : base(typeof(T))
+        {
+        }
     }
 
-    public class UpdateStatement<T> : InsertOrUpdateStatement<T> where T : class, new()
+    public class UpdateStatement<T> : SqlUpdateStatement where T : class, new()
     {
-        public UpdateStatement() : base(false) { }
+        public UpdateStatement() : base(typeof(T))
+        {
+        }
     }
 
     public class DeleteStatement<T> : SqlDeleteStatement where T : class, new()

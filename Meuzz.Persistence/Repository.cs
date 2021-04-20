@@ -20,12 +20,11 @@ namespace Meuzz.Persistence
 
         protected IEnumerable<object> LoadObjects(Type t, SqlSelectStatement statement, Action<IEnumerable<object>> propertySetter = null)
         {
-            var context = _collator != null ? new SqlConnectionContext() : null;
+            var (sql, parameters, columnCollationInfo) = _formatter.Format(statement);
+            var rset = _connection.Execute(sql, parameters);
 
-            var (sql, parameters) = _formatter.Format(statement, context);
-            var rset = _connection.Execute(sql, parameters, context);
-
-            var results = PopulateObjects(t, rset, statement, context);
+            rset = _collator.Collate(rset, columnCollationInfo);
+            var results = PopulateObjects(t, rset, statement);
             if (propertySetter != null)
             {
                 propertySetter(results);
@@ -152,12 +151,11 @@ namespace Meuzz.Persistence
             if (inserted.Count() > 0)
             {
                 var tt = typeof(InsertStatement<>).MakeGenericType(t);
-                dynamic insertStatement = Convert.ChangeType(Activator.CreateInstance(tt), tt);
+                var insertStatement = (SqlInsertStatement)Convert.ChangeType(Activator.CreateInstance(tt), tt);
                 insertStatement.Append(inserted);
                 insertStatement.ExtraData = extraData;
-                var context = new SqlConnectionContext();
-                var (sql, parameters) = _formatter.Format(insertStatement as SqlStatement, context);
-                var rset = _connection.Execute(sql, parameters, context);
+                var (sql, parameters) = _formatter.Format(insertStatement);
+                var rset = _connection.Execute(sql, parameters);
 
                 var pkey = t.GetPrimaryKey();
                 var prop = t.GetProperty(StringUtils.ToCamel(pkey, true));
@@ -186,22 +184,20 @@ namespace Meuzz.Persistence
             if (updated.Count() > 0)
             {
                 var tt = typeof(UpdateStatement<>).MakeGenericType(t);
-                dynamic updateStatement = Convert.ChangeType(Activator.CreateInstance(tt), tt);
+                var updateStatement = (SqlUpdateStatement)Convert.ChangeType(Activator.CreateInstance(tt), tt);
                 updateStatement.Append(updated);
-                var context2 = new SqlConnectionContext();
-                var (sql2, parameters) = _formatter.Format(updateStatement as SqlStatement, context2);
-                _connection.Execute(sql2, parameters, context2);
+                var (sql2, parameters) = _formatter.Format(updateStatement);
+                _connection.Execute(sql2, parameters);
             }
 
             return true;
         }
 
-        protected IEnumerable<object> PopulateObjects(Type t, PersistenceConnection.ResultSet rset, SqlSelectStatement statement, SqlConnectionContext context)
+        protected IEnumerable<object> PopulateObjects(Type t, PersistenceConnection.ResultSet rset, SqlSelectStatement statement)
         {
             var rows = rset.Results.Select(x =>
             {
-                var xx = _collator != null ? _collator.Collate(x, context) : x;
-                var kvs = xx.Select(c => (c.Key.Split('.'), c.Value));
+                var kvs = x.Select(c => (c.Key.Split('.'), c.Value));
                 var d = new Dictionary<string, object>();
                 foreach (var (kk, v) in kvs)
                 {
@@ -406,9 +402,8 @@ namespace Meuzz.Persistence
             var statement = new DeleteStatement<T>();
             statement.Where(f);
 
-            var context = new SqlConnectionContext();
-            var (sql, parameters) = _formatter.Format(statement, context);
-            var rset = _connection.Execute(sql, parameters, context);
+            var (sql, parameters) = _formatter.Format(statement);
+            var rset = _connection.Execute(sql, parameters);
 
             return true;
         }
@@ -420,9 +415,8 @@ namespace Meuzz.Persistence
             var statement = new DeleteStatement<T>();
             statement.Where(primaryKey, id);
 
-            var context = new SqlConnectionContext();
-            var (sql, parameters) = _formatter.Format(statement, context);
-            var rset = _connection.Execute(sql, parameters, context);
+            var (sql, parameters) = _formatter.Format(statement);
+            var rset = _connection.Execute(sql, parameters);
 
             return true;
         }

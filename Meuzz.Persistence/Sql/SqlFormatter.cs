@@ -11,99 +11,110 @@ namespace Meuzz.Persistence.Sql
 {
     public abstract class SqlFormatter
     {
-
-        public (string Sql, IDictionary<string, object> Parameters) Format(SqlStatement statement, SqlConnectionContext context)
+        public (string Sql, IDictionary<string, object> Parameters, ColumnCollationInfo ColumnCollationInfo) Format(SqlSelectStatement statement)
         {
             var sb = new StringBuilder();
-            if (context != null)
-            {
-                context.ColumnCollationInfo = new ColumnCollationInfo();
-            }
+            var columnCollationInfo = new ColumnCollationInfo();
 
             IDictionary<string, object> parameters = null;
 
-            switch (statement)
+            var parameterName = statement.ParamInfo.GetDefaultParamName();
+            var parameterType = statement.ParamInfo.GetParameterTypeByParamName(parameterName);
+
+            sb.Append($"SELECT {string.Join(", ", GetColumnsToString(statement.ParamInfo.GetAllParameters(), columnCollationInfo))}");
+            sb.Append($" FROM {parameterType.GetTableName()} {parameterName}");
+
+            foreach (var bindingSpec in statement.GetAllBindings())
             {
-                case SqlSelectStatement selectStatement:
-                    var parameterName = selectStatement.ParamInfo.GetDefaultParamName();
-                    var parameterType = selectStatement.ParamInfo.GetParameterTypeByParamName(parameterName);
+                sb.Append($" LEFT JOIN {bindingSpec.Foreign.Type.GetTableName()} {bindingSpec.Foreign.Name} ON {bindingSpec.ConditionSql}");
+            }
+            sb.Append($" WHERE {FormatElement(statement.Condition, true, true, parameters)}");
 
-                    sb.Append($"SELECT {string.Join(", ", GetColumnsToString(selectStatement.ParamInfo.GetAllParameters(), context != null ? context.ColumnCollationInfo : null))}");
+            var ret = sb.ToString();
+            return (ret.Length > 0 ? ret : null, parameters, columnCollationInfo);
+        }
 
-                    sb.Append($" FROM {parameterType.GetTableName()} {parameterName}");
+        public (string Sql, IDictionary<string, object> Parameters) Format(SqlInsertStatement statement)
+        {
+            var sb = new StringBuilder();
+            IDictionary<string, object> parameters = null;
 
-                    foreach (var bindingSpec in selectStatement.GetAllBindings())
+            Func<object, object> _f = (y) => (y is string s ? Quote(s) : (y != null ? y : "NULL"));
+            if (statement.IsInsert)
+            {
+                parameters = null;
+                var index = 0;
+                object[] rows = statement.Values;
+
+                sb.Append($"INSERT INTO {statement.TableName}");
+                sb.Append($"  ({string.Join(", ", statement.Columns)})");
+                sb.Append($"  {GetInsertIntoOutputString() ?? ""}");
+                sb.Append($"  VALUES");
+                foreach (var (row, idx) in rows.Select((x, i) => (x, i)))
+                {
+                    var d = row.GetType().GetValueDictFromColumnNames(statement.Columns, row);
+                    var vals = statement.Columns.Select(c => statement.ExtraData != null && statement.ExtraData.ContainsKey(c) ? statement.ExtraData[c] : d[c]);
+                    if (parameters != null)
                     {
-                        sb.Append($" LEFT JOIN {bindingSpec.Foreign.Type.GetTableName()} {bindingSpec.Foreign.Name} ON {bindingSpec.ConditionSql}");
-                    }
-                    sb.Append($" WHERE {FormatElement(selectStatement.Condition, true, true, parameters)}");
-                    break;
-
-                case SqlInsertOrUpdateStatement insertOrUpdateStatement:
-                    Func<object, object> _f = (y) => (y is string s ? Quote(s) : (y != null ? y : "NULL"));
-                    if (insertOrUpdateStatement.IsInsert)
-                    {
-                        parameters = null;
-                        var index = 0;
-                        object[] rows = insertOrUpdateStatement.Values;
-
-                        sb.Append($"INSERT INTO {insertOrUpdateStatement.TableName}");
-                        sb.Append($"  ({string.Join(", ", insertOrUpdateStatement.Columns)})");
-                        sb.Append($"  {GetInsertIntoOutputString() ?? ""}");
-                        sb.Append($"  VALUES");
-                        foreach (var (row, idx) in rows.Select((x, i) => (x, i)))
+                        var cols = statement.Columns.Select(c => $"@{c}_{index}");
+                        sb.Append($" ({string.Join(", ", cols)})");
+                        if (idx < rows.Length - 1)
+                            sb.Append(",");
+                        foreach (var (c, v) in cols.Zip(vals))
                         {
-                            var d = row.GetType().GetValueDictFromColumnNames(insertOrUpdateStatement.Columns, row);
-                            var vals = insertOrUpdateStatement.Columns.Select(c => insertOrUpdateStatement.ExtraData != null && insertOrUpdateStatement.ExtraData.ContainsKey(c) ? insertOrUpdateStatement.ExtraData[c] : d[c]);
-                            if (parameters != null)
-                            {
-                                var cols = insertOrUpdateStatement.Columns.Select(c => $"@{c}_{index}");
-                                sb.Append($" ({string.Join(", ", cols)})");
-                                if (idx < rows.Length - 1)
-                                    sb.Append(",");
-                                foreach (var (c, v) in cols.Zip(vals))
-                                {
-                                    parameters.Add(c, v);
-                                }
-                                index++;
-                            }
-                            else
-                            {
-                                sb.Append($" ({string.Join(", ", vals.Select(_f))})");
-                                if (idx < rows.Length - 1)
-                                    sb.Append(",");
-                            }
+                            parameters.Add(c, v);
                         }
-                        sb.Append($"; {GetLastInsertedIdString(insertOrUpdateStatement.PrimaryKey, rows.Length) ?? ""}");
-                        // sb.Append($"; SELECT last_insert_rowid() AS new_id;");
+                        index++;
                     }
                     else
                     {
-                        foreach (var obj in insertOrUpdateStatement.Values)
-                        {
-                            /* var d = obj.GetType().GetValueDictFromColumnNames(insertOrUpdateStatement.Columns, obj); */
-                            var pcontext = PersistableState.Generate(obj);
-                            var dirtyKeys = pcontext.DirtyKeys;
-                            if (dirtyKeys != null && dirtyKeys.Length > 0)
-                            {
-                                sb.Append($"UPDATE {insertOrUpdateStatement.TableName} SET ");
-                                var d = obj.GetType().GetValueDictFromColumnNames(dirtyKeys.Select(x => StringUtils.ToSnake(x)).ToArray(), obj);
-                                var valstr = string.Join(", ", d.Select(x => $"{x.Key} = {_f(x.Value)}"));
-                                sb.Append(valstr);
-                                sb.Append($" WHERE {insertOrUpdateStatement.PrimaryKey} = {obj.GetType().GetPrimaryValue(obj)};");
-                            }
-                        }
+                        sb.Append($" ({string.Join(", ", vals.Select(_f))})");
+                        if (idx < rows.Length - 1)
+                            sb.Append(",");
                     }
-                    break;
-
-                case SqlDeleteStatement deleteStatement:
-                    sb.Append($"DELETE FROM {deleteStatement.TableName}");
-                    sb.Append($" WHERE {FormatElement(deleteStatement.Condition, false, true, parameters)}");
-                    break;
-
-                default:
-                    throw new NotImplementedException();
+                }
+                sb.Append($"; {GetLastInsertedIdString(statement.PrimaryKey, rows.Length) ?? ""}");
+                // sb.Append($"; SELECT last_insert_rowid() AS new_id;");
             }
+
+            var ret = sb.ToString();
+            return (ret.Length > 0 ? ret : null, parameters);
+        }
+
+        public (string Sql, IDictionary<string, object> Parameters) Format(SqlUpdateStatement statement)
+        {
+            var sb = new StringBuilder();
+            IDictionary<string, object> parameters = null;
+
+            Func<object, object> _f = (y) => (y is string s ? Quote(s) : (y != null ? y : "NULL"));
+
+            foreach (var obj in statement.Values)
+            {
+                /* var d = obj.GetType().GetValueDictFromColumnNames(insertOrUpdateStatement.Columns, obj); */
+                var pcontext = PersistableState.Generate(obj);
+                var dirtyKeys = pcontext.DirtyKeys;
+                if (dirtyKeys != null && dirtyKeys.Length > 0)
+                {
+                    sb.Append($"UPDATE {statement.TableName} SET ");
+                    var d = obj.GetType().GetValueDictFromColumnNames(dirtyKeys.Select(x => StringUtils.ToSnake(x)).ToArray(), obj);
+                    var valstr = string.Join(", ", d.Select(x => $"{x.Key} = {_f(x.Value)}"));
+                    sb.Append(valstr);
+                    sb.Append($" WHERE {statement.PrimaryKey} = {obj.GetType().GetPrimaryValue(obj)};");
+                }
+            }
+
+            var ret = sb.ToString();
+            return (ret.Length > 0 ? ret : null, parameters);
+        }
+
+        public (string Sql, IDictionary<string, object> Parameters) Format(SqlDeleteStatement statement)
+        {
+            var sb = new StringBuilder();
+
+            IDictionary<string, object> parameters = null;
+
+            sb.Append($"DELETE FROM {statement.TableName}");
+            sb.Append($" WHERE {FormatElement(statement.Condition, false, true, parameters)}");
 
             var ret = sb.ToString();
             return (ret.Length > 0 ? ret : null, parameters);

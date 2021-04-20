@@ -5,9 +5,9 @@ namespace Meuzz.Persistence.Sql
 {
     public class SqlCollator
     {
-        public IDictionary<string, object> Collate(IDictionary<string, object> x, SqlConnectionContext context)
+        public PersistenceConnection.ResultSet Collate(PersistenceConnection.ResultSet rset, ColumnCollationInfo columnCollationInfo)
         {
-            return x.ToDictionary(x => context.ColumnCollationInfo.GetOriginalColumnName(x.Key), x => x.Value);
+            return new PersistenceConnection.ResultSet(rset.Results.Select(r => r.ToDictionary(x => columnCollationInfo.GetOriginalColumnName(x.Key), x => x.Value)));
         }
     }
 }
