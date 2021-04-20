@@ -100,7 +100,7 @@ namespace Meuzz.Persistence.Sql
     {
         public SqlSelectStatement(Type t) : base(t) { }
 
-        public BindingSpec GetBindingSpecByParamName(string from, string to)
+        private BindingSpec GetBindingSpecByParamName(string from, string to)
         {
             foreach (var spec in _bindings)
             {
@@ -112,7 +112,7 @@ namespace Meuzz.Persistence.Sql
             return null;
         }
 
-        public void SetBindingSpecByParamName(BindingSpec spec)
+        private void SetBindingSpecByParamName(BindingSpec spec)
         {
             if (GetBindingSpecByParamName(spec.Primary.Name, spec.Foreign.Name) != null)
             {
