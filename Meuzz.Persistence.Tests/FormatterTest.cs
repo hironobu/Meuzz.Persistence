@@ -9,24 +9,24 @@ namespace Meuzz.Persistence.Tests
 {
     public class FormatterTest
     {
-        private Connection _connection;
+        private IPersistenceContext _context;
         /*private ObjectRepository<Player> _repository;
         private ObjectRepository<Character> _characterRepository;*/
 
-        private SqlFormatter _formatter = null;
+        // private SqlFormatter _formatter = null;
 
         public FormatterTest()
         {
             var engine = PersistenceEngineFactory.Instance().GetEngine("sqlite");
 
-            _connection = engine.CreateConnection("type=sqlite;file=:memory:");
-            _connection.Open();
+            _context = engine.CreateContext("type=sqlite;file=:memory:");
+            _context.Connection.Open();
 
-            _connection.Execute(@"
+            _context.Connection.Execute(@"
                 CREATE TABLE Players (ID integer PRIMARY KEY, NAME text, AGE integer, PLAY_TIME integer);
                 CREATE TABLE Characters (ID integer PRIMARY KEY, NAME text, PLAYER_ID integer, LAST_PLAYER_ID integer NULL, FOREIGN KEY (PLAYER_ID) REFERENCES Players(ID), FOREIGN KEY (LAST_PLAYER_ID) REFERENCES Players(ID));
             ");
-            _connection.Execute(@"
+            _context.Connection.Execute(@"
                 INSERT INTO Players VALUES (1, 'aaa', 10, 100);
                 INSERT INTO Players VALUES (2, 'bbb', 20, 200);
                 INSERT INTO Players VALUES (3, 'ccc''s', 10, 200);
@@ -35,7 +35,7 @@ namespace Meuzz.Persistence.Tests
                 INSERT INTO Characters VALUES (3, 'cccc', 2, 3);
             ");
 
-            _formatter = engine.CreateFormatter();
+            // _formatter = engine.CreateFormatter();
 
 /*            _repository = new ObjectRepository<Player>(_connection, new SqliteSqlBuilder<Player>(), new SqliteFormatter(), new SqliteCollator());
             _characterRepository = new ObjectRepository<Character>(_connection, new SqliteSqlBuilder<Character>(), new SqliteFormatter(), new SqliteCollator());
@@ -50,21 +50,21 @@ namespace Meuzz.Persistence.Tests
 
             var statement = new SelectStatement<Player>();
             statement.Where("id", 1);
-            var objs = _formatter.Format(statement, context);
+            var objs = _context.Formatter.Format(statement, context);
 
             Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) = (1)", objs.Sql);
             Assert.Null(objs.Parameters);
 
             var statement2 = new SelectStatement<Player>();
             statement.Where("id", 2);
-            var objs2 = _formatter.Format(statement, context);
+            var objs2 = _context.Formatter.Format(statement, context);
 
             Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) = (2)", objs2.Sql);
             Assert.Null(objs2.Parameters);
 
             var statement3 = new SelectStatement<Player>();
             statement.Where("id", 1, 2, 3);
-            var objs3 = _formatter.Format(statement, context);
+            var objs3 = _context.Formatter.Format(statement, context);
 
             Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) IN (1, 2, 3)", objs3.Sql);
             Assert.Null(objs3.Parameters);
@@ -75,7 +75,7 @@ namespace Meuzz.Persistence.Tests
         public void TestUpdate()
         {
             var obj = new Player() { Id = 1 };
-            PersistenceContext.Generate(obj); // dummy
+            PersistableState.Generate(obj); // dummy
 
             obj.Name = "aaa";
 
@@ -84,15 +84,15 @@ namespace Meuzz.Persistence.Tests
 
             var context = new SqlConnectionContext();
 
-            var update = _formatter.Format(statement, context);
+            var update = _context.Formatter.Format(statement, context);
             Assert.Equal("UPDATE Players SET name = 'aaa' WHERE id = 1;", update.Sql);
-            update = _formatter.Format(statement, context);
+            update = _context.Formatter.Format(statement, context);
             Assert.Null(update.Sql);
 
             obj.Name = "bbb";
             obj.PlayTime = 10000;
 
-            update = _formatter.Format(statement, context);
+            update = _context.Formatter.Format(statement, context);
             Assert.Equal("UPDATE Players SET name = 'bbb', play_time = 10000 WHERE id = 1;", update.Sql);
         }
 

@@ -25,12 +25,32 @@ namespace Meuzz.Persistence
 
     public interface IPersistenceEngine
     {
-        Connection CreateConnection(IDictionary<string, object> parameters);
+        // Connection CreateConnection(IDictionary<string, object> parameters);
 
-        SqlFormatter CreateFormatter();
+        // SqlFormatter CreateFormatter();
+
+        IPersistenceContext CreateContext(IDictionary<string, object> parameters);
     }
 
-    public abstract class Connection : IDisposable
+    public interface IPersistenceContext
+    {
+        PersistenceConnection Connection { get; }
+        SqlFormatter Formatter { get; }
+    }
+
+    public class PersistenceContextBase : IPersistenceContext
+    {
+        public PersistenceConnection Connection { get; }
+        public SqlFormatter Formatter { get; }
+
+        public PersistenceContextBase(PersistenceConnection connection, SqlFormatter formatter)
+        {
+            Connection = connection;
+            Formatter = formatter;
+        }
+    }
+
+    public abstract class PersistenceConnection : IDisposable
     {
         private bool _disposed;
 
@@ -94,7 +114,7 @@ namespace Meuzz.Persistence
         }
     }
 
-    public abstract class DbConnectionImpl<T, T1> : Connection
+    public abstract class DbConnectionImpl<T, T1> : PersistenceConnection
         where T : DbConnection
         where T1 : DbCommand
     {

@@ -13,7 +13,7 @@ namespace Meuzz.Persistence
 {
     public class ObjectRepositoryBase
     {
-        protected Connection _connection = null;
+        protected PersistenceConnection _connection = null;
 
         protected SqlFormatter _formatter;
         protected SqlCollator _collator;
@@ -140,7 +140,7 @@ namespace Meuzz.Persistence
                 loaderField.SetValue(obj, conv.Invoke(null, new object[] { proploader }));
             }
 
-            PersistenceContext.Generate(obj); // for reset
+            PersistableState.Generate(obj); // for reset
             return obj;
         }
 
@@ -196,7 +196,7 @@ namespace Meuzz.Persistence
             return true;
         }
 
-        protected IEnumerable<object> PopulateObjects(Type t, Connection.ResultSet rset, SqlSelectStatement statement, SqlConnectionContext context)
+        protected IEnumerable<object> PopulateObjects(Type t, PersistenceConnection.ResultSet rset, SqlSelectStatement statement, SqlConnectionContext context)
         {
             var rows = rset.Results.Select(x =>
             {
@@ -354,7 +354,7 @@ namespace Meuzz.Persistence
     {
         // private SqlBuilder<T> _sqlBuilder;
 
-        public ObjectRepository(Connection conn, SqlFormatter formatter, SqlCollator collator)
+        public ObjectRepository(PersistenceConnection conn, SqlFormatter formatter, SqlCollator collator)
         {
             _connection = conn;
             // _sqlBuilder = builder;

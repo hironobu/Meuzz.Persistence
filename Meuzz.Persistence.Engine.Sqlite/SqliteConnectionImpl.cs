@@ -15,7 +15,7 @@ namespace Meuzz.Persistence.Sqlite
 
     public class SqliteEngine : IPersistenceEngine
     {
-        public Connection CreateConnection(IDictionary<string, object> parameters)
+        /*public IPersistenceContext CreateConnection(IDictionary<string, object> parameters)
         {
             return new SqliteConnectionImpl(parameters);
         }
@@ -23,6 +23,11 @@ namespace Meuzz.Persistence.Sqlite
         public SqlFormatter CreateFormatter()
         {
             return new SqliteFormatter();
+        }*/
+
+        public IPersistenceContext CreateContext(IDictionary<string, object> parameters)
+        {
+            return new PersistenceContextBase(new SqliteConnectionImpl(parameters), new SqliteFormatter());
         }
     }
 

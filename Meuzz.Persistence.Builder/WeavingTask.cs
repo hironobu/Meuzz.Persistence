@@ -302,39 +302,39 @@ namespace Meuzz.Persistence.Builder
             ilp.InsertBefore(first, Instruction.Create(OpCodes.Stfld, dirtydictfield));
 
             var getKeys = module.ImportReference(MakeHostInstanceGeneric(module.ImportReference(typeof(IDictionary<,>)).Resolve().Methods.Single(x => x.Name == "get_Keys"), module.ImportReference(typeof(string)), module.ImportReference(typeof(bool))));
-            var toArray = module.ImportReference(MakeGenericMethod(module.ImportReference(typeof(Enumerable)).Resolve().Methods.Single(x => x.Name == "ToArray"), module.ImportReference(typeof(string))));
+            var toArray = module.ImportReference(MakeGenericMethod(module.ImportReference(typeof(Enumerable)).Resolve().Methods.Single(x => x.Name == nameof(Enumerable.ToArray)), module.ImportReference(typeof(string))));
 
-            var generatePersistenceContext = new MethodDefinition("GeneratePersistenceContext", Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.SpecialName, module.ImportReference(typeof(PersistenceContext)));
-            var ilpGeneratePersistenceContext = generatePersistenceContext.Body.GetILProcessor();
+            var generatePersistableState = new MethodDefinition(nameof(IPersistable.GeneratePersistableState), Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.SpecialName, module.ImportReference(typeof(PersistableState)));
+            var ilpGeneratePersistableState = generatePersistableState.Body.GetILProcessor();
 
-            generatePersistenceContext.Body.Variables.Add(new VariableDefinition(module.ImportReference(typeof(string[]))));
-            generatePersistenceContext.Body.Variables.Add(new VariableDefinition(module.ImportReference(typeof(PersistenceContext))));
+            generatePersistableState.Body.Variables.Add(new VariableDefinition(module.ImportReference(typeof(string[]))));
+            generatePersistableState.Body.Variables.Add(new VariableDefinition(module.ImportReference(typeof(PersistableState))));
 
-            var persistenceContextCtor = module.ImportReference(module.ImportReference(typeof(PersistenceContext)).Resolve().Methods.Single(x => x.Name == ".ctor"));
-            var clear = module.ImportReference(module.ImportReference(typeof(IDictionary)).Resolve().Methods.Single(x => x.Name == "Clear"));
+            var persistenceContextCtor = module.ImportReference(module.ImportReference(typeof(PersistableState)).Resolve().Methods.Single(x => x.Name == ".ctor"));
+            var clear = module.ImportReference(module.ImportReference(typeof(IDictionary)).Resolve().Methods.Single(x => x.Name == nameof(IDictionary.Clear)));
 
-            ilpGeneratePersistenceContext.Append(Instruction.Create(OpCodes.Ldarg_0));
-            ilpGeneratePersistenceContext.Append(Instruction.Create(OpCodes.Ldfld, dirtydictfield));
-            ilpGeneratePersistenceContext.Append(Instruction.Create(OpCodes.Callvirt, getKeys));
-            ilpGeneratePersistenceContext.Append(Instruction.Create(OpCodes.Call, toArray));
-            ilpGeneratePersistenceContext.Append(Instruction.Create(OpCodes.Stloc_0));
+            ilpGeneratePersistableState.Append(Instruction.Create(OpCodes.Ldarg_0));
+            ilpGeneratePersistableState.Append(Instruction.Create(OpCodes.Ldfld, dirtydictfield));
+            ilpGeneratePersistableState.Append(Instruction.Create(OpCodes.Callvirt, getKeys));
+            ilpGeneratePersistableState.Append(Instruction.Create(OpCodes.Call, toArray));
+            ilpGeneratePersistableState.Append(Instruction.Create(OpCodes.Stloc_0));
 
-            ilpGeneratePersistenceContext.Append(Instruction.Create(OpCodes.Ldarg_0));
-            ilpGeneratePersistenceContext.Append(Instruction.Create(OpCodes.Ldfld, dirtydictfield));
-            ilpGeneratePersistenceContext.Append(Instruction.Create(OpCodes.Callvirt, clear));
+            ilpGeneratePersistableState.Append(Instruction.Create(OpCodes.Ldarg_0));
+            ilpGeneratePersistableState.Append(Instruction.Create(OpCodes.Ldfld, dirtydictfield));
+            ilpGeneratePersistableState.Append(Instruction.Create(OpCodes.Callvirt, clear));
 
-            ilpGeneratePersistenceContext.Append(Instruction.Create(OpCodes.Nop));
-            ilpGeneratePersistenceContext.Append(Instruction.Create(OpCodes.Ldloc_0));
-            ilpGeneratePersistenceContext.Append(Instruction.Create(OpCodes.Newobj, persistenceContextCtor));
-            ilpGeneratePersistenceContext.Append(Instruction.Create(OpCodes.Stloc_1));
+            ilpGeneratePersistableState.Append(Instruction.Create(OpCodes.Nop));
+            ilpGeneratePersistableState.Append(Instruction.Create(OpCodes.Ldloc_0));
+            ilpGeneratePersistableState.Append(Instruction.Create(OpCodes.Newobj, persistenceContextCtor));
+            ilpGeneratePersistableState.Append(Instruction.Create(OpCodes.Stloc_1));
 
             var il_0027 = Instruction.Create(OpCodes.Ldloc_1);
-            ilpGeneratePersistenceContext.Append(Instruction.Create(OpCodes.Br_S, il_0027));
+            ilpGeneratePersistableState.Append(Instruction.Create(OpCodes.Br_S, il_0027));
 
-            ilpGeneratePersistenceContext.Append(il_0027);
-            ilpGeneratePersistenceContext.Append(Instruction.Create(OpCodes.Ret));
+            ilpGeneratePersistableState.Append(il_0027);
+            ilpGeneratePersistableState.Append(Instruction.Create(OpCodes.Ret));
 
-            td.Methods.Add(generatePersistenceContext);
+            td.Methods.Add(generatePersistableState);
 
             // here
             var props = td.Properties;

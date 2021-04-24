@@ -15,7 +15,7 @@ namespace Meuzz.Persistence.Engine.Mssql
 
     public class MssqlEngine : IPersistenceEngine
     {
-        public Connection CreateConnection(IDictionary<string, object> parameters)
+        /*public IPersistenceContext CreateConnection(IDictionary<string, object> parameters)
         {
             return new MssqlConnectionImpl(parameters);
         }
@@ -23,6 +23,11 @@ namespace Meuzz.Persistence.Engine.Mssql
         public SqlFormatter CreateFormatter()
         {
             return new MssqlFormatter();
+        }*/
+
+        public IPersistenceContext CreateContext(IDictionary<string, object> parameters)
+        {
+            return new PersistenceContextBase(new MssqlConnectionImpl(parameters), new MssqlFormatter());
         }
     }
 

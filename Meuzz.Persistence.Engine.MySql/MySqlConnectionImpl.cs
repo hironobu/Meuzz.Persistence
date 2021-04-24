@@ -15,7 +15,7 @@ namespace Meuzz.Persistence.MySql
 
     public class MySqlEngine : IPersistenceEngine
     {
-        public Connection CreateConnection(IDictionary<string, object> parameters)
+        /*public IPersistenceContext_ CreateConnection(IDictionary<string, object> parameters)
         {
             return new MySqlConnectionImpl(parameters);
         }
@@ -23,6 +23,11 @@ namespace Meuzz.Persistence.MySql
         public SqlFormatter CreateFormatter()
         {
             return new MySqlFormatter();
+        }*/
+
+        public IPersistenceContext CreateContext(IDictionary<string, object> parameters)
+        {
+            return new PersistenceContextBase(new MySqlConnectionImpl(parameters), new MySqlFormatter());
         }
     }
 

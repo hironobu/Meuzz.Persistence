@@ -12,7 +12,7 @@ namespace Meuzz.Persistence.Tests
         public void TestDefault()
         {
             var c = new Character();
-            var context = PersistenceContext.Generate(c);
+            var context = PersistableState.Generate(c);
             Assert.Empty(context.DirtyKeys);
         }
 
@@ -21,11 +21,11 @@ namespace Meuzz.Persistence.Tests
         {
             var c = new Character();
             c.Name = "aaa";
-            var context = PersistenceContext.Generate(c);
+            var context = PersistableState.Generate(c);
             Assert.Single(context.DirtyKeys);
             Assert.Equal("Name", context.DirtyKeys[0]);
 
-            context = PersistenceContext.Generate(c);
+            context = PersistableState.Generate(c);
             Assert.Empty(context.DirtyKeys);
         }
 
@@ -36,14 +36,14 @@ namespace Meuzz.Persistence.Tests
             p.Name = "aaa";
             p.Age = 111;
             p.PlayTime = 222;
-            var context = PersistenceContext.Generate(p);
+            var context = PersistableState.Generate(p);
             var dirtyKeys = context.DirtyKeys.OrderBy(x => x).ToArray();
             Assert.Equal(3, context.DirtyKeys.Length);
             Assert.Equal("Age", dirtyKeys[0]);
             Assert.Equal("Name", dirtyKeys[1]);
             Assert.Equal("PlayTime", dirtyKeys[2]);
 
-            context = PersistenceContext.Generate(p);
+            context = PersistableState.Generate(p);
             Assert.Empty(context.DirtyKeys);
         }
     }

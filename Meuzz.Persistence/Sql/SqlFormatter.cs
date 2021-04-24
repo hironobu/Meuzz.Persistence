@@ -82,7 +82,7 @@ namespace Meuzz.Persistence.Sql
                         foreach (var obj in insertOrUpdateStatement.Values)
                         {
                             /* var d = obj.GetType().GetValueDictFromColumnNames(insertOrUpdateStatement.Columns, obj); */
-                            var pcontext = PersistenceContext.Generate(obj);
+                            var pcontext = PersistableState.Generate(obj);
                             var dirtyKeys = pcontext.DirtyKeys;
                             if (dirtyKeys != null && dirtyKeys.Length > 0)
                             {

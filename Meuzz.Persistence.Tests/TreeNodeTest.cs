@@ -22,24 +22,24 @@ namespace Meuzz.Persistence.Tests
 
     public class TreeNodeTest
     {
-        private Connection _connection;
+        private IPersistenceContext _context;
         private ObjectRepository _repository;
 
         public TreeNodeTest()
         {
             var engine = PersistenceEngineFactory.Instance().GetEngine("sqlite");
 
-            _connection = engine.CreateConnection("type=sqlite;file=:memory:");
-            _connection.Open();
+            _context = engine.CreateContext("type=sqlite;file=:memory:");
+            _context.Connection.Open();
 
-            _connection.Execute(@"
+            _context.Connection.Execute(@"
                 CREATE TABLE TreeNodes (ID integer PRIMARY KEY, NAME text, PARENT_ID integer);
             ");
-            _connection.Execute(@"
+            _context.Connection.Execute(@"
                 INSERT INTO TreeNodes VALUES (1, 'aa', NULL), (2, 'bbb', 1), (3, 'ccc', 1), (4, 'ddd', 1);
                 INSERT INTO TreeNodes VALUES (5, 'aaaa', 2), (6, 'bbbb', 3), (7, 'cccc', 4), (8, 'dddd', 4), (9, 'eeee', 4), (10, 'ffff', 4), (11, 'gggg', 4);
             ");
-            _repository = new ObjectRepository(_connection, engine.CreateFormatter(), new SqlCollator());
+            _repository = new ObjectRepository(_context.Connection, _context.Formatter, new SqlCollator());
         }
 
         [Fact]

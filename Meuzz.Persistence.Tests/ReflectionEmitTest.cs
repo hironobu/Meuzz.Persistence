@@ -89,11 +89,11 @@ namespace Meuzz.Persistence.Tests
             }
         }
 
-        public PersistenceContext GeneratePersistenceContext()
+        public PersistableState GeneratePersistableState()
         {
             var keys = __dirty.Keys.ToArray();
             __dirty.Clear();
-            return new PersistenceContext(keys);
+            return new PersistableState(keys);
         }
     }
 

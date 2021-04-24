@@ -9,14 +9,14 @@ namespace Meuzz.Persistence
 {
     public static class PersistenceEngineExtensions
     {
-        private static IDictionary<string, object> ParseConnectionString(string connectionString)
+        private static IDictionary<string, object> ParseContextString(string connectionString)
         {
             return connectionString.Split(";").Select(x => x.Split("=", 2)).ToDictionary(x => x[0], x => (object)x[1]);
         }
 
-        public static Connection CreateConnection(this IPersistenceEngine self, string connectionString)
+        public static IPersistenceContext CreateContext(this IPersistenceEngine self, string connectionString)
         {
-            return self.CreateConnection(ParseConnectionString(connectionString));
+            return self.CreateContext(ParseContextString(connectionString));
         }
     }
 
@@ -59,7 +59,7 @@ namespace Meuzz.Persistence
             return engine;
         }
 
-        public Connection NewConnection(string connectionString)
+        /*public Connection NewConnection(string connectionString)
         {
             var parameters = ParseConnectionString(connectionString);
 
@@ -69,13 +69,14 @@ namespace Meuzz.Persistence
             }
 
             return engine.CreateConnection(parameters);
-        }
+        }*/
 
         private IDictionary<string, object> ParseConnectionString(string connectionString)
         {
             return connectionString.Split(";").Select(x => x.Split("=", 2)).ToDictionary(x => x[0], x => (object)x[1]);
         }
 
+        /*
         public SqlFormatter NewFormatter(string type)
         {
             if (!_engines.TryGetValue(type, out var engine))
@@ -84,7 +85,7 @@ namespace Meuzz.Persistence
             }
 
             return engine.CreateFormatter();
-        }
+        }*/
 
 
         private static PersistenceEngineFactory _instance;

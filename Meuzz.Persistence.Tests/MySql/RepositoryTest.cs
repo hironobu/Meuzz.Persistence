@@ -8,22 +8,22 @@ namespace Meuzz.Persistence.Tests.MySql
 {
     public class RepositoryTest
     {
-        private Connection _connection;
+        private IPersistenceContext _context;
         private ObjectRepository _repository;
         public RepositoryTest()
         {
             var engine = PersistenceEngineFactory.Instance().GetEngine("mysql");
 
-            _connection = engine.CreateConnection("type=mysql;host=localhost;port=3306;database=persistence;user=user;password=password");
-            _connection.Open();
+            _context = engine.CreateContext("type=mysql;host=localhost;port=3306;database=persistence;user=user;password=password");
+            _context.Connection.Open();
 
-            _connection.Execute(@"
+            _context.Connection.Execute(@"
                 DROP TABLE IF EXISTS Characters;
                 DROP TABLE IF EXISTS Players;
                 CREATE TABLE Players (ID integer PRIMARY KEY AUTO_INCREMENT, NAME text, AGE integer, PLAY_TIME integer);
                 CREATE TABLE Characters (ID integer PRIMARY KEY AUTO_INCREMENT, NAME text, PLAYER_ID integer, LAST_PLAYER_ID integer NULL, FOREIGN KEY (PLAYER_ID) REFERENCES Players(ID), FOREIGN KEY (LAST_PLAYER_ID) REFERENCES Players(ID));
             ");
-            _connection.Execute(@"
+            _context.Connection.Execute(@"
                 INSERT INTO Players VALUES (1, 'aaa', 10, 100);
                 INSERT INTO Players VALUES (2, 'bbb', 20, 200);
                 INSERT INTO Players VALUES (3, 'ccc''s', 10, 200);
@@ -31,8 +31,8 @@ namespace Meuzz.Persistence.Tests.MySql
                 INSERT INTO Characters VALUES (2, 'bbbb', 1, NULL);
                 INSERT INTO Characters VALUES (3, 'cccc', 2, 3);
             ");
-            _connection.Close();
-            _repository = new ObjectRepository(_connection, engine.CreateFormatter(), new SqlCollator());
+            _context.Connection.Close();
+            _repository = new ObjectRepository(_context.Connection, _context.Formatter, new SqlCollator());
         }
 
         [Fact]
@@ -203,7 +203,7 @@ namespace Meuzz.Persistence.Tests.MySql
 
             _repository.Store(new[] { p, q, r });
 
-            var rset = _connection.Execute("SELECT * FROM Players");
+            var rset = _context.Connection.Execute("SELECT * FROM Players");
 
             Assert.Equal(5, rset.Results.Count());
             Assert.Equal("Update Test", rset.Results.ElementAt(0)["name"]);
@@ -220,7 +220,7 @@ namespace Meuzz.Persistence.Tests.MySql
             Assert.Equal(5, q.Id);
             Assert.Equal(1, r.Id);
 
-            var rset2 = _connection.Execute("SELECT * FROM Characters");
+            var rset2 = _context.Connection.Execute("SELECT * FROM Characters");
             Assert.Equal(9, rset2.Results.Count());
         }
 
@@ -234,9 +234,9 @@ namespace Meuzz.Persistence.Tests.MySql
                 values.Add($"('Char {i}')");
             };
 
-            _connection.Execute(sql + string.Join(", ", values));
+            _context.Connection.Execute(sql + string.Join(", ", values));
 
-            var rset = _connection.Execute("SELECT * FROM Characters");
+            var rset = _context.Connection.Execute("SELECT * FROM Characters");
             Assert.Equal(10003, rset.Results.Count());
         }
 
@@ -251,42 +251,42 @@ namespace Meuzz.Persistence.Tests.MySql
 
             _repository.Store(characters.ToArray());
 
-            var rset = _connection.Execute("SELECT * FROM Characters");
+            var rset = _context.Connection.Execute("SELECT * FROM Characters");
             Assert.Equal(10003, rset.Results.Count());
         }
 
         [Fact]
         public void TestDelete()
         {
-            var rset = _connection.Execute("SELECT * FROM Players");
+            var rset = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset.Results.Count());
 
             _repository.Store(new Player() { Name = "xxx" });
 
-            var rset2 = _connection.Execute("SELECT * FROM Players");
+            var rset2 = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(4, rset2.Results.Count());
 
             _repository.Delete<Player>((x) => x.Id == 4);
             // _repository.Delete(4);
 
-            var rset3 = _connection.Execute("SELECT * FROM Players");
+            var rset3 = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
         }
 
         [Fact]
         public void TestDeleteById()
         {
-            var rset = _connection.Execute("SELECT * FROM Players");
+            var rset = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset.Results.Count());
 
             _repository.Store(new Player() { Name = "xxx" });
 
-            var rset2 = _connection.Execute("SELECT * FROM Players");
+            var rset2 = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(4, rset2.Results.Count());
 
             _repository.Delete<Player>(4);
 
-            var rset3 = _connection.Execute("SELECT * FROM Players");
+            var rset3 = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
             Assert.Equal(1, rset3.Results.ElementAt(0)["id"]);
             Assert.Equal(2, rset3.Results.ElementAt(1)["id"]);
@@ -296,19 +296,19 @@ namespace Meuzz.Persistence.Tests.MySql
         [Fact]
         public void TestDeleteByLamdaAndName()
         {
-            var rset = _connection.Execute("SELECT * FROM Players");
+            var rset = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset.Results.Count());
 
             _repository.Store(new Player() { Name = "xxx" });
             _repository.Store(new Player() { Name = "yyy" });
             _repository.Store(new Player() { Name = "zzz" });
 
-            var rset2 = _connection.Execute("SELECT * FROM Players");
+            var rset2 = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(6, rset2.Results.Count());
 
             _repository.Delete<Player>(x => x.Name == "yyy");
 
-            var rset3 = _connection.Execute("SELECT * FROM Players");
+            var rset3 = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(5, rset3.Results.Count());
             Assert.Equal(1, rset3.Results.ElementAt(0)["id"]);
             Assert.Equal(2, rset3.Results.ElementAt(1)["id"]);
@@ -320,20 +320,20 @@ namespace Meuzz.Persistence.Tests.MySql
         [Fact]
         public void TestDeleteByLamdaAndName2()
         {
-            var rset = _connection.Execute("SELECT * FROM Players");
+            var rset = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset.Results.Count());
 
             _repository.Store(new Player() { Name = "xxx" });
             _repository.Store(new Player() { Name = "yyy" });
             _repository.Store(new Player() { Name = "zzz" });
 
-            var rset2 = _connection.Execute("SELECT * FROM Players");
+            var rset2 = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(6, rset2.Results.Count());
 
             var names = new[] { "xxx", "yyy", "zzz" };
             _repository.Delete<Player>(x => names.Contains(x.Name));
 
-            var rset3 = _connection.Execute("SELECT * FROM Players");
+            var rset3 = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
             Assert.Equal(1, rset3.Results.ElementAt(0)["id"]);
             Assert.Equal(2, rset3.Results.ElementAt(1)["id"]);
@@ -344,19 +344,19 @@ namespace Meuzz.Persistence.Tests.MySql
         [Fact]
         public void TestDeleteByIds()
         {
-            var rset = _connection.Execute("SELECT * FROM Players");
+            var rset = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset.Results.Count());
 
             _repository.Store(new Player() { Name = "xxx" });
             _repository.Store(new Player() { Name = "yyy" });
             _repository.Store(new Player() { Name = "zzz" });
 
-            var rset2 = _connection.Execute("SELECT * FROM Players");
+            var rset2 = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(6, rset2.Results.Count());
 
             _repository.Delete<Player>(4, 5, 6);
 
-            var rset3 = _connection.Execute("SELECT * FROM Players");
+            var rset3 = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
             Assert.Equal(1, rset3.Results.ElementAt(0)["id"]);
             Assert.Equal(2, rset3.Results.ElementAt(1)["id"]);
@@ -366,20 +366,20 @@ namespace Meuzz.Persistence.Tests.MySql
         [Fact]
         public void TestDeleteByIdsWithExpression()
         {
-            var rset = _connection.Execute("SELECT * FROM Players");
+            var rset = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset.Results.Count());
 
             _repository.Store(new Player() { Name = "xxx" });
             _repository.Store(new Player() { Name = "yyy" });
             _repository.Store(new Player() { Name = "zzz" });
 
-            var rset2 = _connection.Execute("SELECT * FROM Players");
+            var rset2 = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(6, rset2.Results.Count());
 
             var ids = new int[] { 4, 5, 6 };
             _repository.Delete<Player>(x => ids.Contains(x.Id));
 
-            var rset3 = _connection.Execute("SELECT * FROM Players");
+            var rset3 = _context.Connection.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
             Assert.Equal(1, rset3.Results.ElementAt(0)["id"]);
             Assert.Equal(2, rset3.Results.ElementAt(1)["id"]);
