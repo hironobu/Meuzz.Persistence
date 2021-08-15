@@ -8,7 +8,7 @@ using Meuzz.Persistence.Core;
 
 namespace Meuzz.Persistence
 {
-    public class BindingSpec
+    public class RelationSpec
     {
         public string PrimaryKey { get; set; } = null;
         public string ForeignKey { get; set; } = null;
@@ -37,11 +37,11 @@ namespace Meuzz.Persistence
 
         public MemberInfo MemberInfo { get; set; } = null;
 
-        public BindingSpec()
+        public RelationSpec()
         {
         }
 
-        public BindingSpec(string fk, string pk)
+        public RelationSpec(string fk, string pk)
         {
             ForeignKey = fk;
             PrimaryKey = pk ?? "id";
@@ -52,17 +52,6 @@ namespace Meuzz.Persistence
         {
             return $"{Primary.Name}.{PrimaryKey ?? Primary.Type.GetPrimaryKey()} {"="} {Foreign.Name}.{ForeignKey}";
         }
-
-        /*private Func<dynamic, dynamic, bool> GetConditionFunc()
-        {
-            Func<Func<dynamic, dynamic, bool>, dynamic, dynamic, bool> evaluator = (f, xx, yy) =>
-            {
-                return f(Evaluate(xx), Evaluate(yy));
-            };
-
-            // return (x, y) => evaluator(ConditionParams.Comparator, ConditionParams.Left(x), ConditionParams.Right(y));
-            return (x, y) => ConditionParams.Evaluate();
-        }*/
 
         private static Func<dynamic, dynamic, bool> MakeDefaultFunc(string foreignKey, string primaryKey)
         {
@@ -87,7 +76,7 @@ namespace Meuzz.Persistence
             return joiningConditionMaker(eq, memberAccessor(primaryKey), memberAccessor(foreignKey));
         }
 
-        public static BindingSpec Build(Type primaryType, string primaryName, MemberInfo memberInfo, string defaultForeignParamName, Expression condexp)
+        public static RelationSpec Build(Type primaryType, string primaryName, MemberInfo memberInfo, string defaultForeignParamName, Expression condexp)
         {
             var propinfo = (memberInfo.MemberType == MemberTypes.Property) ? (memberInfo as PropertyInfo) : null;
             var foreignType = propinfo.PropertyType;
@@ -96,7 +85,7 @@ namespace Meuzz.Persistence
                 foreignType = foreignType.GetGenericArguments()[0];
             }
 
-            BindingSpec bindingSpec = null;
+            RelationSpec joiningSpec = null;
             if (condexp != null)
             {
                 if (!(condexp is LambdaExpression lme))
@@ -112,7 +101,7 @@ namespace Meuzz.Persistence
                 primaryKey = string.IsNullOrEmpty(primaryKey) ? primaryType.GetPrimaryKey() : primaryKey;
                 foreignKey = foreignType.GetForeignKey(foreignKey, primaryType, primaryKey);
 
-                bindingSpec = new BindingSpec()
+                joiningSpec = new RelationSpec()
                 {
                     PrimaryKey = primaryKey,
                     ForeignKey = foreignKey,
@@ -120,27 +109,27 @@ namespace Meuzz.Persistence
                 };
             }
 
-            if (bindingSpec == null)
+            if (joiningSpec == null)
             {
                 var fki = ForeignKeyInfoManager.Instance().GetForeignKeyInfoByPropertyInfo(propinfo);
                 if (fki != null)
                 {
-                    bindingSpec = new BindingSpec(fki.ForeignKey, fki.PrimaryKey ?? "id");
+                    joiningSpec = new RelationSpec(fki.ForeignKey, fki.PrimaryKey ?? "id");
                 }
                 else
                 {
                     var primaryTable = memberInfo.DeclaringType.GetTableName();
                     var foreignClassInfo = foreignType.GetClassInfo();
                     var matched = foreignClassInfo.Columns.Where(x => x.BindingTo == primaryTable).First();
-                    bindingSpec = new BindingSpec(matched.Name.ToLower(), matched.BindingToPrimaryKey.ToLower());
+                    joiningSpec = new RelationSpec(matched.Name.ToLower(), matched.BindingToPrimaryKey.ToLower());
                 }
             }
 
-            bindingSpec.Primary = new Parameter() { Type = primaryType, Name = primaryName };
-            bindingSpec.Foreign = new Parameter() { Type = foreignType, Name = defaultForeignParamName };
-            bindingSpec.MemberInfo = memberInfo;
+            joiningSpec.Primary = new Parameter() { Type = primaryType, Name = primaryName };
+            joiningSpec.Foreign = new Parameter() { Type = foreignType, Name = defaultForeignParamName };
+            joiningSpec.MemberInfo = memberInfo;
 
-            return bindingSpec;
+            return joiningSpec;
         }
 
         public class Parameter
@@ -335,6 +324,5 @@ namespace Meuzz.Persistence
                 }
             }
         }
-
     }
 }

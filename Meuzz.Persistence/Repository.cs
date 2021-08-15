@@ -302,27 +302,27 @@ namespace Meuzz.Persistence
                     .MakeGenericMethod((t.IsGenericType) ? t.GetGenericArguments()[0] : t)
                     .Invoke(null, new object[] { objs });
 
-            foreach (var bindingSpec in statement.GetAllBindings())
+            foreach (var joiningSpec in statement.RelationSpecs)
             {
-                var fromObjs = resultObjects[bindingSpec.Primary.Name].Values;
+                var fromObjs = resultObjects[joiningSpec.Primary.Name].Values;
 
-                Func<dynamic, Func<dynamic, bool>> filteringConditions = (x) => (y) => bindingSpec.ConditionFunc(x, y);
+                Func<dynamic, Func<dynamic, bool>> filteringConditions = (x) => (y) => joiningSpec.ConditionFunc(x, y);
                 Func<IDictionary<string, object>, object> fmap = x =>
                 {
-                    var pkv = memberAccessor(bindingSpec.PrimaryKey)(x);
-                    var targetToObjs = resultObjects[bindingSpec.Foreign.Name].Values.Where(filteringConditions(x));
+                    var pkv = memberAccessor(joiningSpec.PrimaryKey)(x);
+                    var targetToObjs = resultObjects[joiningSpec.Foreign.Name].Values.Where(filteringConditions(x));
                     if (targetToObjs.Count() > 0)
                     {
                         foreach (var o in targetToObjs)
                         {
-                            var k0 = StringUtils.ToCamel(bindingSpec.ForeignKey.Replace("_id", ""), true);
+                            var k0 = StringUtils.ToCamel(joiningSpec.ForeignKey.Replace("_id", ""), true);
                             memberUpdater(o, k0, x["__object"]);
                         }
-                        memberUpdater(x, bindingSpec.MemberInfo.Name, regularCollection((bindingSpec.MemberInfo as PropertyInfo).PropertyType, targetToObjs.Select(y => y["__object"])));
+                        memberUpdater(x, joiningSpec.MemberInfo.Name, regularCollection((joiningSpec.MemberInfo as PropertyInfo).PropertyType, targetToObjs.Select(y => y["__object"])));
                     }
                     else
                     {
-                        memberUpdater(x, bindingSpec.MemberInfo.Name, regularCollection((bindingSpec.MemberInfo as PropertyInfo).PropertyType, MakeGenerator(bindingSpec, x["__object"])));
+                        memberUpdater(x, joiningSpec.MemberInfo.Name, regularCollection((joiningSpec.MemberInfo as PropertyInfo).PropertyType, MakeGenerator(joiningSpec, x["__object"])));
                     }
                     return x;
                 };
@@ -331,7 +331,7 @@ namespace Meuzz.Persistence
             }
 
         }
-        private IEnumerable<object> MakeGenerator(BindingSpec bindingSpec, object self)
+        private IEnumerable<object> MakeGenerator(RelationSpec bindingSpec, object self)
         {
             // yield return null;
             Console.WriteLine(self);

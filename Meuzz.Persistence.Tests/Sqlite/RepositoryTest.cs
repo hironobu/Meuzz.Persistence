@@ -179,6 +179,17 @@ namespace Meuzz.Persistence.Tests.Sqlite
             Assert.Empty(objs.ElementAt(1).Characters);
         }
 
+
+        [Fact]
+        public void TestLoadByLambdaWithJoinsAndHasManyOnPlayer3_()
+        {
+            var objs = _repository.Load<Models.AutoForeignKey.Player>(st => st.Where(x => x.Age == 10)
+                .Joins(x => x.Characters));
+            Assert.Equal(2, objs.Count());
+            Assert.Equal(2, objs.ElementAt(0).Characters.Count());
+            Assert.Empty(objs.ElementAt(1).Characters);
+        }
+
         [Fact]
         public void TestCreateAndUpdate()
         {

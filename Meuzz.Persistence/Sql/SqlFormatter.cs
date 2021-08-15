@@ -24,9 +24,9 @@ namespace Meuzz.Persistence.Sql
             sb.Append($"SELECT {string.Join(", ", GetColumnsToString(statement.ParamInfo.GetAllParameters(), columnCollationInfo))}");
             sb.Append($" FROM {parameterType.GetTableName()} {parameterName}");
 
-            foreach (var bindingSpec in statement.GetAllBindings())
+            foreach (var relationSpec in statement.RelationSpecs)
             {
-                sb.Append($" LEFT JOIN {bindingSpec.Foreign.Type.GetTableName()} {bindingSpec.Foreign.Name} ON {bindingSpec.ConditionSql}");
+                sb.Append($" LEFT JOIN {relationSpec.Foreign.Type.GetTableName()} {relationSpec.Foreign.Name} ON {relationSpec.ConditionSql}");
             }
             sb.Append($" WHERE {FormatElement(statement.Condition, true, true, parameters)}");
 
