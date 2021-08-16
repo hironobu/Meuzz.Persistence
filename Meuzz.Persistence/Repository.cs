@@ -17,15 +17,18 @@ namespace Meuzz.Persistence
         protected IEnumerable<object> LoadObjects(IStorageContext context, Type t, SqlSelectStatement statement, Action<IEnumerable<object>>? propertySetter = null)
         {
             var rset = context.Execute(statement);
-            var results = PopulateObjects(context, t, rset, statement);
-            if (propertySetter != null)
+            if (rset != null)
             {
-                propertySetter(results);
-            }
+                var results = PopulateObjects(context, t, rset, statement);
+                if (propertySetter != null)
+                {
+                    propertySetter(results);
+                }
 
-            foreach (var o in results)
-            {
-                yield return o;
+                foreach (var o in results)
+                {
+                    yield return o;
+                }
             }
             yield break;
         }
@@ -132,7 +135,7 @@ namespace Meuzz.Persistence
             return obj;
         }
 
-        protected bool StoreObjects(IStorageContext context, Type t, IEnumerable<object> objs, IDictionary<string, object>? extraData)
+        protected bool StoreObjects(IStorageContext context, Type t, IEnumerable<object> objs, IDictionary<string, object?>? extraData)
         {
             var updated = objs.Where(x => t.GetPrimaryValue(x) != null).ToList();
             var inserted = objs.Where(x => t.GetPrimaryValue(x) == null).ToList();
@@ -153,7 +156,7 @@ namespace Meuzz.Persistence
                 }
                 var classinfo = t.GetClassInfo();
 
-                var results = rset.Results;
+                var results = rset!.Results;
                 int newPrimaryId = (int)Convert.ChangeType(results.First()["id"], prop.PropertyType)!;
 
                 foreach (var (y, i) in inserted.Select((x, i) => (x, i)))
@@ -167,7 +170,7 @@ namespace Meuzz.Persistence
 
                         if (childObjs != null)
                         {
-                            StoreObjects(context, foreignType, childObjs, new Dictionary<string, object>() { { rel.ForeignKey, newPrimaryId } });
+                            StoreObjects(context, foreignType, childObjs, new Dictionary<string, object?>() { { rel.ForeignKey, newPrimaryId } });
                         }
                     }
                 }
@@ -260,7 +263,7 @@ namespace Meuzz.Persistence
             return (IEnumerable<object>)typeof(Enumerable)
                             .GetMethod("Cast")!
                             .MakeGenericMethod(t)
-                            .Invoke(null, new object[] { resultObjects[statement.ParamInfo.GetDefaultParamName()].Values.Select(x => x["__object"]) })!;
+                            .Invoke(null, new object[] { resultObjects[statement.ParamInfo.GetDefaultParamName()!].Values.Select(x => x["__object"]) })!;
         }
 
         private void BuildBindings(SqlSelectStatement statement, IDictionary<string, IDictionary<dynamic, IDictionary<string, object?>>> resultObjects)

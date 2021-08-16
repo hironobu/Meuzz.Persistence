@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -39,11 +41,11 @@ namespace Meuzz.Persistence.Sql
             _relationSpecs.Add(spec);
         }
 
-        protected virtual void BuildRelationSpec(LambdaExpression propexp, LambdaExpression cond)
+        protected virtual void BuildRelationSpec(LambdaExpression propexp, LambdaExpression? cond)
         {
             var bodyexp = propexp.Body;
             var paramexp = propexp.Parameters[0];
-            var memberInfo = (bodyexp as MemberExpression).Member;
+            var memberInfo = ((MemberExpression)bodyexp).Member;
 
             var bindingSpec = RelationSpec.Build(paramexp.Type, paramexp.Name, memberInfo, paramexp.Name, cond);
             bindingSpec.Foreign.Name = ParamInfo.RegisterParameter(bindingSpec.Foreign.Name, bindingSpec.Foreign.Type, false);
@@ -83,13 +85,13 @@ namespace Meuzz.Persistence.Sql
             return this;
         }
 
-        public virtual SelectStatement<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class
+        public virtual SelectStatement<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>>? cond = null) where T2 : class
         {
             BuildRelationSpec(propexp, cond);
             return this;
         }
 
-        public virtual SelectStatement<T2> Select<T2>(Expression<Func<T, T2>> expression) where T2 : class
+        /*public virtual SelectStatement<T2> Select<T2>(Expression<Func<T, T2>> expression) where T2 : class
         {
             var members = PickupMemberExpressions(expression);
             var t = members.Item1;
@@ -97,10 +99,10 @@ namespace Meuzz.Persistence.Sql
             var paraminfos = ctors.First().GetParameters();
             var obj = Activator.CreateInstance(t);
             return null;
-        }
+        }*/
 
 
-        private (Type, IEnumerable<MemberInfo>) PickupMemberExpressions(Expression e)
+        private (Type?, IEnumerable<MemberInfo>) PickupMemberExpressions(Expression e)
         {
             switch (e)
             {
@@ -124,14 +126,14 @@ namespace Meuzz.Persistence.Sql
         }
     }
 
-    public class Joined<T0, T1>
+    /*public class Joined<T0, T1>
         where T0 : class
         where T1 : class
     {
         public T0 Left { get; set; }
 
         public T1 Right { get; set; }
-    }
+    }*/
 
     public class DeleteStatement<T> : SqlDeleteStatement where T : class
     {

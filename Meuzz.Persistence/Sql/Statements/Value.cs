@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -11,7 +13,7 @@ namespace Meuzz.Persistence.Sql
 
         public object[] Values { get => _values.ToArray(); }
 
-        public IDictionary<string, object> ExtraData { get; set; }
+        public IDictionary<string, object?>? ExtraData { get; set; } = null;
 
         public bool IsInsert { get; private set; }
 

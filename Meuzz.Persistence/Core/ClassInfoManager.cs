@@ -1,14 +1,16 @@
-﻿using Meuzz.Foundation;
+﻿#nullable enable
+
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
+using Meuzz.Foundation;
 
 namespace Meuzz.Persistence.Core
 {
     public class ClassInfoManager
     {
-        private ConcurrentDictionary<Type, Entry> _dict = null;
+        private ConcurrentDictionary<Type, Entry> _dict;
 
         public ClassInfoManager()
         {
@@ -38,37 +40,26 @@ namespace Meuzz.Persistence.Core
                     if (fke.ForeignKey != null)
                     {
                         var targetType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
-                        relinfos.Add(new ClassInfoManager.RelationInfoEntry()
-                        {
-                            PropertyInfo = prop,
-                            InversePropertyInfo = targetType.GetPropertyInfoFromColumnName(fke.ForeignKey, true),
-                            TargetType = targetType,
-                            ForeignKey = fke.ForeignKey
-                        });
-                    }
+                        relinfos.Add(new ClassInfoManager.RelationInfoEntry(targetType, prop, targetType.GetPropertyInfoFromColumnName(fke.ForeignKey, true), fke.ForeignKey));
+                   }
                 }
                 else
                 {
-                    colinfos.Add(new ClassInfoManager.ColumnInfoEntry()
-                    {
-                        Name = StringUtils.ToSnake(prop.Name),
-                        MemberInfo = prop,
-                        BindingTo = fke != null ? fke.PrimaryTableName : null,
-                        BindingToPrimaryKey = fke != null ? fke.PrimaryKey : null
-                    });
+                    colinfos.Add(new ClassInfoManager.ColumnInfoEntry(
+                        StringUtils.ToSnake(prop.Name),
+                        prop,
+                        fke)
+                    );
                 }
             }
 
             var fkeys = ForeignKeyInfoManager.Instance().GetForeignKeysByTargetType(t);
             foreach (var fk in fkeys)
             {
-                colinfos.Add(new ClassInfoManager.ColumnInfoEntry()
-                {
-                    Name = StringUtils.ToSnake(fk),
-                });
+                colinfos.Add(new ClassInfoManager.ColumnInfoEntry(StringUtils.ToSnake(fk)));
             }
 
-            var ti = new ClassInfoManager.Entry() { Columns = colinfos.ToArray(), Relations = relinfos.ToArray(), ClassType = t };
+            var ti = new ClassInfoManager.Entry(t, colinfos.ToArray(), relinfos.ToArray());
             _dict.TryAdd(t, ti);
 
             return ti;
@@ -90,33 +81,57 @@ namespace Meuzz.Persistence.Core
             return _instance;
         }
 
-        private static ClassInfoManager _instance = null;
+        private static ClassInfoManager? _instance = null;
         private static readonly object _instanceLocker = new Object();
 
         public class RelationInfoEntry
         {
-            public Type TargetType;
-            public PropertyInfo PropertyInfo;
-            public PropertyInfo InversePropertyInfo;
-            public string ForeignKey;
-            public string PrimaryKey;
+            public Type TargetType { get; }
+            public PropertyInfo PropertyInfo { get;  }
+            public PropertyInfo InversePropertyInfo { get; }
+            public string ForeignKey { get; }
+            public string? PrimaryKey { get; }
+
+            public RelationInfoEntry(Type targetType, PropertyInfo propertyInfo, PropertyInfo inversePropertyInfo, string foreignKey, string? primaryKey = null)
+            {
+                TargetType = targetType;
+                PropertyInfo = propertyInfo;
+                InversePropertyInfo = inversePropertyInfo;
+                ForeignKey = foreignKey;
+                PrimaryKey = primaryKey;
+            }
         }
 
         public class ColumnInfoEntry
         {
-            public string Name;
-            public MemberInfo MemberInfo;
-            public string BindingTo;
-            public string BindingToPrimaryKey;
+            public string Name { get; }
+            public MemberInfo? MemberInfo { get; }
+            public string? BindingTo { get; }
+            public string? BindingToPrimaryKey { get; }
+
+            public ColumnInfoEntry(string name, MemberInfo? memberInfo = null, ForeignKeyInfoManager.Entry? fke = null)
+            {
+                Name = name;
+                MemberInfo = memberInfo;
+                BindingTo = fke?.PrimaryTableName;
+                BindingToPrimaryKey = fke?.PrimaryKey;
+            }
         }
 
 
         public class Entry
         {
-            public Type ClassType;
+            public Type ClassType { get; }
 
-            public ColumnInfoEntry[] Columns;
-            public RelationInfoEntry[] Relations;
+            public ColumnInfoEntry[] Columns { get; }
+            public RelationInfoEntry[] Relations { get; }
+
+            public Entry(Type classType, ColumnInfoEntry[] columns, RelationInfoEntry[] relations)
+            {
+                ClassType = classType;
+                Columns = columns;
+                Relations = relations;
+            }
         }
     }
 }

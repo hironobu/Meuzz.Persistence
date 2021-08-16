@@ -1,6 +1,5 @@
 ﻿#nullable enable
 
-using Meuzz.Foundation;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -8,6 +7,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
+using Meuzz.Foundation;
 
 namespace Meuzz.Persistence.Sql
 {
@@ -38,7 +38,7 @@ namespace Meuzz.Persistence.Sql
             IDictionary<string, object?>? parameters = null;
 
             var parameterName = statement.ParamInfo.GetDefaultParamName();
-            var parameterType = statement.ParamInfo.GetParameterTypeByParamName(parameterName);
+            var parameterType = statement.ParamInfo.GetParameterTypeByParamName(parameterName!);
 
             sb.Append($"SELECT {string.Join(", ", GetColumnsToString(statement.ParamInfo.GetAllParameters(), columnCollationInfo))}");
             sb.Append($" FROM {parameterType.GetTableName()} {parameterName}");
@@ -47,7 +47,7 @@ namespace Meuzz.Persistence.Sql
             {
                 sb.Append($" LEFT JOIN {relationSpec.Foreign.Type.GetTableName()} {relationSpec.Foreign.Name} ON {relationSpec.ConditionSql}");
             }
-            sb.Append($" WHERE {FormatElement(statement.Condition, true, true, parameters)}");
+            sb.Append($" WHERE {FormatElement(statement.Condition!, true, true, parameters)}");
 
             var ret = sb.ToString();
             return (ret.Length > 0 ? ret : null, parameters, new SqlCollator(columnCollationInfo));
@@ -87,7 +87,7 @@ namespace Meuzz.Persistence.Sql
                     }
                     else
                     {
-                        sb.Append($" ({string.Join(", ", vals.Select(_f))})");
+                        sb.Append($" ({string.Join(", ", vals.Select(_f!))})");
                         if (idx < rows.Length - 1)
                             sb.Append(",");
                     }
@@ -132,7 +132,7 @@ namespace Meuzz.Persistence.Sql
             IDictionary<string, object?>? parameters = null;
 
             sb.Append($"DELETE FROM {statement.TableName}");
-            sb.Append($" WHERE {FormatElement(statement.Condition, false, true, parameters)}");
+            sb.Append($" WHERE {FormatElement(statement.Condition!, false, true, parameters)}");
 
             var ret = sb.ToString();
             return (ret.Length > 0 ? ret : null, parameters, null);

@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Data;
@@ -10,9 +12,8 @@ namespace Meuzz.Persistence.Core
 {
     public class ForeignKeyInfoManager
     {
-        private IDictionary<Type, string[]> _typeToForeignKeysTable = null;
-        private IDictionary<PropertyInfo, string> _propertyInfoToForeignKeyTable = null;
-        //private IDictionary<string, PropertyInfo> _foreignKeyToInversePropertyInfoTable = null;
+        private IDictionary<Type, string[]>? _typeToForeignKeysTable;
+        private IDictionary<PropertyInfo, string>? _propertyInfoToForeignKeyTable;
 
         public ForeignKeyInfoManager()
         {
@@ -22,7 +23,6 @@ namespace Meuzz.Persistence.Core
         {
             var typeToForeignKeysTable = new Dictionary<Type, string[]>();
             var propertyInfoToForeignKeyTable = new Dictionary<PropertyInfo, string>();
-            // var foreignKeyToInversePropertyInfoTable = new Dictionary<string, PropertyInfo>();
 
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
@@ -33,7 +33,7 @@ namespace Meuzz.Persistence.Core
                     {
                         var t = typeof(System.Collections.IEnumerable).IsAssignableFrom(prop.PropertyType) ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
                         var hasmany = prop.GetCustomAttribute<HasManyAttribute>();
-                        var fk = hasmany.ForeignKey;
+                        var fk = hasmany?.ForeignKey;
                         if (fk == null)
                         {
                             if (hasManyProps.Where(p => p.PropertyType == prop.PropertyType).Count() > 1)
@@ -45,8 +45,6 @@ namespace Meuzz.Persistence.Core
                             fk = StringUtils.ToSnake(revprop.Name) + "_id";
                         }
                         propertyInfoToForeignKeyTable.Add(prop, fk);
-
-                        // foreignKeyToInversePropertyInfoTable.Add(fk, t.GetPropertyInfoFromColumnName(fk));
 
                         if (typeToForeignKeysTable.ContainsKey(t))
                         {
@@ -62,32 +60,26 @@ namespace Meuzz.Persistence.Core
 
             _typeToForeignKeysTable = typeToForeignKeysTable;
             _propertyInfoToForeignKeyTable = propertyInfoToForeignKeyTable;
-            // _foreignKeyToInversePropertyInfoTable = foreignKeyToInversePropertyInfoTable;
         }
 
         public string[] GetForeignKeysByTargetType(Type targetType)
         {
-            return _typeToForeignKeysTable.ContainsKey(targetType) ? _typeToForeignKeysTable[targetType] : new string[] { };
+            return _typeToForeignKeysTable?.ContainsKey(targetType) == true ? _typeToForeignKeysTable[targetType] : new string[] { };
         }
 
-        public string GetForeignKeyByPropertyInfo(PropertyInfo pi)
+        public string? GetForeignKeyByPropertyInfo(PropertyInfo pi)
         {
-            return _propertyInfoToForeignKeyTable.ContainsKey(pi) ? _propertyInfoToForeignKeyTable[pi] : null;
+            return _propertyInfoToForeignKeyTable?.ContainsKey(pi) == true ? _propertyInfoToForeignKeyTable[pi] : null;
         }
-
-        /*public PropertyInfo GetInversePropertyInfoByForeignKey(string fk)
-        {
-            return _foreignKeyToInversePropertyInfoTable[fk];
-        }*/
 
         private Entry GetInversedForeignKeyInfo(Type t, PropertyInfo pi)
         {
             // dummy
-            var fki = new Entry();
+            var fki = new Entry(string.Empty, string.Empty, null, null);
             return fki;
         }
 
-        public Entry GetForeignKeyInfoByPropertyInfo(PropertyInfo pi)
+        public Entry? GetForeignKeyInfoByPropertyInfo(PropertyInfo pi)
         {
             var pt = pi.PropertyType;
             if (!(typeof(IEnumerable).IsAssignableFrom(pt) && !typeof(string).IsAssignableFrom(pt)))
@@ -102,26 +94,34 @@ namespace Meuzz.Persistence.Core
                 }
             }
 
-            var fki = new Entry();
-
             var hasmany = pi.GetCustomAttribute<HasManyAttribute>();
-            fki.PrimaryKey = hasmany?.PrimaryKey ?? pi.DeclaringType.GetPrimaryKey();
-            fki.PrimaryTableName = pi.DeclaringType.GetTableName();
-            fki.ForeignKey = hasmany?.ForeignKey ?? ForeignKeyInfoManager.Instance().GetForeignKeyByPropertyInfo(pi);
-            fki.ForeignTableName = pi.PropertyType.GetTableName();
+            var fki = new Entry(
+                hasmany?.PrimaryKey ?? pi.DeclaringType.GetPrimaryKey(),
+                pi.DeclaringType.GetTableName(),
+                hasmany?.ForeignKey ?? GetForeignKeyByPropertyInfo(pi),
+                pi.PropertyType.GetTableName()
+                );
 
             return fki;
         }
 
         public class Entry
         {
-            public string PrimaryKey;
-            public string PrimaryTableName;
-            public string ForeignKey;
-            public string ForeignTableName;
+            public string PrimaryKey { get; }
+            public string PrimaryTableName { get; }
+            public string? ForeignKey { get; }
+            public string? ForeignTableName { get; }
+
+            public Entry(string primaryKey, string primaryTableName, string? foreignKey, string? foreignTableName)
+            {
+                PrimaryKey = primaryKey;
+                PrimaryTableName = primaryTableName;
+                ForeignKey = foreignKey;
+                ForeignTableName = foreignTableName;
+            }
         }
 
-        private static ForeignKeyInfoManager _instance = null;
+        private static ForeignKeyInfoManager? _instance = null;
         private static readonly object _instanceLocker = new object();
 
         public static ForeignKeyInfoManager Instance()

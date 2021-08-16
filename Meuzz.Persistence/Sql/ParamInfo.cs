@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -7,19 +9,19 @@ namespace Meuzz.Persistence.Sql
     public class ParamInfo
     {
         private IDictionary<string, Type> _parameters = new Dictionary<string, Type>();
-        private string _defaultParamName = null;
-        private Type _defaultParamType = null;
+        private string? _defaultParamName = null;
+        private Type? _defaultParamType = null;
 
         public void ResetParameters()
         {
             _parameters.Clear();
         }
 
-        public string RegisterParameter(string name, Type t, bool asDefault)
+        public string? RegisterParameter(string? name, Type t, bool asDefault)
         {
             var k = name;
 
-            if (name != null)
+            if (k != null)
             {
                 int i = 1;
                 while (_parameters.ContainsKey(k))
@@ -48,12 +50,12 @@ namespace Meuzz.Persistence.Sql
             return _parameters.Select(x => (x.Key, x.Value)).ToArray();
         }
 
-        public Type GetDefaultParamType()
+        public Type? GetDefaultParamType()
         {
             return _defaultParamType;
         }
 
-        public string GetDefaultParamName()
+        public string? GetDefaultParamName()
         {
             return _defaultParamName;
         }
