@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 
 namespace Meuzz.Persistence.Sql
 {
@@ -11,10 +12,17 @@ namespace Meuzz.Persistence.Sql
 
         public SqlSelectStatement(SqlSelectStatement statement) : base(statement)
         {
+            _columnInfos = statement.ColumnInfos.ToList();
             _relationSpecs = statement.RelationSpecs.ToList();
         }
 
+        public IEnumerable<MemberInfo> ColumnInfos { get => _columnInfos; }
         public IEnumerable<RelationSpec> RelationSpecs { get => _relationSpecs; }
+
+        protected virtual void AddColumnInfos(MemberInfo memberInfo)
+        {
+            _columnInfos.Add(memberInfo);
+        }
 
         private RelationSpec GetRelationSpecByParamName(string from, string to)
         {
@@ -42,6 +50,7 @@ namespace Meuzz.Persistence.Sql
             SetRelationSpecByParamName(bindingSpec);
         }
 
+        private List<MemberInfo> _columnInfos = new List<MemberInfo>();
         private List<RelationSpec> _relationSpecs = new List<RelationSpec>();
     }
 
@@ -82,7 +91,36 @@ namespace Meuzz.Persistence.Sql
 
         public virtual SelectStatement<T> Select<T2>(Expression<Func<T, T2>> expression) where T2 : class
         {
-            return this;
+            var members = PickupMemberExpressions(expression);
+            var t = members.Item1;
+            var ctors = t.GetConstructors();
+            var paraminfos = ctors.First().GetParameters();
+            var obj = Activator.CreateInstance(t);
+            return null;
+        }
+
+
+        private (Type, IEnumerable<MemberInfo>) PickupMemberExpressions(Expression e)
+        {
+            switch (e)
+            {
+                case LambdaExpression le:
+                    return PickupMemberExpressions(le.Body);
+
+                case BinaryExpression be:
+                    var left = PickupMemberExpressions(be.Left);
+                    var right = PickupMemberExpressions(be.Right);
+                    return (null, left.Item2.Concat(right.Item2));
+
+                case MemberExpression me:
+                    return (null, new[] { me.Member });
+
+                case NewExpression ne:
+                    return (ne.Type, ne.Arguments.Select(PickupMemberExpressions).SelectMany(x => x.Item2));
+
+                default:
+                    throw new NotImplementedException();
+            }
         }
     }
 
