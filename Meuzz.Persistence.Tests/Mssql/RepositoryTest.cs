@@ -181,6 +181,7 @@ namespace Meuzz.Persistence.Tests.Mssql
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
         }
+
         [Fact]
         public void TestCreateAndUpdate()
         {

@@ -83,12 +83,12 @@ namespace Meuzz.Persistence.Sql
         }*/
     }
 
-    public abstract class SqlBuilder<T> : SqlBuilderBase where T : class, new()
+    public abstract class SqlBuilder<T> : SqlBuilderBase where T : class
     {
         // public abstract IFilterable<T> BuildSelect();
     }
 
-    public class SqliteSqlBuilder<T> : SqlBuilder<T> where T : class, new()
+    public class SqliteSqlBuilder<T> : SqlBuilder<T> where T : class
     {
         /*public override IFilterable<T> BuildSelect()
         {

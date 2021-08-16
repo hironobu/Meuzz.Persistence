@@ -340,7 +340,7 @@ namespace Meuzz.Persistence
 
     }
 /*
-    public class ObjectRepository<T> : ObjectRepository<T, object> where T: class, new()
+    public class ObjectRepository<T> : ObjectRepository<T, object> where T: class
     {
         public ObjectRepository(Connection conn, SqlFormatter formatter, SqlCollator collator) : base(conn, formatter, collator) { }
     }
@@ -360,13 +360,19 @@ namespace Meuzz.Persistence
             _connection.Open();
         }
 
-        public IEnumerable<T> Load<T>(Func<SelectStatement<T>, SelectStatement<T>> f) where T : class, new()
+        public IEnumerable<T> Load<T>(Func<SelectStatement<T>, SelectStatement<T>> f) where T : class
         {
             var statement = f(new SelectStatement<T>());
             return Enumerable.Cast<T>(LoadObjects(typeof(T), statement));
         }
 
-        public IEnumerable<T> Load<T>(Expression<Func<T, bool>> f = null) where T : class, new()
+        public IEnumerable<T2> Load<T, T2>(Func<SelectStatement<T>, SelectStatement<T2>> f) where T : class where T2 : class
+        {
+            var statement = f(new SelectStatement<T>());
+            return Enumerable.Cast<T2>(LoadObjects(typeof(T2), statement));
+        }
+
+        public IEnumerable<T> Load<T>(Expression<Func<T, bool>> f = null) where T : class
         {
             var statement = new SelectStatement<T>();
             if (f != null)
@@ -377,7 +383,7 @@ namespace Meuzz.Persistence
             return Enumerable.Cast<T>(LoadObjects(typeof(T), statement));
         }
 
-        public IEnumerable<T> Load<T>(params object[] id) where T : class, new()
+        public IEnumerable<T> Load<T>(params object[] id) where T : class
         {
             var primaryKey = typeof(T).GetPrimaryKey();
 
@@ -387,17 +393,17 @@ namespace Meuzz.Persistence
             return Enumerable.Cast<T>(LoadObjects(typeof(T), statement));
         }
 
-        public bool Store<T>(T obj) where T : class, new()
+        public bool Store<T>(T obj) where T : class
         {
             return Store(new T[] { obj });
         }
 
-        public bool Store<T>(IEnumerable<T> objs) where T : class, new()
+        public bool Store<T>(IEnumerable<T> objs) where T : class
         {
             return StoreObjects(typeof(T), objs, null);
         }
 
-        public bool Delete<T>(Expression<Func<T, bool>> f) where T : class, new()
+        public bool Delete<T>(Expression<Func<T, bool>> f) where T : class
         {
             var statement = new DeleteStatement<T>();
             statement.Where(f);
@@ -408,7 +414,7 @@ namespace Meuzz.Persistence
             return true;
         }
 
-        public bool Delete<T>(params object[] id) where T : class, new()
+        public bool Delete<T>(params object[] id) where T : class
         {
             var primaryKey = typeof(T).GetPrimaryKey();
 

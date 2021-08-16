@@ -45,14 +45,14 @@ namespace Meuzz.Persistence.Sql
         }
     }
 
-    public class InsertStatement<T> : SqlInsertStatement where T : class, new()
+    public class InsertStatement<T> : SqlInsertStatement where T : class
     {
         public InsertStatement() : base(typeof(T))
         {
         }
     }
 
-    public class UpdateStatement<T> : SqlUpdateStatement where T : class, new()
+    public class UpdateStatement<T> : SqlUpdateStatement where T : class
     {
         public UpdateStatement() : base(typeof(T))
         {

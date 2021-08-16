@@ -61,7 +61,7 @@ namespace Meuzz.Persistence.Sql
         }
     }
 
-    public class SelectStatement<T> : SqlSelectStatement where T : class, new()
+    public class SelectStatement<T> : SqlSelectStatement where T : class
     {
         public SelectStatement() : base(typeof(T))
         {
@@ -83,7 +83,7 @@ namespace Meuzz.Persistence.Sql
             return this;
         }
 
-        public virtual SelectStatement<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class, new()
+        public virtual SelectStatement<T> Joins<T2>(Expression<Func<T, IEnumerable<T2>>> propexp, Expression<Func<T, T2, bool>> cond = null) where T2 : class
         {
             BuildRelationSpec(propexp, cond);
             return this;
@@ -133,7 +133,7 @@ namespace Meuzz.Persistence.Sql
         public T1 Right { get; set; }
     }
 
-    public class DeleteStatement<T> : SqlDeleteStatement where T : class, new()
+    public class DeleteStatement<T> : SqlDeleteStatement where T : class
     {
         public DeleteStatement() : base(typeof(T))
         {
