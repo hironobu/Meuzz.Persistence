@@ -89,7 +89,7 @@ namespace Meuzz.Persistence.Sql
             return this;
         }
 
-        public virtual SelectStatement<T> Select<T2>(Expression<Func<T, T2>> expression) where T2 : class
+        public virtual SelectStatement<T2> Select<T2>(Expression<Func<T, T2>> expression) where T2 : class
         {
             var members = PickupMemberExpressions(expression);
             var t = members.Item1;

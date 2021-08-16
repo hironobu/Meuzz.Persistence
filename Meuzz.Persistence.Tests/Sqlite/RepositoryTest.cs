@@ -8,20 +8,20 @@ namespace Meuzz.Persistence.Tests.Sqlite
 {
     public class RepositoryTest
     {
-        private IPersistenceContext _context;
+        private IStorageContext _context;
         private ObjectRepository _repository;
         public RepositoryTest()
         {
             var engine = PersistenceEngineFactory.Instance().GetEngine("sqlite");
 
             _context = engine.CreateContext("type=sqlite;file=:memory:");
-            _context.Connection.Open();
+            _context.Open();
 
-            _context.Connection.Execute(@"
+            _context.Execute(@"
                 CREATE TABLE Players (ID integer PRIMARY KEY, NAME text, AGE integer, PLAY_TIME integer);
                 CREATE TABLE Characters (ID integer PRIMARY KEY, NAME text, PLAYER_ID integer, LAST_PLAYER_ID integer NULL, FOREIGN KEY (PLAYER_ID) REFERENCES Players(ID), FOREIGN KEY (LAST_PLAYER_ID) REFERENCES Players(ID));
             ");
-            _context.Connection.Execute(@"
+            _context.Execute(@"
                 INSERT INTO Players VALUES (1, 'aaa', 10, 100);
                 INSERT INTO Players VALUES (2, 'bbb', 20, 200);
                 INSERT INTO Players VALUES (3, 'ccc''s', 10, 200);
@@ -29,20 +29,21 @@ namespace Meuzz.Persistence.Tests.Sqlite
                 INSERT INTO Characters VALUES (2, 'bbbb', 1, NULL);
                 INSERT INTO Characters VALUES (3, 'cccc', 2, 3);
             ");
-            _repository = new ObjectRepository(_context.Connection, _context.Formatter, new SqlCollator());
+
+            _repository = new ObjectRepository();
         }
 
         [Fact]
         public void TestLoadById()
         {
-            var objs = _repository.Load<Player>(1);
+            var objs = _repository.Load<Player>(_context, 1);
             Assert.Single(objs);
             Assert.Equal((Int64)1, objs.ElementAt(0).Id);
-            var objs2 = _repository.Load<Player>(2);
+            var objs2 = _repository.Load<Player>(_context, 2);
             Assert.Single(objs2);
             Assert.Equal((Int64)2, objs2.ElementAt(0).Id);
 
-            var objs3 = _repository.Load<Player>(1, 2, 3);
+            var objs3 = _repository.Load<Player>(_context, 1, 2, 3);
             Assert.Equal(3, objs3.Count());
             Assert.Equal((Int64)1, objs3.ElementAt(0).Id);
             Assert.Equal("aaa", objs3.ElementAt(0).Name);
@@ -55,9 +56,9 @@ namespace Meuzz.Persistence.Tests.Sqlite
         [Fact]
         public void TestLoadByLambda()
         {
-            var objs = _repository.Load<Player>((x) => x.Name == "aaa");
+            var objs = _repository.Load<Player>(_context, (x) => x.Name == "aaa");
             Assert.Single(objs);
-            var objs2 = _repository.Load<Player>((x) => x.Age == 10);
+            var objs2 = _repository.Load<Player>(_context, (x) => x.Age == 10);
             Assert.Equal(2, objs2.Count());
             Assert.Equal(1, objs2.ElementAt(0).Id);
             Assert.Equal(3, objs2.ElementAt(1).Id);
@@ -67,12 +68,12 @@ namespace Meuzz.Persistence.Tests.Sqlite
         public void TestLoadByLambdaAndVariables()
         {
             var c = "aaa";
-            var objs = _repository.Load<Player>(x => x.Name == c);
+            var objs = _repository.Load<Player>(_context, x => x.Name == c);
             Assert.Single(objs);
             Assert.Equal(1, objs.ElementAt(0).Id);
 
             var age = 10;
-            var objs2 = _repository.Load<Player>(x => x.Age == age);
+            var objs2 = _repository.Load<Player>(_context, x => x.Age == age);
             Assert.Equal(2, objs2.Count());
             Assert.Equal(1, objs2.ElementAt(0).Id);
             Assert.Equal(3, objs2.ElementAt(1).Id);
@@ -85,12 +86,12 @@ namespace Meuzz.Persistence.Tests.Sqlite
         public void TestLoadByClosure()
         {
             var c = "aaa";
-            var objs = _repository.Load<Player>(x => x.Name == c);
+            var objs = _repository.Load<Player>(_context, x => x.Name == c);
             Assert.Single(objs);
             Assert.Equal(1, objs.ElementAt(0).Id);
 
             var age = 10;
-            var objs2 = _repository.Load<Player>(x => x.Age == age);
+            var objs2 = _repository.Load<Player>(_context, x => x.Age == age);
             Assert.Equal(2, objs2.Count());
             Assert.Equal(1, objs2.ElementAt(0).Id);
             Assert.Equal(3, objs2.ElementAt(1).Id);
@@ -103,21 +104,21 @@ namespace Meuzz.Persistence.Tests.Sqlite
         [Fact]
         public void TestLoadByLambdaNotEquals()
         {
-            var objs = _repository.Load<Player>(x => x.Name != "aaa");
+            var objs = _repository.Load<Player>(_context, x => x.Name != "aaa");
             Assert.Equal(2, objs.Count());
         }
 
         [Fact]
         public void TestLoadbyLambdaAnd()
         {
-            var objs = _repository.Load<Player>(x => x.Name == "aaa" && x.Age != 10);
+            var objs = _repository.Load<Player>(_context, x => x.Name == "aaa" && x.Age != 10);
             Assert.Empty(objs);
         }
 
         [Fact]
         public void TestLoadByLambdaWithJoins()
         {
-            var objs = _repository.Load<Player>(st => st.Where(x => x.Age == 10)
+            var objs = _repository.Load<Player>(_context, st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters, (x, r) => x.Id == r.Player.Id)
                 .Joins(x => x.LastCharacters, (x, r) => x.Id == r.LastPlayer.Id));
             Assert.Equal(2, objs.Count());
@@ -132,7 +133,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
         [Fact]
         public void TestLoadByLambdaWithJoinsWithoutId()
         {
-            var objs = _repository.Load<Player>(st => st.Where(x => x.Age == 10)
+            var objs = _repository.Load<Player>(_context, st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters, (x, r) => x == r.Player)
                 .Joins(x => x.LastCharacters, (x, r) => x == r.LastPlayer));
             Assert.Equal(2, objs.Count());
@@ -147,7 +148,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
         [Fact]
         public void TestLoadByLambdaWithJoinsAndHasMany()
         {
-            var objs = _repository.Load<Player>(st => st.Where(x => x.Age == 10)
+            var objs = _repository.Load<Player>(_context, st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters));
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
@@ -157,7 +158,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
         [Fact]
         public void TestLoadByLambdaWithJoinsAndHasManyOnPlayer2()
         {
-            var objs = _repository.Load<Models.NoForeignKeyProperty.Player>(st => st.Where(x => x.Age == 10)
+            var objs = _repository.Load<Models.NoForeignKeyProperty.Player>(_context, st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters)
                 .Joins(x => x.LastCharacters));
             Assert.Equal(2, objs.Count());
@@ -172,23 +173,23 @@ namespace Meuzz.Persistence.Tests.Sqlite
         [Fact]
         public void TestLoadByLambdaWithJoinsAndHasManyOnPlayer3()
         {
-            var objs = _repository.Load<Models.AutoForeignKey.Player>(st => st.Where(x => x.Age == 10)
+            var objs = _repository.Load<Models.AutoForeignKey.Player>(_context, st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters));
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
         }
 
-
-        [Fact]
+        /*[Fact]
         public void TestLoadByLambdaWithJoinsAndHasManyOnPlayer3_()
         {
-            var objs = _repository.Load<Models.AutoForeignKey.Player>(st => st.Where(x => x.Age == 10)
-                .Joins(x => x.Characters));
+            var playerRepository = new ObjectRepository<Player>();
+
+            var objs = playerRepository.Load(_context, st => st.Where(x => x.Age == 10).Select(x => new { Name = x.Name }));
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
-        }
+        }*/
 
         [Fact]
         public void TestCreateAndUpdate()
@@ -210,9 +211,9 @@ namespace Meuzz.Persistence.Tests.Sqlite
                 new Character() { Name = "Char 14" }
             };
 
-            _repository.Store(new[] { p, q, r });
+            _repository.Store(_context, new[] { p, q, r });
 
-            var rset = _context.Connection.Execute("SELECT * FROM Players");
+            var rset = _context.Execute("SELECT * FROM Players");
 
             Assert.Equal(5, rset.Results.Count());
             Assert.Equal("Update Test", rset.Results.ElementAt(0)["name"]);
@@ -229,7 +230,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
             Assert.Equal(5, q.Id);
             Assert.Equal(1, r.Id);
 
-            var rset2 = _context.Connection.Execute("SELECT * FROM Characters");
+            var rset2 = _context.Execute("SELECT * FROM Characters");
             Assert.Equal(9, rset2.Results.Count());
         }
 
@@ -243,9 +244,9 @@ namespace Meuzz.Persistence.Tests.Sqlite
                 values.Add($"('Char {i}')");
             };
 
-            _context.Connection.Execute(sql + string.Join(", ", values));
+            _context.Execute(sql + string.Join(", ", values));
 
-            var rset = _context.Connection.Execute("SELECT * FROM Characters");
+            var rset = _context.Execute("SELECT * FROM Characters");
             Assert.Equal(10003, rset.Results.Count());
         }
 
@@ -258,44 +259,44 @@ namespace Meuzz.Persistence.Tests.Sqlite
                 characters.Add(new Character() { Name = $"Char {i}" });
             };
 
-            _repository.Store(characters.ToArray());
+            _repository.Store(_context, characters.ToArray());
 
-            var rset = _context.Connection.Execute("SELECT * FROM Characters");
+            var rset = _context.Execute("SELECT * FROM Characters");
             Assert.Equal(10003, rset.Results.Count());
         }
 
         [Fact]
         public void TestDelete()
         {
-            var rset = _context.Connection.Execute("SELECT * FROM Players");
+            var rset = _context.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset.Results.Count());
 
-            _repository.Store(new Player() { Name = "xxx" });
+            _repository.Store(_context, new Player() { Name = "xxx" });
 
-            var rset2 = _context.Connection.Execute("SELECT * FROM Players");
+            var rset2 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(4, rset2.Results.Count());
 
-            _repository.Delete<Player>((x) => x.Id == 4);
+            _repository.Delete<Player>(_context, (x) => x.Id == 4);
             // _repository.Delete(4);
 
-            var rset3 = _context.Connection.Execute("SELECT * FROM Players");
+            var rset3 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
         }
 
         [Fact]
         public void TestDeleteById()
         {
-            var rset = _context.Connection.Execute("SELECT * FROM Players");
+            var rset = _context.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset.Results.Count());
 
-            _repository.Store(new Player() { Name = "xxx" });
+            _repository.Store(_context, new Player() { Name = "xxx" });
 
-            var rset2 = _context.Connection.Execute("SELECT * FROM Players");
+            var rset2 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(4, rset2.Results.Count());
 
-            _repository.Delete<Player>(4);
+            _repository.Delete<Player>(_context, 4);
 
-            var rset3 = _context.Connection.Execute("SELECT * FROM Players");
+            var rset3 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
             Assert.Equal((Int64)1, rset3.Results.ElementAt(0)["id"]);
             Assert.Equal((Int64)2, rset3.Results.ElementAt(1)["id"]);
@@ -305,19 +306,19 @@ namespace Meuzz.Persistence.Tests.Sqlite
         [Fact]
         public void TestDeleteByLamdaAndName()
         {
-            var rset = _context.Connection.Execute("SELECT * FROM Players");
+            var rset = _context.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset.Results.Count());
 
-            _repository.Store(new Player() { Name = "xxx" });
-            _repository.Store(new Player() { Name = "yyy" });
-            _repository.Store(new Player() { Name = "zzz" });
+            _repository.Store(_context, new Player() { Name = "xxx" });
+            _repository.Store(_context, new Player() { Name = "yyy" });
+            _repository.Store(_context, new Player() { Name = "zzz" });
 
-            var rset2 = _context.Connection.Execute("SELECT * FROM Players");
+            var rset2 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(6, rset2.Results.Count());
 
-            _repository.Delete<Player>(x => x.Name == "yyy");
+            _repository.Delete<Player>(_context, x => x.Name == "yyy");
 
-            var rset3 = _context.Connection.Execute("SELECT * FROM Players");
+            var rset3 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(5, rset3.Results.Count());
             Assert.Equal((Int64)1, rset3.Results.ElementAt(0)["id"]);
             Assert.Equal((Int64)2, rset3.Results.ElementAt(1)["id"]);
@@ -329,20 +330,20 @@ namespace Meuzz.Persistence.Tests.Sqlite
         [Fact]
         public void TestDeleteByLamdaAndName2()
         {
-            var rset = _context.Connection.Execute("SELECT * FROM Players");
+            var rset = _context.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset.Results.Count());
 
-            _repository.Store(new Player() { Name = "xxx" });
-            _repository.Store(new Player() { Name = "yyy" });
-            _repository.Store(new Player() { Name = "zzz" });
+            _repository.Store(_context, new Player() { Name = "xxx" });
+            _repository.Store(_context, new Player() { Name = "yyy" });
+            _repository.Store(_context, new Player() { Name = "zzz" });
 
-            var rset2 = _context.Connection.Execute("SELECT * FROM Players");
+            var rset2 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(6, rset2.Results.Count());
 
             var names = new[] { "xxx", "yyy", "zzz" };
-            _repository.Delete<Player>(x => names.Contains(x.Name));
+            _repository.Delete<Player>(_context, x => names.Contains(x.Name));
 
-            var rset3 = _context.Connection.Execute("SELECT * FROM Players");
+            var rset3 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
             Assert.Equal((Int64)1, rset3.Results.ElementAt(0)["id"]);
             Assert.Equal((Int64)2, rset3.Results.ElementAt(1)["id"]);
@@ -353,19 +354,19 @@ namespace Meuzz.Persistence.Tests.Sqlite
         [Fact]
         public void TestDeleteByIds()
         {
-            var rset = _context.Connection.Execute("SELECT * FROM Players");
+            var rset = _context.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset.Results.Count());
 
-            _repository.Store(new Player() { Name = "xxx" });
-            _repository.Store(new Player() { Name = "yyy" });
-            _repository.Store(new Player() { Name = "zzz" });
+            _repository.Store(_context, new Player() { Name = "xxx" });
+            _repository.Store(_context, new Player() { Name = "yyy" });
+            _repository.Store(_context, new Player() { Name = "zzz" });
 
-            var rset2 = _context.Connection.Execute("SELECT * FROM Players");
+            var rset2 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(6, rset2.Results.Count());
 
-            _repository.Delete<Player>(4, 5, 6);
+            _repository.Delete<Player>(_context, 4, 5, 6);
 
-            var rset3 = _context.Connection.Execute("SELECT * FROM Players");
+            var rset3 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
             Assert.Equal((Int64)1, rset3.Results.ElementAt(0)["id"]);
             Assert.Equal((Int64)2, rset3.Results.ElementAt(1)["id"]);
@@ -375,25 +376,24 @@ namespace Meuzz.Persistence.Tests.Sqlite
         [Fact]
         public void TestDeleteByIdsWithExpression()
         {
-            var rset = _context.Connection.Execute("SELECT * FROM Players");
+            var rset = _context.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset.Results.Count());
 
-            _repository.Store(new Player() { Name = "xxx" });
-            _repository.Store(new Player() { Name = "yyy" });
-            _repository.Store(new Player() { Name = "zzz" });
+            _repository.Store(_context, new Player() { Name = "xxx" });
+            _repository.Store(_context, new Player() { Name = "yyy" });
+            _repository.Store(_context, new Player() { Name = "zzz" });
 
-            var rset2 = _context.Connection.Execute("SELECT * FROM Players");
+            var rset2 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(6, rset2.Results.Count());
 
             var ids = new int[] { 4, 5, 6 };
-            _repository.Delete<Player>(x => ids.Contains(x.Id));
+            _repository.Delete<Player>(_context, x => ids.Contains(x.Id));
 
-            var rset3 = _context.Connection.Execute("SELECT * FROM Players");
+            var rset3 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
             Assert.Equal((Int64)1, rset3.Results.ElementAt(0)["id"]);
             Assert.Equal((Int64)2, rset3.Results.ElementAt(1)["id"]);
             Assert.Equal((Int64)3, rset3.Results.ElementAt(2)["id"]);
         }
-
     }
 }

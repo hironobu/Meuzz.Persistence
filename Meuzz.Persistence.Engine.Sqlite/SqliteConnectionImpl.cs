@@ -15,33 +15,14 @@ namespace Meuzz.Persistence.Sqlite
 
     public class SqliteEngine : IPersistenceEngine
     {
-        /*public IPersistenceContext CreateConnection(IDictionary<string, object> parameters)
+        public IStorageContext CreateContext(IDictionary<string, object> parameters)
         {
-            return new SqliteConnectionImpl(parameters);
+            var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = parameters["file"].ToString() }.ToString());
+
+            return new StorageContextBase(connection, _formatter);
         }
 
-        public SqlFormatter CreateFormatter()
-        {
-            return new SqliteFormatter();
-        }*/
-
-        public IPersistenceContext CreateContext(IDictionary<string, object> parameters)
-        {
-            return new PersistenceContextBase(new SqliteConnectionImpl(parameters), new SqliteFormatter());
-        }
-    }
-
-    public class SqliteConnectionImpl : DbConnectionImpl<SqliteConnection, SqliteCommand>
-    {
-        public SqliteConnectionImpl(IDictionary<string, object> parameters)
-        {
-            SetupConnection(new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = parameters["file"].ToString() }.ToString()));
-        }
-
-        protected override void RegisterParameter(SqliteCommand cmd, string k, object v)
-        {
-            cmd.Parameters.AddWithValue(k, v != null ? v : DBNull.Value);
-        }
+        private SqlFormatter _formatter = new SqliteFormatter();
     }
 
     public class SqliteFormatter : SqlFormatter

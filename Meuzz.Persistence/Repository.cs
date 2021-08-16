@@ -1,30 +1,23 @@
-﻿using System;
+﻿#nullable enable
+
+using Meuzz.Foundation;
+using Meuzz.Persistence.Core;
+using Meuzz.Persistence.Sql;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using Meuzz.Persistence.Core;
-using Meuzz.Persistence.Reflections;
-using Meuzz.Persistence.Sql;
-using Meuzz.Foundation;
 
 namespace Meuzz.Persistence
 {
     public class ObjectRepositoryBase
     {
-        protected PersistenceConnection _connection = null;
-
-        protected SqlFormatter _formatter;
-        protected SqlCollator _collator;
-
-        protected IEnumerable<object> LoadObjects(Type t, SqlSelectStatement statement, Action<IEnumerable<object>> propertySetter = null)
+        protected IEnumerable<object> LoadObjects(IStorageContext context, Type t, SqlSelectStatement statement, Action<IEnumerable<object>>? propertySetter = null)
         {
-            var (sql, parameters, columnCollationInfo) = _formatter.Format(statement);
-            var rset = _connection.Execute(sql, parameters);
-
-            rset = _collator.Collate(rset, columnCollationInfo);
-            var results = PopulateObjects(t, rset, statement);
+            var rset = context.Execute(statement);
+            var results = PopulateObjects(context, t, rset, statement);
             if (propertySetter != null)
             {
                 propertySetter(results);
@@ -37,24 +30,24 @@ namespace Meuzz.Persistence
             yield break;
         }
 
-        protected IEnumerable<object> MakeDefaultReverseLoader(object value, Type targetType)
+        protected IEnumerable<object> MakeDefaultReverseLoader(IStorageContext context, object value, Type targetType)
         {
             var statement = new SqlSelectStatement(targetType);
             statement.BuildCondition(targetType.GetPrimaryKey(), value);
 
-            return LoadObjects(targetType, statement);
+            return LoadObjects(context, targetType, statement);
         }
 
-        protected IEnumerable<object> MakeDefaultLoader(object obj, ClassInfoManager.RelationInfoEntry reli)
+        protected IEnumerable<object> MakeDefaultLoader(IStorageContext context, object obj, ClassInfoManager.RelationInfoEntry reli)
         {
             var statement = new SqlSelectStatement(reli.TargetType);
             statement.BuildCondition(reli.ForeignKey, obj.GetType().GetPrimaryValue(obj));
 
-            return LoadObjects(reli.TargetType, statement, (results) =>
+            return LoadObjects(context, reli.TargetType, statement, (results) =>
             {
                 var t = reli.TargetType;
                 var conv = typeof(Enumerable)
-                    .GetMethod("Cast")
+                    .GetMethod("Cast")!
                     .MakeGenericMethod((t.IsGenericType) ? t.GetGenericArguments()[0] : t);
                 if (reli.InversePropertyInfo != null)
                 {
@@ -67,7 +60,7 @@ namespace Meuzz.Persistence
             });
         }
 
-        protected object PopulateObject(Type t, IEnumerable<string> cols, IEnumerable<object> vals)
+        protected object PopulateObject(IStorageContext context, Type t, IEnumerable<string> cols, IEnumerable<object?> vals)
         {
             Func<PropertyInfo, object, MemberAssignment> mapper = (k, v) =>
             {
@@ -75,8 +68,6 @@ namespace Meuzz.Persistence
             };
             var bindings = new List<MemberAssignment>();
 
-            // var proxyTypeBuilder = new PersistentTypeBuilder();
-            // proxyTypeBuilder.BuildStart(Assembly.GetExecutingAssembly().GetName(), t);
             IDictionary<PropertyInfo, IEnumerable<object>> reverseLoaders = new Dictionary<PropertyInfo, IEnumerable<object>>();
 
             foreach (var (c, v) in cols.Zip(vals))
@@ -89,11 +80,9 @@ namespace Meuzz.Persistence
 
                 if (prop.PropertyType.IsPersistent())
                 {
-                    // bindings.Add(mapper(prop, null));
-                    // proxyTypeBuilder.BuildOverrideProperty(prop);
                     if (v != null)
                     {
-                        var loader = MakeDefaultReverseLoader(v, prop.PropertyType);
+                        var loader = MakeDefaultReverseLoader(context, v, prop.PropertyType);
                         reverseLoaders.Add(prop, loader);
                     }
                 }
@@ -120,10 +109,10 @@ namespace Meuzz.Persistence
                 {
                     var tt = prop.PropertyType;
                     var conv = typeof(Enumerable)
-                        .GetMethod("Cast")
+                        .GetMethod("Cast")!
                         .MakeGenericMethod((tt.IsGenericType) ? tt.GetGenericArguments()[0] : tt);
 
-                    prop.SetValue(obj, conv.Invoke(null, new object[] { MakeDefaultLoader(obj, reli) }));
+                    prop.SetValue(obj, conv.Invoke(null, new object[] { MakeDefaultLoader(context, obj, reli) }));
                 }
             }
 
@@ -133,7 +122,7 @@ namespace Meuzz.Persistence
 
                 var tt = prop.PropertyType;
                 var conv = typeof(Enumerable)
-                    .GetMethod("Cast")
+                    .GetMethod("Cast")!
                     .MakeGenericMethod((tt.IsGenericType) ? tt.GetGenericArguments()[0] : tt);
 
                 loaderField.SetValue(obj, conv.Invoke(null, new object[] { proploader }));
@@ -143,7 +132,7 @@ namespace Meuzz.Persistence
             return obj;
         }
 
-        protected bool StoreObjects(Type t, IEnumerable<object> objs, IDictionary<string, object> extraData)
+        protected bool StoreObjects(IStorageContext context, Type t, IEnumerable<object> objs, IDictionary<string, object>? extraData)
         {
             var updated = objs.Where(x => t.GetPrimaryValue(x) != null).ToList();
             var inserted = objs.Where(x => t.GetPrimaryValue(x) == null).ToList();
@@ -151,18 +140,21 @@ namespace Meuzz.Persistence
             if (inserted.Count() > 0)
             {
                 var tt = typeof(InsertStatement<>).MakeGenericType(t);
-                var insertStatement = (SqlInsertStatement)Convert.ChangeType(Activator.CreateInstance(tt), tt);
+                var insertStatement = (SqlInsertStatement)Convert.ChangeType(Activator.CreateInstance(tt), tt)!;
                 insertStatement.Append(inserted);
                 insertStatement.ExtraData = extraData;
-                var (sql, parameters) = _formatter.Format(insertStatement);
-                var rset = _connection.Execute(sql, parameters);
+                var rset = context.Execute(insertStatement);
 
                 var pkey = t.GetPrimaryKey();
                 var prop = t.GetProperty(StringUtils.ToCamel(pkey, true));
+                if (prop == null)
+                {
+                    throw new InvalidOperationException();
+                }
                 var classinfo = t.GetClassInfo();
 
                 var results = rset.Results;
-                int newPrimaryId = (int)Convert.ChangeType(results.First()["id"], prop.PropertyType);
+                int newPrimaryId = (int)Convert.ChangeType(results.First()["id"], prop.PropertyType)!;
 
                 foreach (var (y, i) in inserted.Select((x, i) => (x, i)))
                 {
@@ -175,7 +167,7 @@ namespace Meuzz.Persistence
 
                         if (childObjs != null)
                         {
-                            StoreObjects(foreignType, childObjs, new Dictionary<string, object>() { { rel.ForeignKey, newPrimaryId } });
+                            StoreObjects(context, foreignType, childObjs, new Dictionary<string, object>() { { rel.ForeignKey, newPrimaryId } });
                         }
                     }
                 }
@@ -184,34 +176,33 @@ namespace Meuzz.Persistence
             if (updated.Count() > 0)
             {
                 var tt = typeof(UpdateStatement<>).MakeGenericType(t);
-                var updateStatement = (SqlUpdateStatement)Convert.ChangeType(Activator.CreateInstance(tt), tt);
+                var updateStatement = (SqlUpdateStatement)Convert.ChangeType(Activator.CreateInstance(tt), tt)!;
                 updateStatement.Append(updated);
-                var (sql2, parameters) = _formatter.Format(updateStatement);
-                _connection.Execute(sql2, parameters);
+                context.Execute(updateStatement);
             }
 
             return true;
         }
 
-        protected IEnumerable<object> PopulateObjects(Type t, PersistenceConnection.ResultSet rset, SqlSelectStatement statement)
+        protected IEnumerable<object> PopulateObjects(IStorageContext context, Type t, ResultSet rset, SqlSelectStatement statement)
         {
             var rows = rset.Results.Select(x =>
             {
                 var kvs = x.Select(c => (c.Key.Split('.'), c.Value));
-                var d = new Dictionary<string, object>();
+                var d = new Dictionary<string, object?>();
                 foreach (var (kk, v) in kvs)
                 {
                     var dx = d;
                     var k = string.Join('.', kk.Take(kk.Length - 1));
                     {
                         var dx0 = dx;
-                        if (dx0.TryGetValue(k, out var value))
+                        if (dx0.TryGetValue(k, out var value) && value != null)
                         {
-                            dx = value as Dictionary<string, object>;
+                            dx = (Dictionary<string, object?>)value;
                         }
                         else
                         {
-                            dx = new Dictionary<string, object>();
+                            dx = new Dictionary<string, object?>();
                             dx0[k] = dx;
                         }
                     }
@@ -221,21 +212,21 @@ namespace Meuzz.Persistence
                 return d;
             });
 
-            var resultDict = new Dictionary<string, IDictionary<dynamic, IDictionary<string, object>>>();
-            var resultObjects = new Dictionary<string, IDictionary<dynamic, IDictionary<string, object>>>();
+            var resultDict = new Dictionary<string, IDictionary<dynamic, IDictionary<string, object?>>>();
+            var resultObjects = new Dictionary<string, IDictionary<dynamic, IDictionary<string, object?>>>();
 
             foreach (var row in rows)
             {
                 foreach (var (k, v) in row)
                 {
-                    var d = v as Dictionary<string, object>;
+                    var d = (Dictionary<string, object?>)v!;
                     var tt = statement.ParamInfo.GetParameterTypeByParamName(k);
                     var pk = tt.GetPrimaryKey();
 
-                    if (!resultDict.TryGetValue(k, out var dd))
+                    if (!resultDict.TryGetValue(k, out var dd) || dd == null)
                     {
-                        dd = new Dictionary<object, IDictionary<string, object>>();
-                        resultDict.Add(k, dd);
+                        dd = new Dictionary<object, IDictionary<string, object?>>();
+                        resultDict[k] = dd;
                     }
 
                     var pkval = d[pk];
@@ -248,7 +239,7 @@ namespace Meuzz.Persistence
 
             if (resultDict.Count() == 0)
             {
-                return new List<object>();
+                return new object[] { };
             }
 
             foreach (var (k, v) in resultDict)
@@ -257,22 +248,22 @@ namespace Meuzz.Persistence
                 var objs = resultDict[k].Select(x =>
                 {
                     var v = x.Value;
-                    v["__object"] = PopulateObject(tt, v.Keys, v.Values);
+                    v["__object"] = PopulateObject(context, tt, v.Keys, v.Values);
                     return v;
                 });
-                var primaryKeyValue = tt.GetProperty(StringUtils.ToCamel(t.GetPrimaryKey(), true));
-                resultObjects.Add(k, objs.ToDictionary(x => primaryKeyValue.GetValue(x["__object"]), x => x));
+                var primaryKeyValue = tt.GetProperty(StringUtils.ToCamel(t.GetPrimaryKey(), true))!;
+                resultObjects.Add(k!, objs.ToDictionary(x => primaryKeyValue.GetValue(x["__object"])!, x => x));
             }
 
             BuildBindings(statement, resultObjects);
 
             return (IEnumerable<object>)typeof(Enumerable)
-                            .GetMethod("Cast")
+                            .GetMethod("Cast")!
                             .MakeGenericMethod(t)
-                            .Invoke(null, new object[] { resultObjects[statement.ParamInfo.GetDefaultParamName()].Values.Select(x => x["__object"]) });
+                            .Invoke(null, new object[] { resultObjects[statement.ParamInfo.GetDefaultParamName()].Values.Select(x => x["__object"]) })!;
         }
 
-        private void BuildBindings(SqlSelectStatement statement, IDictionary<string, IDictionary<dynamic, IDictionary<string, object>>> resultObjects)
+        private void BuildBindings(SqlSelectStatement statement, IDictionary<string, IDictionary<dynamic, IDictionary<string, object?>>> resultObjects)
         {
             Func<string, Action<dynamic, dynamic>> propertySetter = (string prop) => (dynamic x, dynamic value) =>
             {
@@ -298,16 +289,16 @@ namespace Meuzz.Persistence
 
             Func<Type, IEnumerable<object>, IEnumerable<object>> regularCollection
                 = (t, objs) => (IEnumerable<object>)typeof(Enumerable)
-                    .GetMethod("Cast")
+                    .GetMethod("Cast")!
                     .MakeGenericMethod((t.IsGenericType) ? t.GetGenericArguments()[0] : t)
-                    .Invoke(null, new object[] { objs });
+                    .Invoke(null, new object[] { objs })!;
 
             foreach (var joiningSpec in statement.RelationSpecs)
             {
                 var fromObjs = resultObjects[joiningSpec.Primary.Name].Values;
 
                 Func<dynamic, Func<dynamic, bool>> filteringConditions = (x) => (y) => joiningSpec.ConditionFunc(x, y);
-                Func<IDictionary<string, object>, object> fmap = x =>
+                Func<IDictionary<string, object?>, object> fmap = x =>
                 {
                     var pkv = memberAccessor(joiningSpec.PrimaryKey)(x);
                     var targetToObjs = resultObjects[joiningSpec.Foreign.Name].Values.Where(filteringConditions(x));
@@ -318,61 +309,66 @@ namespace Meuzz.Persistence
                             var k0 = StringUtils.ToCamel(joiningSpec.ForeignKey.Replace("_id", ""), true);
                             memberUpdater(o, k0, x["__object"]);
                         }
-                        memberUpdater(x, joiningSpec.MemberInfo.Name, regularCollection((joiningSpec.MemberInfo as PropertyInfo).PropertyType, targetToObjs.Select(y => y["__object"])));
+                        memberUpdater(x, joiningSpec.MemberInfo.Name, regularCollection(((PropertyInfo)joiningSpec.MemberInfo).PropertyType, targetToObjs.Select(y => y["__object"])));
                     }
                     else
                     {
-                        memberUpdater(x, joiningSpec.MemberInfo.Name, regularCollection((joiningSpec.MemberInfo as PropertyInfo).PropertyType, MakeGenerator(joiningSpec, x["__object"])));
+                        memberUpdater(x, joiningSpec.MemberInfo.Name, regularCollection(((PropertyInfo)joiningSpec.MemberInfo).PropertyType, MakeGenerator(joiningSpec, x["__object"])));
                     }
                     return x;
                 };
-                var r = fromObjs.Select(fmap).ToList(); // just do it
-                Console.WriteLine(r);
-            }
 
+                var r = fromObjs.Select(fmap).ToList(); // just do it
+                // Console.WriteLine(r);
+            }
         }
-        private IEnumerable<object> MakeGenerator(RelationSpec bindingSpec, object self)
+
+        private IEnumerable<object> MakeGenerator(RelationSpec bindingSpec, object? self)
         {
             // yield return null;
             Console.WriteLine(self);
             yield break;
         }
+    }
 
-    }
-/*
-    public class ObjectRepository<T> : ObjectRepository<T, object> where T: class
+    public class ObjectRepository<T> : ObjectRepository where T : class
     {
-        public ObjectRepository(Connection conn, SqlFormatter formatter, SqlCollator collator) : base(conn, formatter, collator) { }
+        public ObjectRepository() : base() { }
+
+        public IEnumerable<T> Load(IStorageContext context, Func<SelectStatement<T>, SelectStatement<T>> f) => Load<T>(context, f);
+
+        public IEnumerable<T2> Load<T2>(IStorageContext context, Func<SelectStatement<T>, SelectStatement<T2>> f) where T2 : class => Load<T, T2>(context, f);
+
+        public IEnumerable<T> Load(IStorageContext context, Expression<Func<T, bool>> f) => Load<T>(context, f);
+
+        public IEnumerable<T> Load(IStorageContext context, params object[] id) => Load<T>(context, id);
+
+        public bool Store(IStorageContext context, params T[] objs) => Store<T>(context, objs);
+
+        public bool Delete(IStorageContext context, Expression<Func<T, bool>> f) => Delete<T>(context, f);
+
+        public bool Delete(IStorageContext context, params object[] id) => Delete<T>(context, id);
     }
-*/
+
 
     public class ObjectRepository : ObjectRepositoryBase
     {
-        // private SqlBuilder<T> _sqlBuilder;
-
-        public ObjectRepository(PersistenceConnection conn, SqlFormatter formatter, SqlCollator collator)
+        public ObjectRepository()
         {
-            _connection = conn;
-            // _sqlBuilder = builder;
-            _formatter = formatter;
-            _collator = collator;
-
-            _connection.Open();
         }
 
-        public IEnumerable<T> Load<T>(Func<SelectStatement<T>, SelectStatement<T>> f) where T : class
+        public IEnumerable<T> Load<T>(IStorageContext context, Func<SelectStatement<T>, SelectStatement<T>> f) where T : class
+        {
+            return Load<T, T>(context, f);
+        }
+
+        public IEnumerable<T2> Load<T, T2>(IStorageContext context, Func<SelectStatement<T>, SelectStatement<T2>> f) where T : class where T2 : class
         {
             var statement = f(new SelectStatement<T>());
-            return Enumerable.Cast<T>(LoadObjects(typeof(T), statement));
+            return Enumerable.Cast<T2>(LoadObjects(context, typeof(T2), statement));
         }
 
-        public IEnumerable<T2> Load<T, T2>(Func<SelectStatement<T>, SelectStatement<T2>> f) where T : class where T2 : class
-        {
-            var statement = f(new SelectStatement<T>());
-            return Enumerable.Cast<T2>(LoadObjects(typeof(T2), statement));
-        }
-
-        public IEnumerable<T> Load<T>(Expression<Func<T, bool>> f = null) where T : class
+        public IEnumerable<T> Load<T>(IStorageContext context, Expression<Func<T, bool>> f) where T : class
         {
             var statement = new SelectStatement<T>();
             if (f != null)
@@ -380,61 +376,55 @@ namespace Meuzz.Persistence
                 statement.Where(f);
             }
 
-            return Enumerable.Cast<T>(LoadObjects(typeof(T), statement));
+            return Enumerable.Cast<T>(LoadObjects(context, typeof(T), statement));
         }
 
-        public IEnumerable<T> Load<T>(params object[] id) where T : class
+        public IEnumerable<T> Load<T>(IStorageContext context, params object[] id) where T : class
         {
             var primaryKey = typeof(T).GetPrimaryKey();
 
             var statement = new SelectStatement<T>();
             statement.Where(primaryKey, id);
 
-            return Enumerable.Cast<T>(LoadObjects(typeof(T), statement));
+            return Enumerable.Cast<T>(LoadObjects(context, typeof(T), statement));
         }
 
-        public bool Store<T>(T obj) where T : class
+        public bool Store<T>(IStorageContext context, params T[] objs) where T : class
         {
-            return Store(new T[] { obj });
+            return StoreObjects(context, typeof(T), objs, null);
         }
 
-        public bool Store<T>(IEnumerable<T> objs) where T : class
-        {
-            return StoreObjects(typeof(T), objs, null);
-        }
-
-        public bool Delete<T>(Expression<Func<T, bool>> f) where T : class
+        public bool Delete<T>(IStorageContext context, Expression<Func<T, bool>> f) where T : class
         {
             var statement = new DeleteStatement<T>();
             statement.Where(f);
 
-            var (sql, parameters) = _formatter.Format(statement);
-            var rset = _connection.Execute(sql, parameters);
+            context.Execute(statement);
 
             return true;
         }
 
-        public bool Delete<T>(params object[] id) where T : class
+        public bool Delete<T>(IStorageContext context, params object[] id) where T : class
         {
             var primaryKey = typeof(T).GetPrimaryKey();
 
             var statement = new DeleteStatement<T>();
             statement.Where(primaryKey, id);
 
-            var (sql, parameters) = _formatter.Format(statement);
-            var rset = _connection.Execute(sql, parameters);
+            context.Execute(statement);
 
             return true;
         }
 
+        /*
         public class MyEqualityComparer : IEqualityComparer<object>
         {
-            private bool IsNumeric(object x)
+            private bool IsNumeric(object? x)
             {
                 return x is int || x is long || x is uint || x is ulong;
             }
 
-            public new bool Equals(object x, object y)
+            public new bool Equals(object? x, object? y)
             {
                 if (IsNumeric(x) && IsNumeric(y))
                 {
@@ -447,7 +437,7 @@ namespace Meuzz.Persistence
             {
                 return obj.GetHashCode();
             }
-        }
+        }*/
     }
 
     public static class PersistentObjectExtensions

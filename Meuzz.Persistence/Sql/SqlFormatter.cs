@@ -1,4 +1,6 @@
-﻿using Meuzz.Foundation;
+﻿#nullable enable
+
+using Meuzz.Foundation;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -11,12 +13,29 @@ namespace Meuzz.Persistence.Sql
 {
     public abstract class SqlFormatter
     {
-        public (string Sql, IDictionary<string, object> Parameters, ColumnCollationInfo ColumnCollationInfo) Format(SqlSelectStatement statement)
+        public (string? Sql, IDictionary<string, object?>? Parameters, SqlCollator? Collator) Format(SqlStatement statement)
+        {
+            switch (statement)
+            {
+                case SqlSelectStatement ss:
+                    return Format(ss);
+                case SqlInsertStatement ss:
+                    return Format(ss);
+                case SqlUpdateStatement ss:
+                    return Format(ss);
+                case SqlDeleteStatement ss:
+                    return Format(ss);
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+
+        public (string? Sql, IDictionary<string, object?>? Parameters, SqlCollator? Collator) Format(SqlSelectStatement statement)
         {
             var sb = new StringBuilder();
             var columnCollationInfo = new ColumnCollationInfo();
 
-            IDictionary<string, object> parameters = null;
+            IDictionary<string, object?>? parameters = null;
 
             var parameterName = statement.ParamInfo.GetDefaultParamName();
             var parameterType = statement.ParamInfo.GetParameterTypeByParamName(parameterName);
@@ -31,13 +50,13 @@ namespace Meuzz.Persistence.Sql
             sb.Append($" WHERE {FormatElement(statement.Condition, true, true, parameters)}");
 
             var ret = sb.ToString();
-            return (ret.Length > 0 ? ret : null, parameters, columnCollationInfo);
+            return (ret.Length > 0 ? ret : null, parameters, new SqlCollator(columnCollationInfo));
         }
 
-        public (string Sql, IDictionary<string, object> Parameters) Format(SqlInsertStatement statement)
+        public (string? Sql, IDictionary<string, object?>? Parameters, SqlCollator? Collator) Format(SqlInsertStatement statement)
         {
             var sb = new StringBuilder();
-            IDictionary<string, object> parameters = null;
+            IDictionary<string, object?>? parameters = null;
 
             Func<object, object> _f = (y) => (y is string s ? Quote(s) : (y != null ? y : "NULL"));
             if (statement.IsInsert)
@@ -78,19 +97,18 @@ namespace Meuzz.Persistence.Sql
             }
 
             var ret = sb.ToString();
-            return (ret.Length > 0 ? ret : null, parameters);
+            return (ret.Length > 0 ? ret : null, parameters, null);
         }
 
-        public (string Sql, IDictionary<string, object> Parameters) Format(SqlUpdateStatement statement)
+        public (string? Sql, IDictionary<string, object?>? Parameters, SqlCollator? Collator) Format(SqlUpdateStatement statement)
         {
             var sb = new StringBuilder();
-            IDictionary<string, object> parameters = null;
+            IDictionary<string, object?>? parameters = null;
 
             Func<object, object> _f = (y) => (y is string s ? Quote(s) : (y != null ? y : "NULL"));
 
             foreach (var obj in statement.Values)
             {
-                /* var d = obj.GetType().GetValueDictFromColumnNames(insertOrUpdateStatement.Columns, obj); */
                 var pcontext = PersistableState.Generate(obj);
                 var dirtyKeys = pcontext.DirtyKeys;
                 if (dirtyKeys != null && dirtyKeys.Length > 0)
@@ -104,23 +122,23 @@ namespace Meuzz.Persistence.Sql
             }
 
             var ret = sb.ToString();
-            return (ret.Length > 0 ? ret : null, parameters);
+            return (ret.Length > 0 ? ret : null, parameters, null);
         }
 
-        public (string Sql, IDictionary<string, object> Parameters) Format(SqlDeleteStatement statement)
+        public (string? Sql, IDictionary<string, object?>? Parameters, SqlCollator? Collator) Format(SqlDeleteStatement statement)
         {
             var sb = new StringBuilder();
 
-            IDictionary<string, object> parameters = null;
+            IDictionary<string, object?>? parameters = null;
 
             sb.Append($"DELETE FROM {statement.TableName}");
             sb.Append($" WHERE {FormatElement(statement.Condition, false, true, parameters)}");
 
             var ret = sb.ToString();
-            return (ret.Length > 0 ? ret : null, parameters);
+            return (ret.Length > 0 ? ret : null, parameters, null);
         }
 
-        private string ValueToString(object value, bool useQuote)
+        private string ValueToString(object? value, bool useQuote)
         {
             switch (value)
             {
@@ -134,11 +152,11 @@ namespace Meuzz.Persistence.Sql
                     return string.Join(", ", objs.Select(x => ValueToString(x, useQuote)));
 
                 default:
-                    return value.ToString();
+                    return value?.ToString() ?? string.Empty;
             }
         }
 
-        protected string FormatElement(Expression exp, bool showsParameterName, bool useQuote, IDictionary<string, object> parameters)
+        protected string FormatElement(Expression exp, bool showsParameterName, bool useQuote, IDictionary<string, object?>? parameters)
         {
             switch (exp)
             {
@@ -189,7 +207,7 @@ namespace Meuzz.Persistence.Sql
                         switch (member)
                         {
                             case FieldInfo field:
-                                object value = field.GetValue(container);
+                                var value = field.GetValue(container);
                                 if (parameters != null)
                                 {
                                     switch (value)
@@ -284,8 +302,8 @@ namespace Meuzz.Persistence.Sql
             return $"'{s.Replace(@"'", @"''")}'";
         }
 
-        protected virtual string GetInsertIntoOutputString() => null;
+        protected virtual string? GetInsertIntoOutputString() => null;
 
-        protected virtual string GetLastInsertedIdString(string pkey, int rows) => null;
+        protected virtual string? GetLastInsertedIdString(string pkey, int rows) => null;
     }
 }

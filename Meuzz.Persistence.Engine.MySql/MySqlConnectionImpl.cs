@@ -15,40 +15,21 @@ namespace Meuzz.Persistence.MySql
 
     public class MySqlEngine : IPersistenceEngine
     {
-        /*public IPersistenceContext_ CreateConnection(IDictionary<string, object> parameters)
+        public IStorageContext CreateContext(IDictionary<string, object> parameters)
         {
-            return new MySqlConnectionImpl(parameters);
-        }
-
-        public SqlFormatter CreateFormatter()
-        {
-            return new MySqlFormatter();
-        }*/
-
-        public IPersistenceContext CreateContext(IDictionary<string, object> parameters)
-        {
-            return new PersistenceContextBase(new MySqlConnectionImpl(parameters), new MySqlFormatter());
-        }
-    }
-
-    public class MySqlConnectionImpl : DbConnectionImpl<MySqlConnection, MySqlCommand>
-    {
-        public MySqlConnectionImpl(IDictionary<string, object> parameters)
-        {
-            SetupConnection(new MySqlConnection(new MySqlConnectionStringBuilder()
+            var connection = new MySqlConnection(new MySqlConnectionStringBuilder()
             {
                 Server = parameters["host"].ToString(),
                 Port = Convert.ToUInt32(parameters["port"]),
                 Database = parameters["database"].ToString(),
                 UserID = parameters["user"].ToString(),
                 Password = parameters["password"].ToString()
-            }.ConnectionString));
+            }.ConnectionString);
+
+            return new StorageContextBase(connection, _formatter);
         }
 
-        protected override void RegisterParameter(MySqlCommand cmd, string k, object v)
-        {
-            cmd.Parameters.AddWithValue(k, v != null ? v : DBNull.Value);
-        }
+        private SqlFormatter _formatter = new MySqlFormatter();
     }
 
     public class MySqlFormatter : SqlFormatter

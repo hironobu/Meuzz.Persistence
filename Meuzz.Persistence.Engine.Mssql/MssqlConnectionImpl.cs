@@ -15,39 +15,20 @@ namespace Meuzz.Persistence.Engine.Mssql
 
     public class MssqlEngine : IPersistenceEngine
     {
-        /*public IPersistenceContext CreateConnection(IDictionary<string, object> parameters)
+        public IStorageContext CreateContext(IDictionary<string, object> parameters)
         {
-            return new MssqlConnectionImpl(parameters);
-        }
-
-        public SqlFormatter CreateFormatter()
-        {
-            return new MssqlFormatter();
-        }*/
-
-        public IPersistenceContext CreateContext(IDictionary<string, object> parameters)
-        {
-            return new PersistenceContextBase(new MssqlConnectionImpl(parameters), new MssqlFormatter());
-        }
-    }
-
-    public class MssqlConnectionImpl : DbConnectionImpl<SqlConnection, SqlCommand>
-    {
-        public MssqlConnectionImpl(IDictionary<string, object> parameters)
-        {
-            SetupConnection(new SqlConnection(new SqlConnectionStringBuilder()
+            var connection = new SqlConnection(new SqlConnectionStringBuilder()
             {
                 DataSource = $"{parameters["host"]},{parameters["port"]}",
                 InitialCatalog = parameters["database"].ToString(),
                 UserID = parameters["user"].ToString(),
                 Password = parameters["password"].ToString()
-            }.ConnectionString));
+            }.ConnectionString);
+
+            return new StorageContextBase(connection, _formatter);
         }
 
-        protected override void RegisterParameter(SqlCommand cmd, string k, object v)
-        {
-            cmd.Parameters.AddWithValue(k, v != null ? v : DBNull.Value);
-        }
+        private SqlFormatter _formatter = new MssqlFormatter();
     }
 
     public class MssqlFormatter : SqlFormatter

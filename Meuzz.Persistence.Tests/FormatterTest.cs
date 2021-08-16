@@ -1,15 +1,12 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
 using Meuzz.Persistence.Sql;
+using Meuzz.Persistence.Sqlite;
 using Xunit;
 
 namespace Meuzz.Persistence.Tests
 {
     public class FormatterTest
     {
-        private IPersistenceContext _context;
+        private IStorageContext _context;
         /*private ObjectRepository<Player> _repository;
         private ObjectRepository<Character> _characterRepository;*/
 
@@ -20,13 +17,13 @@ namespace Meuzz.Persistence.Tests
             var engine = PersistenceEngineFactory.Instance().GetEngine("sqlite");
 
             _context = engine.CreateContext("type=sqlite;file=:memory:");
-            _context.Connection.Open();
+            _context.Open();
 
-            _context.Connection.Execute(@"
+            _context.Execute(@"
                 CREATE TABLE Players (ID integer PRIMARY KEY, NAME text, AGE integer, PLAY_TIME integer);
                 CREATE TABLE Characters (ID integer PRIMARY KEY, NAME text, PLAYER_ID integer, LAST_PLAYER_ID integer NULL, FOREIGN KEY (PLAYER_ID) REFERENCES Players(ID), FOREIGN KEY (LAST_PLAYER_ID) REFERENCES Players(ID));
             ");
-            _context.Connection.Execute(@"
+            _context.Execute(@"
                 INSERT INTO Players VALUES (1, 'aaa', 10, 100);
                 INSERT INTO Players VALUES (2, 'bbb', 20, 200);
                 INSERT INTO Players VALUES (3, 'ccc''s', 10, 200);
@@ -46,23 +43,25 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestLoadById()
         {
+            var formatter = new SqliteFormatter();
+
             var statement = new SelectStatement<Player>();
             statement.Where("id", 1);
-            var objs = _context.Formatter.Format(statement);
+            var objs = formatter.Format(statement);
 
             Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) = (1)", objs.Sql);
             Assert.Null(objs.Parameters);
 
             var statement2 = new SelectStatement<Player>();
             statement.Where("id", 2);
-            var objs2 = _context.Formatter.Format(statement);
+            var objs2 = formatter.Format(statement);
 
             Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) = (2)", objs2.Sql);
             Assert.Null(objs2.Parameters);
 
             var statement3 = new SelectStatement<Player>();
             statement.Where("id", 1, 2, 3);
-            var objs3 = _context.Formatter.Format(statement);
+            var objs3 = formatter.Format(statement);
 
             Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) IN (1, 2, 3)", objs3.Sql);
             Assert.Null(objs3.Parameters);
@@ -72,6 +71,8 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestUpdate()
         {
+            var formatter = new SqliteFormatter();
+
             var obj = new Player() { Id = 1 };
             PersistableState.Generate(obj); // dummy
 
@@ -80,15 +81,15 @@ namespace Meuzz.Persistence.Tests
             var statement = new UpdateStatement<Player>();
             statement.Append(new[] { obj });
 
-            var update = _context.Formatter.Format(statement);
+            var update = formatter.Format(statement);
             Assert.Equal("UPDATE Players SET name = 'aaa' WHERE id = 1;", update.Sql);
-            update = _context.Formatter.Format(statement);
+            update = formatter.Format(statement);
             Assert.Null(update.Sql);
 
             obj.Name = "bbb";
             obj.PlayTime = 10000;
 
-            update = _context.Formatter.Format(statement);
+            update = formatter.Format(statement);
             Assert.Equal("UPDATE Players SET name = 'bbb', play_time = 10000 WHERE id = 1;", update.Sql);
         }
 
