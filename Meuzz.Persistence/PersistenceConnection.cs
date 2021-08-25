@@ -19,7 +19,7 @@ namespace Meuzz.Persistence
         IStorageContext CreateContext(IDictionary<string, object> parameters);
     }
 
-    public interface IStorageContext
+    public interface IStorageContext : IDisposable
     {
         void Open();
 
@@ -54,7 +54,7 @@ namespace Meuzz.Persistence
 
         public virtual ResultSet? Execute(SqlStatement statement)
         {
-            var (sql, parameters, collator) = Formatter.Format(statement);
+            var (sql, parameters, columnCollationInfo) = Formatter.Format(statement);
             if (sql == null)
             {
                 return null;
@@ -62,7 +62,7 @@ namespace Meuzz.Persistence
 
             var rset = Execute(sql, parameters);
 
-            return collator != null ? collator.Collate(rset) : rset;
+            return columnCollationInfo != null ? new SqlCollator().Collate(rset, columnCollationInfo) : rset;
         }
 
         public virtual ResultSet Execute(string sql, IDictionary<string, object?>? parameters = null)

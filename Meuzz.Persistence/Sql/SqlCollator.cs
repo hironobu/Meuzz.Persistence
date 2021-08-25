@@ -6,16 +6,9 @@ namespace Meuzz.Persistence.Sql
 {
     public class SqlCollator
     {
-        public SqlCollator(ColumnCollationInfo columnCollationInfo)
+        public ResultSet Collate(ResultSet rset, ColumnCollationInfo columnCollationInfo)
         {
-            _columnCollationInfo = columnCollationInfo;
+            return new ResultSet(rset.Results.Select(r => r.ToDictionary(x => columnCollationInfo.GetOutputColumnName(x.Key), x => x.Value)));
         }
-
-        public ResultSet Collate(ResultSet rset)
-        {
-            return new ResultSet(rset.Results.Select(r => r.ToDictionary(x => _columnCollationInfo.GetOriginalColumnName(x.Key), x => x.Value)));
-        }
-
-        private ColumnCollationInfo _columnCollationInfo;
     }
 }

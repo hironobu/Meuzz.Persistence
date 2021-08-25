@@ -74,5 +74,31 @@ namespace Meuzz.Persistence.Tests
             Assert.Equal((Int64)3, objs3.ElementAt(2).Id);
             Assert.Equal("ccc", objs3.ElementAt(2).Name);
         }
+
+
+        [Fact]
+        public void TestLoadByIdAndException()
+        {
+            var objs = _repository.Load<TreeNode>(_context, s => s.Where(x => x.Id == 1)).ToList();
+            _context.Dispose();
+
+            Assert.Single(objs);
+            Assert.Equal(1, objs.ElementAt(0).Id);
+
+            Assert.Throws<InvalidOperationException>(() =>
+            {
+                Assert.Equal(3, objs.ElementAt(0).Children.Count());
+                /*Assert.Equal("bbb", objs.ElementAt(0).Children.ElementAt(0).Name);
+                Assert.Equal("ccc", objs.ElementAt(0).Children.ElementAt(1).Name);
+                Assert.Equal("ddd", objs.ElementAt(0).Children.ElementAt(2).Name);
+                Assert.Single(objs.ElementAt(0).Children.ElementAt(0).Children);
+                Assert.Single(objs.ElementAt(0).Children.ElementAt(1).Children);
+                Assert.Equal(5, objs.ElementAt(0).Children.ElementAt(2).Children.Count());
+
+                Assert.NotNull(objs.ElementAt(0).Children.ElementAt(0).Parent);
+                Assert.Equal(1, objs.ElementAt(0).Children.ElementAt(0).Parent.Id);*/
+            });
+        }
+
     }
 }

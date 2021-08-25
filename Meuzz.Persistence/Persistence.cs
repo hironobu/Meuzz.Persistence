@@ -66,7 +66,7 @@ namespace Meuzz.Persistence
         {
             if (!t.IsPersistent())
             {
-                throw new NotImplementedException();
+                // throw new NotImplementedException();
             }
 
             var ti = ClassInfoManager.Instance().GetEntry(t);

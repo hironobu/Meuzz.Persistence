@@ -13,9 +13,9 @@ namespace Meuzz.Persistence
         public string PrimaryKey { get; set; } = null;
         public string ForeignKey { get; set; } = null;
 
-        public Parameter Primary { get; set; }
+        public Parameter Left { get; set; }
 
-        public Parameter Foreign { get; set; }
+        public Parameter Right { get; set; }
 
         public string ConditionSql { get => GetConditionSql(); }
 
@@ -50,7 +50,7 @@ namespace Meuzz.Persistence
 
         private string GetConditionSql()
         {
-            return $"{Primary.Name}.{PrimaryKey ?? Primary.Type.GetPrimaryKey()} {"="} {Foreign.Name}.{ForeignKey}";
+            return $"{Left.Name}.{PrimaryKey ?? Left.Type.GetPrimaryKey()} = {Right.Name}.{ForeignKey}";
         }
 
         private static Func<dynamic, dynamic, bool> MakeDefaultFunc(string foreignKey, string primaryKey)
@@ -76,60 +76,54 @@ namespace Meuzz.Persistence
             return joiningConditionMaker(eq, memberAccessor(primaryKey), memberAccessor(foreignKey));
         }
 
-        public static RelationSpec Build(Type primaryType, string primaryName, MemberInfo memberInfo, string defaultForeignParamName, Expression condexp)
+        public static RelationSpec Build(string leftName, Type leftType, string rightName, MemberInfo relationMemberInfo, LambdaExpression condexp)
         {
-            var propinfo = (memberInfo.MemberType == MemberTypes.Property) ? (memberInfo as PropertyInfo) : null;
-            var foreignType = propinfo.PropertyType;
-            if (foreignType.IsGenericType)
+            var propinfo = (relationMemberInfo.MemberType == MemberTypes.Property) ? (relationMemberInfo as PropertyInfo) : null;
+            var rightType = propinfo.PropertyType;
+            if (rightType.IsGenericType)
             {
-                foreignType = foreignType.GetGenericArguments()[0];
+                rightType = rightType.GetGenericArguments()[0];
             }
 
-            RelationSpec joiningSpec = null;
+            RelationSpec relationSpec = null;
             if (condexp != null)
             {
-                if (!(condexp is LambdaExpression lme))
-                {
-                    throw new NotImplementedException();
-                }
+                var relationCond = Condition.New(relationMemberInfo.DeclaringType, condexp.Body);
 
-                var bindingParams = Condition.New(memberInfo.DeclaringType, lme.Body);
+                var primaryKey = StringUtils.ToSnake(string.Join("_", relationCond.Left.PathComponents));
+                var foreignKey = StringUtils.ToSnake(string.Join("_", relationCond.Right.PathComponents));
 
-                var primaryKey = StringUtils.ToSnake(string.Join("_", bindingParams.Left.path));
-                var foreignKey = StringUtils.ToSnake(string.Join("_", bindingParams.Right.path));
+                primaryKey = string.IsNullOrEmpty(primaryKey) ? leftType.GetPrimaryKey() : primaryKey;
+                foreignKey = rightType.GetForeignKey(foreignKey, leftType, primaryKey);
 
-                primaryKey = string.IsNullOrEmpty(primaryKey) ? primaryType.GetPrimaryKey() : primaryKey;
-                foreignKey = foreignType.GetForeignKey(foreignKey, primaryType, primaryKey);
-
-                joiningSpec = new RelationSpec()
+                relationSpec = new RelationSpec()
                 {
                     PrimaryKey = primaryKey,
                     ForeignKey = foreignKey,
-                    ConditionEvaluatorSpec = new EvaluatorSpec(bindingParams.Comparator, bindingParams.Left.f, bindingParams.Right.f)
+                    ConditionEvaluatorSpec = new EvaluatorSpec(relationCond.Comparator, relationCond.Left.f, relationCond.Right.f)
                 };
             }
-
-            if (joiningSpec == null)
+            else
             {
                 var fki = ForeignKeyInfoManager.Instance().GetForeignKeyInfoByPropertyInfo(propinfo);
                 if (fki != null)
                 {
-                    joiningSpec = new RelationSpec(fki.ForeignKey, fki.PrimaryKey ?? "id");
+                    relationSpec = new RelationSpec(fki.ForeignKey, fki.PrimaryKey ?? "id");
                 }
                 else
                 {
-                    var primaryTable = memberInfo.DeclaringType.GetTableName();
-                    var foreignClassInfo = foreignType.GetClassInfo();
+                    var primaryTable = relationMemberInfo.DeclaringType.GetTableName();
+                    var foreignClassInfo = rightType.GetClassInfo();
                     var matched = foreignClassInfo.Columns.Where(x => x.BindingTo == primaryTable).First();
-                    joiningSpec = new RelationSpec(matched.Name.ToLower(), matched.BindingToPrimaryKey.ToLower());
+                    relationSpec = new RelationSpec(matched.Name.ToLower(), matched.BindingToPrimaryKey.ToLower());
                 }
             }
 
-            joiningSpec.Primary = new Parameter() { Type = primaryType, Name = primaryName };
-            joiningSpec.Foreign = new Parameter() { Type = foreignType, Name = defaultForeignParamName };
-            joiningSpec.MemberInfo = memberInfo;
+            relationSpec.Left = new Parameter() { Type = leftType, Name = leftName };
+            relationSpec.Right = new Parameter() { Type = rightType, Name = rightName };
+            relationSpec.MemberInfo = relationMemberInfo;
 
-            return joiningSpec;
+            return relationSpec;
         }
 
         public class Parameter
@@ -267,7 +261,7 @@ namespace Meuzz.Persistence
                 public Func<dynamic, dynamic> f { get; set; } = null;
                 public ParameterExpression e { get; set; } = null;
 
-                public string[] path { get; set; } = null;
+                public string[] PathComponents { get; set; } = null;
 
                 public static Entry New(Expression exp)
                 {
@@ -276,11 +270,11 @@ namespace Meuzz.Persistence
                         case MemberExpression me:
                             var entry = New(me.Expression);
                             var propertyInfo = me.Member as PropertyInfo;
-                            var newPath = entry.path.Concat(new string[] { propertyInfo.Name });
-                            return new Entry() { f = (x) => new Element(entry.f(x), propertyInfo), e = entry.e, path = newPath.ToArray() };
+                            var newPath = entry.PathComponents.Concat(new string[] { propertyInfo.Name });
+                            return new Entry() { f = (x) => new Element(entry.f(x), propertyInfo), e = entry.e, PathComponents = newPath.ToArray() };
 
                         case ParameterExpression pe:
-                            return new Entry() { f = (x) => new Element(x, null), e = pe, path = new string[] { } };
+                            return new Entry() { f = (x) => new Element(x, null), e = pe, PathComponents = new string[] { } };
                     }
 
                     throw new NotImplementedException();

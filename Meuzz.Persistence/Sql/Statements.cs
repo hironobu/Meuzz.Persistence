@@ -13,62 +13,54 @@ namespace Meuzz.Persistence.Sql
     {
         public SqlStatement(Type t)
         {
-            TableName = t.GetTableName();
+            Type = t;
         }
 
-        public SqlStatement(SqlStatement statement)
+        public SqlStatement(SqlStatement statement) : this(statement.Type)
         {
-            TableName = statement.TableName;
         }
 
-        public string TableName { get; }
+        public Type Type { get; }
     }
 
     public abstract class SqlConditionalStatement : SqlStatement
     {
-        public Expression? Condition { get; private set; } = null;
-
-        public ParamInfo ParamInfo { get; } = new ParamInfo();
-
-        public SqlConditionalStatement(Type t) : base(t)
+        public SqlConditionalStatement(Type t, Expression? condition = null) : base(t)
         {
-            ParamInfo.RegisterParameter(null, t, true);
+            Condition = condition;
+
+            ParameterSetInfo = new ParameterSetInfo();
+            ParameterSetInfo.RegisterParameter(null, t, true);
         }
 
         public SqlConditionalStatement(SqlConditionalStatement statement) : base(statement)
         {
             Condition = statement.Condition;
-            ParamInfo = statement.ParamInfo;
+
+            ParameterSetInfo = new ParameterSetInfo(statement.ParameterSetInfo);
         }
+
+        public Expression? Condition { get; private set; }
+
+        [Obsolete]
+        public ParameterSetInfo ParameterSetInfo { get; }
 
         public virtual void BuildCondition(LambdaExpression cond, Type? t)
         {
-            if (!(cond is LambdaExpression lme))
-            {
-                throw new NotImplementedException();
-            }
-
-            var p = cond.Parameters.Single<ParameterExpression>();
-            var defaultParamName = ParamInfo.GetDefaultParamName();
-            if (defaultParamName == null)
-            {
-                ParamInfo.RegisterParameter(p.Name, t ?? p.Type, true);
-            }
-            else if (defaultParamName != p.Name)
-            {
-                throw new NotImplementedException();
-            }
+            var p = cond.Parameters.Single();
+            ParameterSetInfo.RegisterParameter(p.Name, t ?? p.Type, true);
+            // (return) == p.Name
 
             this.Condition = cond;
         }
 
         public virtual void BuildCondition(string key, params object[] value)
         {
-            Type? t = ParamInfo.GetDefaultParamType();
+            Type? t = ParameterSetInfo.GetDefaultParamType();
             Expression memberAccessor;
             ParameterExpression px;
 
-            var ppi = string.IsNullOrEmpty(key) ? t.GetPrimaryPropertyInfo() : t?.GetProperty(StringUtils.ToCamel(key, true));
+            var ppi = string.IsNullOrEmpty(key) ? t?.GetPrimaryPropertyInfo() : t?.GetProperty(StringUtils.ToCamel(key, true));
             if (ppi != null)
             {
                 px = Expression.Parameter(t, "x");
@@ -76,7 +68,7 @@ namespace Meuzz.Persistence.Sql
             }
             else
             {
-                var t1 = typeof(IDictionary<string, object>);
+                var t1 = typeof(IDictionary<string, object?>);
                 px = Expression.Parameter(t1, "x");
                 var methodInfo = t1.GetMethod("get_Item");
                 memberAccessor = Expression.Call(px, methodInfo, Expression.Constant(key));

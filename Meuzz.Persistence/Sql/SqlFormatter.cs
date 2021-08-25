@@ -13,47 +13,70 @@ namespace Meuzz.Persistence.Sql
 {
     public abstract class SqlFormatter
     {
-        public (string? Sql, IDictionary<string, object?>? Parameters, SqlCollator? Collator) Format(SqlStatement statement)
+        public (string? Sql, IDictionary<string, object?>? Parameters, ColumnCollationInfo? ColumnCollationInfo) Format(SqlStatement statement)
         {
             switch (statement)
             {
                 case SqlSelectStatement ss:
-                    return Format(ss);
+                    return _Format(ss, new ColumnCollationInfo());
                 case SqlInsertStatement ss:
-                    return Format(ss);
+                    return _Format(ss);
                 case SqlUpdateStatement ss:
-                    return Format(ss);
+                    return _Format(ss);
                 case SqlDeleteStatement ss:
-                    return Format(ss);
+                    return _Format(ss);
                 default:
                     throw new NotImplementedException();
             }
         }
 
-        public (string? Sql, IDictionary<string, object?>? Parameters, SqlCollator? Collator) Format(SqlSelectStatement statement)
+        private (string? Sql, IDictionary<string, object?>? Parameters, ColumnCollationInfo? ColumnCollationInfo) _Format(SqlSelectStatement statement, ColumnCollationInfo? columnCollationInfo)
         {
             var sb = new StringBuilder();
-            var columnCollationInfo = new ColumnCollationInfo();
-
             IDictionary<string, object?>? parameters = null;
 
-            var parameterName = statement.ParamInfo.GetDefaultParamName();
-            var parameterType = statement.ParamInfo.GetParameterTypeByParamName(parameterName!);
+            if (statement.Source != null && !statement.ColumnSpecs.Any() && statement.Condition == null && !statement.RelationSpecs.Any())
+            {
+                // passthru
+                return _Format(statement.Source, columnCollationInfo);
+            }
 
-            sb.Append($"SELECT {string.Join(", ", GetColumnsToString(statement.ParamInfo.GetAllParameters(), columnCollationInfo))}");
-            sb.Append($" FROM {parameterType.GetTableName()} {parameterName}");
+            var parameterName = statement.ParameterSetInfo.GetDefaultParamName();
+            var parameterType = parameterName != null ? statement.ParameterSetInfo.GetTypeByName(parameterName) : null;
+
+            string source;
+            string[] columns;
+
+            if (statement.Source == null)
+            {
+                columns = GetColumnsByAllTypesToString(statement, columnCollationInfo);
+                source = parameterType.GetTableName();
+            }
+            else
+            {
+                var child = _Format(statement.Source, null);
+
+                columns = GetColumnsByAllTypesToString(statement, columnCollationInfo);
+                source = $"({child.Sql})";
+            }
+
+            sb.Append($"SELECT {string.Join(", ", columns)}");
+            sb.Append($" FROM {source} {parameterName ?? string.Empty}");
 
             foreach (var relationSpec in statement.RelationSpecs)
             {
-                sb.Append($" LEFT JOIN {relationSpec.Foreign.Type.GetTableName()} {relationSpec.Foreign.Name} ON {relationSpec.ConditionSql}");
+                sb.Append($" LEFT JOIN {relationSpec.Right.Type.GetTableName()} {relationSpec.Right.Name} ON {relationSpec.ConditionSql}");
             }
-            sb.Append($" WHERE {FormatElement(statement.Condition!, true, true, parameters)}");
+            if (statement.Condition != null)
+            {
+                sb.Append($" WHERE {FormatElement(statement.Condition, true, true, parameters)}");
+            }
 
-            var ret = sb.ToString();
-            return (ret.Length > 0 ? ret : null, parameters, new SqlCollator(columnCollationInfo));
+            var ret = sb.Length > 0 ? sb.ToString() : source;
+            return (ret.Length > 0 ? ret : null, parameters, columnCollationInfo);
         }
 
-        public (string? Sql, IDictionary<string, object?>? Parameters, SqlCollator? Collator) Format(SqlInsertStatement statement)
+        private (string? Sql, IDictionary<string, object?>? Parameters, ColumnCollationInfo? ColumnCollationInfo) _Format(SqlInsertStatement statement)
         {
             var sb = new StringBuilder();
             IDictionary<string, object?>? parameters = null;
@@ -65,7 +88,7 @@ namespace Meuzz.Persistence.Sql
                 var index = 0;
                 object[] rows = statement.Values;
 
-                sb.Append($"INSERT INTO {statement.TableName}");
+                sb.Append($"INSERT INTO {GetTableName(statement)}");
                 sb.Append($"  ({string.Join(", ", statement.Columns)})");
                 sb.Append($"  {GetInsertIntoOutputString() ?? ""}");
                 sb.Append($"  VALUES");
@@ -100,7 +123,7 @@ namespace Meuzz.Persistence.Sql
             return (ret.Length > 0 ? ret : null, parameters, null);
         }
 
-        public (string? Sql, IDictionary<string, object?>? Parameters, SqlCollator? Collator) Format(SqlUpdateStatement statement)
+        private (string? Sql, IDictionary<string, object?>? Parameters, ColumnCollationInfo? ColumnCollationInfo) _Format(SqlUpdateStatement statement)
         {
             var sb = new StringBuilder();
             IDictionary<string, object?>? parameters = null;
@@ -113,7 +136,7 @@ namespace Meuzz.Persistence.Sql
                 var dirtyKeys = pcontext.DirtyKeys;
                 if (dirtyKeys != null && dirtyKeys.Length > 0)
                 {
-                    sb.Append($"UPDATE {statement.TableName} SET ");
+                    sb.Append($"UPDATE {GetTableName(statement)} SET ");
                     var d = obj.GetType().GetValueDictFromColumnNames(dirtyKeys.Select(x => StringUtils.ToSnake(x)).ToArray(), obj);
                     var valstr = string.Join(", ", d.Select(x => $"{x.Key} = {_f(x.Value)}"));
                     sb.Append(valstr);
@@ -125,13 +148,13 @@ namespace Meuzz.Persistence.Sql
             return (ret.Length > 0 ? ret : null, parameters, null);
         }
 
-        public (string? Sql, IDictionary<string, object?>? Parameters, SqlCollator? Collator) Format(SqlDeleteStatement statement)
+        private (string? Sql, IDictionary<string, object?>? Parameters, ColumnCollationInfo? ColumnCollationInfo) _Format(SqlDeleteStatement statement)
         {
             var sb = new StringBuilder();
 
             IDictionary<string, object?>? parameters = null;
 
-            sb.Append($"DELETE FROM {statement.TableName}");
+            sb.Append($"DELETE FROM {GetTableName(statement)}");
             sb.Append($" WHERE {FormatElement(statement.Condition!, false, true, parameters)}");
 
             var ret = sb.ToString();
@@ -279,22 +302,81 @@ namespace Meuzz.Persistence.Sql
             throw new NotImplementedException();
         }
 
-        private string[] GetColumnsToString((string, Type)[] pes, ColumnCollationInfo caInfo)
+        private string[] GetColumnsByAllTypesToString(SqlSelectStatement statement, ColumnCollationInfo? columnCollationInfo)
         {
-            return pes.Select(x =>
+            var columnSpecs = statement.ColumnSpecs;
+            if (!columnSpecs.Any())
             {
-                var (name, type) = x;
-                var colnames = type.GetClassInfo().Columns.Select(x => x.Name);
-                if (caInfo != null)
+                var parameters = statement.ParameterSetInfo.GetAllParameters();
+
+                return parameters.SelectMany(x =>
                 {
-                    var aliasedDict = caInfo.MakeColumnAliasingDictionary(name, colnames);
-                    return string.Join(", ", aliasedDict.Select(x => $"{x.Value} AS {x.Key}"));
+                    var (name, type) = x;
+                    var colnames = type.GetClassInfo().Columns.Select(x => x.Name).ToArray();
+
+                    if (columnCollationInfo != null)
+                    {
+                        //return colnames.Select(colname => $"{name}.{colname}");
+                        return columnCollationInfo.MakeColumnAliasingDictionary(name, colnames).Select(x => $"{x.Key} AS {x.Value}");
+                    }
+                    else
+                    {
+                        return colnames.Select(colname => $"{name}.{colname}");
+                    }
+                }).ToArray();
+            }
+            else
+            {
+                if (columnCollationInfo != null)
+                {
+                    return columnSpecs.Select(x =>
+                    {
+                        var names = x.Alias != null ? new[] { x.Name, x.Alias } : new[] { x.Name };
+                        var dict = columnCollationInfo.MakeColumnAliasingDictionary(x.Parameter, new string[][] { names }).First();
+                        return $"{dict.Key} AS {dict.Value}";
+                    }).ToArray();
                 }
                 else
                 {
-                    return string.Join(", ", colnames.Select(x => $"{name}.{x}"));
+                    return columnSpecs.Select(x =>
+                    {
+                        return x.Alias != null ? $"{x.Parameter}.{x.Name} AS {x.Alias}" : $"{x.Parameter}.{x.Name}";
+                    }).ToArray();
                 }
-            }).ToArray();
+            }
+        }
+
+#if false
+        private string GetColumnsToString(string name, string[] colnames, ColumnCollationInfo caInfo)
+        {
+            if (caInfo != null)
+            {
+                var aliasedDict = caInfo.MakeColumnAliasingDictionary(name, colnames);
+                return string.Join(", ", aliasedDict.Select(x => $"{x.Value} AS {x.Key}"));
+            }
+            else
+            {
+                return string.Join(", ", colnames.Select(x => $"{name}.{x}"));
+            }
+        }
+#endif
+
+        private string GetTableName(SqlStatement statement)
+        {
+            // throw new NotImplementedException();
+            if (statement is SqlSelectStatement selectStatement)
+            {
+                if (selectStatement.Source != null)
+                {
+                    var sourceString = selectStatement.Source.ToString();
+                    if (sourceString != null)
+                    {
+                        return sourceString;
+                    }
+                }
+            }
+
+            return statement.Type.GetTableName();
         }
 
         private string Quote(string s)

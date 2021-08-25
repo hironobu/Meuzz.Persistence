@@ -180,16 +180,23 @@ namespace Meuzz.Persistence.Tests.Sqlite
             Assert.Empty(objs.ElementAt(1).Characters);
         }
 
-        /*[Fact]
-        public void TestLoadByLambdaWithJoinsAndHasManyOnPlayer3_()
+        [Fact]
+        public void TestLoadByLambdaWithSelect()
         {
             var playerRepository = new ObjectRepository<Player>();
 
-            var objs = playerRepository.Load(_context, st => st.Where(x => x.Age == 10).Select(x => new { Name = x.Name }));
+            var objs = playerRepository.Load(_context, st => st.Where(x => x.Age == 10).Select(x => x.Age));
             Assert.Equal(2, objs.Count());
-            Assert.Equal(2, objs.ElementAt(0).Characters.Count());
-            Assert.Empty(objs.ElementAt(1).Characters);
-        }*/
+        }
+
+        [Fact]
+        public void TestLoadByLambdaWithSelect2()
+        {
+            var playerRepository = new ObjectRepository<Player>();
+
+            var objs = playerRepository.Load(_context, st => st.Where(x => x.Age == 10).Select(x => new { Name = x.Name, Age = x.Age }));
+            Assert.Equal(2, objs.Count());
+        }
 
         [Fact]
         public void TestCreateAndUpdate()
