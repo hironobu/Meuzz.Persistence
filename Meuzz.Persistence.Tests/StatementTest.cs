@@ -134,6 +134,7 @@ namespace Meuzz.Persistence.Tests
             Assert.Null(statement3.Condition);
             Assert.Empty(statement3.RelationSpecs);
             Assert.Null(statement3.OutputSpec);
+            Assert.NotNull(statement3.Source.OutputSpec);
 
             // Assert.Empty(statement2.ColumnSpecs);
             Assert.NotNull(statement2.Condition);
@@ -173,7 +174,7 @@ namespace Meuzz.Persistence.Tests
         }
 
         [Fact]
-        public void TestSelectAndOutputOtherType()
+        public void TestSelectAndOutputOtherTypeWithNotImplementedException()
         {
             // SELECT COUNT AS COUNT(*), MAX AS MAX(TITLE) FROM (SELECT ID AS Code, NAME AS Title FROM Member WHERE ID = 1)
             var statement = new SelectStatement<Member>();

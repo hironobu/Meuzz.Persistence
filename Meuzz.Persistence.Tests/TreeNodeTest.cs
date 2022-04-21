@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using Xunit;
 
@@ -46,7 +47,9 @@ namespace Meuzz.Persistence.Tests
         public void TestLoadById()
         {
             var objs = _repository.Load<TreeNode>(_context, s => s.Where(x => x.Id == 1)).ToList();
+            Debug.WriteLine("HOGE");
             Assert.Single(objs);
+            Debug.WriteLine("HOGE");
             Assert.Equal(1, objs.ElementAt(0).Id);
             Assert.Equal(3, objs.ElementAt(0).Children.Count());
             Assert.Equal("bbb", objs.ElementAt(0).Children.ElementAt(0).Name);
@@ -64,7 +67,7 @@ namespace Meuzz.Persistence.Tests
             Assert.Equal((Int64)2, objs2.ElementAt(0).Id);
             Assert.Equal("aa", objs2.ElementAt(0).Parent.Name);
             Assert.Equal(1, objs2.ElementAt(0).Parent.Id);
-
+            
             var objs3 = _repository.Load<TreeNode>(_context, 1, 2, 3);
             Assert.Equal(3, objs3.Count());
             Assert.Equal((Int64)1, objs3.ElementAt(0).Id);

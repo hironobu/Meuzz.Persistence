@@ -104,7 +104,19 @@ namespace Meuzz.Persistence.Tests
             Assert.Equal("x.how_long", objs2.ColumnCollationInfo.GetOutputColumnName("_c1"));
         }
 
+        [Fact]
+        public void TestLoadByIdAndSelectBySingleColumn()
+        {
+            var formatter = new SqliteFormatter();
 
+            var statement = new SelectStatement<Player>().Where("id", 1, 2, 3).Select(x => x.Age);
+            var objs2 = formatter.Format(statement);
+
+            Assert.Equal("SELECT x.age AS _c0 FROM Players x WHERE (x.Id) IN (1, 2, 3)", objs2.Sql);
+            Assert.Null(objs2.Parameters);
+            Assert.Equal("x.age", objs2.ColumnCollationInfo._GetOriginalColumnName("_c0"));
+            Assert.Equal("x.age", objs2.ColumnCollationInfo.GetOutputColumnName("_c0"));
+        }
 
         [Fact]
         public void TestLoadByIdAndJoinsAndSelect()
@@ -114,7 +126,7 @@ namespace Meuzz.Persistence.Tests
             var statement = new SelectStatement<Player>().Where("id", 1, 2, 3);
             var statement2 = statement.Joins(p => p.Characters).Select(x => new { Id = x.Id, HowLong = x.PlayTime });
             var objs4 = formatter.Format(statement2);
-            Assert.Equal("(SELECT x.id AS _c0, x.play_time AS _c1, _t.id AS _c2, _t.name AS _c3, _t.player_id AS _c4, _t.last_player_id AS _c5 FROM Players x LEFT JOIN Characters _t ON x.id = _t.player_id WHERE (x.Id) IN (1, 2, 3))", objs4.Sql);
+            Assert.Equal("SELECT x.id AS _c0, x.play_time AS _c1 FROM Players x LEFT JOIN Characters _t ON x.id = _t.player_id WHERE (x.Id) IN (1, 2, 3)", objs4.Sql);
             Assert.Null(objs4.Parameters);
             Assert.Equal("x.id", objs4.ColumnCollationInfo._GetOriginalColumnName("_c0"));
         }

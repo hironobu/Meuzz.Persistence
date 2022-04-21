@@ -61,7 +61,8 @@ namespace Meuzz.Persistence.Sql
                     break;
 
                 case MemberExpression me:
-                    args = new Expression[] { me };
+                    args = new[] { me };
+                    memberInfos = new[] { me.Member };
                     break;
 
                 default:

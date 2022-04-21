@@ -363,7 +363,7 @@ namespace Meuzz.Persistence
             var statement = new SelectStatement<T>();
             if (f != null)
             {
-                statement.Where(f);
+                statement = statement.Where(f);
             }
 
             return Enumerable.Cast<T>(LoadObjects(context, typeof(T), statement));
@@ -374,7 +374,7 @@ namespace Meuzz.Persistence
             var primaryKey = typeof(T).GetPrimaryKey();
 
             var statement = new SelectStatement<T>();
-            statement.Where(primaryKey, id);
+            statement = statement.Where(primaryKey, id);
 
             return Enumerable.Cast<T>(LoadObjects(context, typeof(T), statement));
         }
