@@ -13,14 +13,18 @@ namespace Meuzz.Persistence.Sql
     {
         public SqlSelectStatement(Type t) : base(t)
         {
+            ParameterSetInfo = new ParameterSetInfo();
+            ParameterSetInfo.RegisterParameter(null, t, true);
         }
 
-        public SqlSelectStatement(SqlSelectStatement statement) : base(statement)
+        public SqlSelectStatement(SqlSelectStatement statement) : base(statement.Type, statement.Condition)
         {
             _source = statement.Source;
             _columnSpecs = statement.ColumnSpecs;
             _relationSpecs = statement.RelationSpecs;
             _outputSpec = statement.OutputSpec;
+
+            ParameterSetInfo = new ParameterSetInfo(statement.ParameterSetInfo);
         }
 
         public SqlSelectStatement? Source { get => _source; }
@@ -30,6 +34,8 @@ namespace Meuzz.Persistence.Sql
         public RelationSpec[] RelationSpecs { get => _relationSpecs; }
         
         public OutputSpec? OutputSpec { get => _outputSpec; }
+
+        public ParameterSetInfo ParameterSetInfo { get; }
 
         #region Source
         protected void BuildSource(SqlSelectStatement statement)
@@ -43,6 +49,18 @@ namespace Meuzz.Persistence.Sql
                 colspec.Parameter = paname;
             }*/
         }
+        #endregion
+
+        #region Condition
+        public override void BuildCondition(LambdaExpression cond, Type? t)
+        {
+            var p = cond.Parameters.Single();
+            ParameterSetInfo.RegisterParameter(p.Name, t ?? p.Type, true);
+            // (return) == p.Name
+
+            base.BuildCondition(cond, t);
+        }
+
         #endregion
 
         #region Columns
@@ -127,12 +145,7 @@ namespace Meuzz.Persistence.Sql
             }
 
             var leftParamName = ParameterSetInfo.GetDefaultParamName();
-            if (leftParamName == null)
-            {
-                leftParamName = ParameterSetInfo.RegisterParameter(leftparamexp.Name, leftparamexp.Type, true);
-            }
-
-            string rightParamName = ParameterSetInfo.RegisterParameter(condexp != null ? condexp.Parameters.Skip(1).First().Name : null, rightParamType, false);
+            var rightParamName = ParameterSetInfo.RegisterParameter(condexp != null ? condexp.Parameters.Skip(1).First().Name : null, rightParamType, false);
 
             var relationSpec = RelationSpec.Build(leftParamName, leftparamexp.Type, rightParamName, memberInfo, condexp);
             AddRelationSpec(relationSpec);

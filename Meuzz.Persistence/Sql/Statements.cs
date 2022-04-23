@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -16,10 +17,6 @@ namespace Meuzz.Persistence.Sql
             Type = t;
         }
 
-        public SqlStatement(SqlStatement statement) : this(statement.Type)
-        {
-        }
-
         public Type Type { get; }
     }
 
@@ -28,35 +25,18 @@ namespace Meuzz.Persistence.Sql
         public SqlConditionalStatement(Type t, Expression? condition = null) : base(t)
         {
             Condition = condition;
-
-            ParameterSetInfo = new ParameterSetInfo();
-            ParameterSetInfo.RegisterParameter(null, t, true);
-        }
-
-        public SqlConditionalStatement(SqlConditionalStatement statement) : base(statement)
-        {
-            Condition = statement.Condition;
-
-            ParameterSetInfo = new ParameterSetInfo(statement.ParameterSetInfo);
         }
 
         public Expression? Condition { get; private set; }
 
-        [Obsolete]
-        public ParameterSetInfo ParameterSetInfo { get; }
-
         public virtual void BuildCondition(LambdaExpression cond, Type? t)
         {
-            var p = cond.Parameters.Single();
-            ParameterSetInfo.RegisterParameter(p.Name, t ?? p.Type, true);
-            // (return) == p.Name
-
             this.Condition = cond;
         }
 
         public virtual void BuildCondition(string key, params object[] value)
         {
-            Type? t = ParameterSetInfo.GetDefaultParamType();
+            var t = Type;
             Expression memberAccessor;
             ParameterExpression px;
 
