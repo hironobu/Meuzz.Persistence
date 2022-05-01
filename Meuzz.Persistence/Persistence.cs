@@ -1,5 +1,6 @@
-﻿using System;
-using System.Collections;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -62,7 +63,7 @@ namespace Meuzz.Persistence
 
         // private static IDictionary<string, object> _tableInfo = new ConcurrentDictionary<string, object>();
 
-        public static ClassInfoManager.Entry GetClassInfo(this Type t)
+        public static ClassInfoManager.Entry? GetClassInfo(this Type t)
         {
             if (!t.IsPersistent())
             {
@@ -119,7 +120,7 @@ namespace Meuzz.Persistence
             ti = new ClassInfoManager.Entry() { Columns = colinfos.ToArray(), Relations = relinfos.ToArray(), ClassType = t };
             ClassInfoManager.Instance().RegisterEntry(t, ti);*/
 
-            return ti;
+            return null;
         }
 
         public static bool IsPersistent(this Type t)
@@ -205,7 +206,7 @@ namespace Meuzz.Persistence
             return fcol.Split('.').Last();
         }
 
-        public static PropertyInfo GetPropertyInfoFromColumnName(this Type t, string fcol, bool usingPk = false)
+        public static PropertyInfo? GetPropertyInfoFromColumnName(this Type t, string fcol, bool usingPk = false)
         {
             var c = GetShortColumnName(fcol).ToLower();
             foreach (var p in t.GetProperties())
@@ -236,28 +237,28 @@ namespace Meuzz.Persistence
             return "id";
         }
 
-        public static object GetPrimaryValue(this Type t,  object obj)
+        public static object? GetPrimaryValue(this Type t,  object obj)
         {
             var pkey = t.GetPrimaryKey();
             return GetPropertyValue(t, pkey, obj);
         }
 
-        public static PropertyInfo GetPrimaryPropertyInfo(this Type t)
+        public static PropertyInfo? GetPrimaryPropertyInfo(this Type t)
         {
             var pkey = t.GetPrimaryKey();
             return t.GetPropertyInfo(pkey);
         }
-        public static PropertyInfo GetPropertyInfo(this Type t, string propname)
+        public static PropertyInfo? GetPropertyInfo(this Type t, string propname)
         {
             return t.GetProperty(StringUtils.ToCamel(propname, true));
         }
 
-        public static object GetPropertyValue(this Type t, string propname, object obj)
+        public static object? GetPropertyValue(this Type t, string propname, object obj)
         {
             var prop = t.GetProperty(StringUtils.ToCamel(propname, true));
-            var pval = prop.GetValue(obj);
             if (prop == null) { return null; }
 
+            var pval = prop.GetValue(obj);
             if (pval is int)
             {
                 return default(int) != (int)pval ? pval : null;
@@ -280,17 +281,17 @@ namespace Meuzz.Persistence
             return attr.TableName;
         }
 
-        public static object GetValueForColumnName(this Type t, string c, object obj)
+        public static object? GetValueForColumnName(this Type t, string c, object obj)
         {
             var propInfo = t.GetPropertyInfoFromColumnName(c);
             return propInfo?.GetValue(obj);
         }
 
-        public static IDictionary<string, object> GetValueDictFromColumnNames(this Type t, string[] cols, object obj)
+        public static IDictionary<string, object?> GetValueDictFromColumnNames(this Type t, string[] cols, object obj)
         {
             return cols.Zip(t.GetValuesFromColumnNames(cols, obj), (x, y) => new { x, y }).ToDictionary(x => x.x, x => x.y);
         }
-        public static IEnumerable<object> GetValuesFromColumnNames(this Type t, string[] cols, object obj)
+        public static IEnumerable<object?> GetValuesFromColumnNames(this Type t, string[] cols, object obj)
         {
             return cols.Select(c => t.GetValueForColumnName(c, obj));
         }
@@ -298,6 +299,7 @@ namespace Meuzz.Persistence
         public static string GetForeignKey(this Type t, string prediction, Type primaryType, string primaryKey)
         {
             var ci = t.GetClassInfo();
+            if (ci == null) { throw new NotImplementedException(); }
             return ci.Columns.Where(x => x.Name.StartsWith(prediction)
                 && (x.BindingToPrimaryKey == null || x.BindingToPrimaryKey == primaryKey)
                 && (x.BindingTo == null || x.BindingTo == primaryType.GetTableName())).Single().Name;

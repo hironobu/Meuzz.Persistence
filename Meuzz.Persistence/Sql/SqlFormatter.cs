@@ -43,6 +43,7 @@ namespace Meuzz.Persistence.Sql
 
             var parameterName = statement.ParameterSetInfo.GetDefaultParamName();
             var parameterType = parameterName != null ? statement.ParameterSetInfo.GetTypeByName(parameterName) : null;
+            if (parameterType == null) { throw new NotImplementedException(); }
 
             string source;
             string[] columns;
@@ -128,7 +129,7 @@ namespace Meuzz.Persistence.Sql
             var sb = new StringBuilder();
             IDictionary<string, object?>? parameters = null;
 
-            Func<object, object> _f = (y) => (y is string s ? Quote(s) : (y != null ? y : "NULL"));
+            Func<object?, object> _f = (y) => (y is string s ? Quote(s) : (y != null ? y : "NULL"));
 
             foreach (var obj in statement.Values)
             {
@@ -312,7 +313,9 @@ namespace Meuzz.Persistence.Sql
                 return parameters.SelectMany(x =>
                 {
                     var (name, type) = x;
-                    var colnames = type.GetClassInfo().Columns.Select(x => x.Name).ToArray();
+                    var ci = type.GetClassInfo();
+                    if (ci == null) { throw new InvalidOperationException(); }
+                    var colnames = ci.Columns.Select(x => x.Name).ToArray();
 
                     if (columnCollationInfo != null)
                     {

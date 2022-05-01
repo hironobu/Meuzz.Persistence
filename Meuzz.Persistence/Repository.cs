@@ -44,7 +44,9 @@ namespace Meuzz.Persistence
         protected IEnumerable<object> MakeDefaultLoader(IStorageContext context, object obj, ClassInfoManager.RelationInfoEntry reli)
         {
             var statement = new SqlSelectStatement(reli.TargetType);
-            statement.BuildCondition(reli.ForeignKey, obj.GetType().GetPrimaryValue(obj));
+            var pkval = obj.GetType().GetPrimaryValue(obj);
+            if (pkval == null) { throw new NotImplementedException(); }
+            statement.BuildCondition(reli.ForeignKey, pkval);
 
             return LoadObjects(context, reli.TargetType, statement, (results) =>
             {
@@ -100,6 +102,7 @@ namespace Meuzz.Persistence
             object obj = func();
 
             var ci = t.GetClassInfo();
+            if (ci == null) { throw new NotImplementedException(); }
 
             foreach (var reli in ci.Relations)
             {
@@ -136,6 +139,7 @@ namespace Meuzz.Persistence
                 var pkey = t.GetPrimaryKey();
                 var prop = t.GetProperty(StringUtils.ToCamel(pkey, true))!;
                 var classinfo = t.GetClassInfo();
+                if (classinfo == null) { throw new NotImplementedException(); }
 
                 var results = rset!.Results;
                 int newPrimaryId = (int)Convert.ChangeType(results.First()["id"], prop.PropertyType)!;
