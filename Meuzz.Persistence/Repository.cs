@@ -208,7 +208,7 @@ namespace Meuzz.Persistence
                 foreach (var (k, v) in row)
                 {
                     var d = (Dictionary<string, object?>)v!;
-                    var tt = statement.ParameterSetInfo.GetTypeByName(k) ?? statement.Type;
+                    var tt = statement.ParameterSetInfo.GetTypeByName(k) ?? statement.OutputType;
                     var pk = tt.GetPrimaryKey();
 
                     if (!resultDict.TryGetValue(k, out var dd) || dd == null)
@@ -232,7 +232,7 @@ namespace Meuzz.Persistence
 
             foreach (var (k, v) in resultDict)
             {
-                var tt = statement.ParameterSetInfo.GetTypeByName(k) ?? statement.Type;
+                var tt = statement.ParameterSetInfo.GetTypeByName(k) ?? statement.OutputType;
                 var objs = resultDict[k].Select(x =>
                 {
                     var xv = x.Value;

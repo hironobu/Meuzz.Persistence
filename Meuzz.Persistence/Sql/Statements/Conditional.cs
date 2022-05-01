@@ -35,6 +35,8 @@ namespace Meuzz.Persistence.Sql
         
         public OutputSpec? OutputSpec { get => _outputSpec; }
 
+        public Type OutputType { get => _outputSpec?.OutputExpression.ReturnType ?? Type; }
+
         public ParameterSetInfo ParameterSetInfo { get; }
 
         #region Source
