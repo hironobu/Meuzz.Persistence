@@ -40,7 +40,8 @@ namespace Meuzz.Persistence.Core
                     if (fke.ForeignKey != null)
                     {
                         var targetType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
-                        relinfos.Add(new ClassInfoManager.RelationInfoEntry(targetType, prop, targetType.GetPropertyInfoFromColumnName(fke.ForeignKey, true), fke.ForeignKey));
+                        var targetPropertyInfo = targetType.GetPropertyInfoFromColumnName(fke.ForeignKey, true);
+                        relinfos.Add(new ClassInfoManager.RelationInfoEntry(targetType, prop, targetPropertyInfo, fke.ForeignKey));
                    }
                 }
                 else
@@ -88,11 +89,11 @@ namespace Meuzz.Persistence.Core
         {
             public Type TargetType { get; }
             public PropertyInfo PropertyInfo { get;  }
-            public PropertyInfo InversePropertyInfo { get; }
+            public PropertyInfo? InversePropertyInfo { get; }
             public string ForeignKey { get; }
             public string? PrimaryKey { get; }
 
-            public RelationInfoEntry(Type targetType, PropertyInfo propertyInfo, PropertyInfo inversePropertyInfo, string foreignKey, string? primaryKey = null)
+            public RelationInfoEntry(Type targetType, PropertyInfo propertyInfo, PropertyInfo? inversePropertyInfo, string foreignKey, string? primaryKey = null)
             {
                 TargetType = targetType;
                 PropertyInfo = propertyInfo;
