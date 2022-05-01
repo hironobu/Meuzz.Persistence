@@ -129,12 +129,11 @@ namespace Meuzz.Persistence.Tests
 
             var statement3 = statement2.Select(x => x.Id);
 
-            Assert.Empty(statement3.ColumnSpecs);
-            Assert.Single(statement3.Source.ColumnSpecs);
-            Assert.Null(statement3.Condition);
+            Assert.Single(statement3.ColumnSpecs);
+            Assert.NotNull(statement3.Condition);
             Assert.Empty(statement3.RelationSpecs);
-            Assert.Null(statement3.OutputSpec);
-            Assert.NotNull(statement3.Source.OutputSpec);
+            Assert.NotNull(statement3.OutputSpec);
+            Assert.Null(statement3.Source);
 
             // Assert.Empty(statement2.ColumnSpecs);
             Assert.NotNull(statement2.Condition);
@@ -158,14 +157,12 @@ namespace Meuzz.Persistence.Tests
 
             var statement3 = statement2.Select(x => new { Code = x.Id, Title = x.Name });
 
-            Assert.Empty(statement3.ColumnSpecs);
-            Assert.Null(statement3.Condition);
+            Assert.Equal(2, statement3.ColumnSpecs.Length);
+            Assert.NotNull(statement3.Condition);
             Assert.Empty(statement3.RelationSpecs);
-            Assert.Null(statement3.OutputSpec);
+            Assert.NotNull(statement3.OutputSpec);
             
-            Assert.NotNull(statement3.Source);
-            Assert.NotEmpty(statement3.Source.ColumnSpecs);
-            Assert.Equal(2, statement3.Source.ColumnSpecs.Length);
+            Assert.Null(statement3.Source);
 
             Assert.Empty(statement2.ColumnSpecs);
             Assert.NotNull(statement2.Condition);

@@ -351,7 +351,7 @@ namespace Meuzz.Persistence.Sql
         {
         }
 
-        public SelectStatement(SelectStatement<T> statement) : base(statement)
+        public SelectStatement(SqlSelectStatement statement) : base(statement)
         {
         }
 
@@ -400,26 +400,26 @@ namespace Meuzz.Persistence.Sql
 
         public virtual SelectStatement<T1> Select<T1>(Expression<Func<T, T1>> expression)
         {
-            var statement2 = new SelectStatement<T>(this);
+            var statement2 = new SelectStatement<T1>(this);
             statement2.BuildColumnSpec(expression);
             statement2.BuildOutputSpec(expression);
-            return Create<T1>(statement2);
+            return statement2;
         }
 
         public virtual SelectStatement<T1> Select<T1>(Expression<Func<T, int, T1>> expression)
         {
-            var statement2 = new SelectStatement<T>(this);
+            var statement2 = new SelectStatement<T1>(this);
             statement2.BuildColumnSpec(expression);
             statement2.BuildOutputSpec(expression);
-            return Create<T1>(statement2);
+            return statement2;
         }
 
         public virtual SelectStatement<T1> Select<T1>(Expression<Func<T, int, IEnumerable<T>, T1>> expression)
         {
-            var statement2 = new SelectStatement<T>(this);
+            var statement2 = new SelectStatement<T1>(this);
             statement2.BuildColumnSpec(expression);
             statement2.BuildOutputSpec(expression);
-            return Create<T1>(statement2);
+            return statement2;
         }
 
         public static implicit operator T(SelectStatement<T> self)
