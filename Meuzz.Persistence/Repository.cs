@@ -35,8 +35,11 @@ namespace Meuzz.Persistence
 
         protected IEnumerable<object> MakeDefaultReverseLoader(IStorageContext context, object value, Type targetType)
         {
+            var primaryKey = targetType.GetPrimaryKey();
+            if (primaryKey == null) { throw new ArgumentException("Argument type should be persistent", "targetType"); }
+
             var statement = new SqlSelectStatement(targetType);
-            statement.BuildCondition(targetType.GetPrimaryKey(), value);
+            statement.BuildCondition(primaryKey, value);
 
             return LoadObjects(context, targetType, statement);
         }
@@ -210,6 +213,7 @@ namespace Meuzz.Persistence
                     var d = (Dictionary<string, object?>)v!;
                     var tt = statement.ParameterSetInfo.GetTypeByName(k) ?? statement.OutputType;
                     var pk = tt.GetPrimaryKey();
+                    if (pk == null) { throw new NotImplementedException(); }
 
                     if (!resultDict.TryGetValue(k, out var dd) || dd == null)
                     {
@@ -239,7 +243,9 @@ namespace Meuzz.Persistence
                     xv["__object"] = PopulateObject(context, tt, xv.Keys, xv.Values);
                     return xv;
                 });
-                var primaryKeyValue = tt.GetProperty(StringUtils.ToCamel(t.GetPrimaryKey(), true))!;
+                var primaryKey = t.GetPrimaryKey();
+                if (primaryKey == null) { throw new NotImplementedException(); }
+                var primaryKeyValue = tt.GetProperty(StringUtils.ToCamel(primaryKey, true))!;
                 resultObjects.Add(k!, objs.ToDictionary(x => primaryKeyValue.GetValue(x["__object"])!, x => x));
             }
 
@@ -376,6 +382,7 @@ namespace Meuzz.Persistence
         public IEnumerable<T> Load<T>(IStorageContext context, params object[] id)
         {
             var primaryKey = typeof(T).GetPrimaryKey();
+            if (primaryKey == null) { throw new NotSupportedException(); }
 
             var statement = new SelectStatement<T>();
             statement = statement.Where(primaryKey, id);
@@ -401,6 +408,7 @@ namespace Meuzz.Persistence
         public bool Delete<T>(IStorageContext context, params object[] id)
         {
             var primaryKey = typeof(T).GetPrimaryKey();
+            if (primaryKey == null) { throw new NotSupportedException(); }
 
             var statement = new DeleteStatement<T>();
             statement.Where(primaryKey, id);

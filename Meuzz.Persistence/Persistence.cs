@@ -218,7 +218,8 @@ namespace Meuzz.Persistence
                     cc = ppa.Column.ToLower();
                 }
 
-                if (cc == c || (usingPk && $"{cc}_{p.PropertyType.GetPrimaryKey().ToLower()}" == c))
+                var primaryKey = p.PropertyType.GetPrimaryKey() ?? "id";
+                if (cc == c || (usingPk && $"{cc}_{primaryKey.ToLower()}" == c))
                 {
                     return p;
                 }
@@ -227,25 +228,27 @@ namespace Meuzz.Persistence
             return null;
         }
 
-        public static string GetPrimaryKey(this Type t)
+        public static string? GetPrimaryKey(this Type t)
         {
             var attr = t.GetCustomAttribute<PersistentClassAttribute>();
             if (attr != null && attr.PrimaryKey != null)
             {
                 return attr.PrimaryKey;
             }
-            return "id";
+            return null;
         }
 
         public static object? GetPrimaryValue(this Type t,  object obj)
         {
             var pkey = t.GetPrimaryKey();
+            if (pkey == null) { return null; }
             return GetPropertyValue(t, pkey, obj);
         }
 
         public static PropertyInfo? GetPrimaryPropertyInfo(this Type t)
         {
             var pkey = t.GetPrimaryKey();
+            if (pkey == null) { return null; }
             return t.GetPropertyInfo(pkey);
         }
         public static PropertyInfo? GetPropertyInfo(this Type t, string propname)

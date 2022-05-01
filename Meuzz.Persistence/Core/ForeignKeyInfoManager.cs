@@ -97,8 +97,10 @@ namespace Meuzz.Persistence.Core
             var hasmany = pi.GetCustomAttribute<HasManyAttribute>();
             var declaringType = pi.DeclaringType;
             if (declaringType == null) { throw new NotImplementedException(); }
+            var primaryKey = hasmany?.PrimaryKey ?? declaringType.GetPrimaryKey();
+            if (primaryKey == null) { throw new NotImplementedException(); }
             var fki = new Entry(
-                hasmany?.PrimaryKey ?? declaringType.GetPrimaryKey(),
+                primaryKey,
                 declaringType.GetTableName(),
                 hasmany?.ForeignKey ?? GetForeignKeyByPropertyInfo(pi),
                 pi.PropertyType.GetTableName()

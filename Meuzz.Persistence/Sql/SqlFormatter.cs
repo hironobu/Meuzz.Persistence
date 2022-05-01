@@ -116,7 +116,8 @@ namespace Meuzz.Persistence.Sql
                             sb.Append(",");
                     }
                 }
-                sb.Append($"; {GetLastInsertedIdString(statement.PrimaryKey, rows.Length) ?? ""}");
+                // TODO: PKなしのケースに対応できるように
+                sb.Append($"; {GetLastInsertedIdString(statement.PrimaryKey ?? "id", rows.Length) ?? ""}");
                 // sb.Append($"; SELECT last_insert_rowid() AS new_id;");
             }
 

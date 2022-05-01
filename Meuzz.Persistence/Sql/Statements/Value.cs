@@ -8,7 +8,7 @@ namespace Meuzz.Persistence.Sql
 {
     public class SqlValueStatement : SqlStatement
     {
-        public string PrimaryKey { get; private set; }
+        public string? PrimaryKey { get; private set; }
         public string[] Columns { get; private set; }
 
         public object[] Values { get => _values.ToArray(); }
