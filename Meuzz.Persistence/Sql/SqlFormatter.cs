@@ -42,7 +42,7 @@ namespace Meuzz.Persistence.Sql
             }
 
             var parameterName = statement.ParameterSetInfo.GetDefaultParamName();
-            var parameterType = parameterName != null ? statement.ParameterSetInfo.GetTypeByName(parameterName) : null;
+            var parameterType = parameterName != null ? statement.ParameterSetInfo.GetTypeByName(parameterName) ?? statement.Type : null;
             if (parameterType == null) { throw new NotImplementedException(); }
 
             string source;

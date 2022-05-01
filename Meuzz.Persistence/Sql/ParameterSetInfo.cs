@@ -68,9 +68,9 @@ namespace Meuzz.Persistence.Sql
             _parameterMemberExpressions = memberExpressions;
         }
 
-        public Type GetTypeByName(string name)
+        public Type? GetTypeByName(string name)
         {
-            return _parameters[name];
+            return _defaultParamKey != name ? _parameters[name] : null;
         }
 
         public string GetName(Expression expr)
