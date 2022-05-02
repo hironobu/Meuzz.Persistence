@@ -7,6 +7,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using Meuzz.Foundation;
+using Meuzz.Persistence.Core;
 
 namespace Meuzz.Persistence.Sql
 {
@@ -48,10 +49,9 @@ namespace Meuzz.Persistence.Sql
             }
             else
             {
-                var t1 = typeof(IDictionary<string, object?>);
-                px = Expression.Parameter(t1, "x");
-                var methodInfo = t1.GetMethod("get_Item");
-                memberAccessor = Expression.Call(px, methodInfo, Expression.Constant(key));
+                var (parameter, methodCallExpression) = ExpressionHelpers.MakeDictionaryAccessorExpression(key);
+                px = parameter;
+                memberAccessor = methodCallExpression;
             }
 
             Expression f;

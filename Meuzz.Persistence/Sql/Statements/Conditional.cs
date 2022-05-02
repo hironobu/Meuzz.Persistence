@@ -6,6 +6,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using Meuzz.Foundation;
+using Meuzz.Persistence.Core;
 
 namespace Meuzz.Persistence.Sql
 {
@@ -189,7 +190,7 @@ namespace Meuzz.Persistence.Sql
     {
         public OutputSpec(LambdaExpression expr)
         {
-            OutputExpression = expr;
+            OutputExpression = GetOutputExpression(expr);
 
             SourceMemberExpressions = GetSourceMemberExpressions(expr);
         }
@@ -197,6 +198,20 @@ namespace Meuzz.Persistence.Sql
         public LambdaExpression OutputExpression { get; }
 
         public IDictionary<ExpressionComparer, MemberExpression[]> SourceMemberExpressions { get; }
+
+        private LambdaExpression GetOutputExpression(LambdaExpression outputexp)
+        {
+            switch (outputexp.Body)
+            {
+                case MemberExpression me:
+                    var memberInfo = me.Member;
+                    var (px, memberAccessor) = ExpressionHelpers.MakeDictionaryAccessorExpression(memberInfo.GetColumnName());
+                    return Expression.Lambda<Func<IDictionary<string, object?>, object?>>(memberAccessor, px);
+
+                default:
+                    throw new NotImplementedException();
+            }
+        }
 
         private IDictionary<ExpressionComparer, MemberExpression[]> GetSourceMemberExpressions(LambdaExpression outputexp)
         {

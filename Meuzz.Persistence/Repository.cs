@@ -1,14 +1,14 @@
 ﻿#nullable enable
 
-using Meuzz.Foundation;
-using Meuzz.Persistence.Core;
-using Meuzz.Persistence.Sql;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using Meuzz.Foundation;
+using Meuzz.Persistence.Core;
+using Meuzz.Persistence.Sql;
 
 namespace Meuzz.Persistence
 {
@@ -19,7 +19,7 @@ namespace Meuzz.Persistence
             var rset = context.Execute(statement);
             if (rset != null)
             {
-                var results = PopulateObjects(context, t, rset, statement);
+                var results = (IEnumerable<object>)PopulateObjects(context, t, rset, statement);
                 if (propertySetter != null)
                 {
                     propertySetter(results);
@@ -203,8 +203,9 @@ namespace Meuzz.Persistence
                 return d;
             });
 
-            var resultDicts = new Dictionary<string, IList<(object?, IDictionary<string, object?>)>>();
+            var resultDicts = new Dictionary<string, IList<(string?, object?, IDictionary<string, object?>)>>();
             var resultObjects = new Dictionary<string, IDictionary<object, IDictionary<string, object?>>>();
+            var resultDefaultObjects = new Dictionary<string, IEnumerable<IDictionary<string, object?>>>();
 
             foreach (var row in rows)
             {
@@ -213,16 +214,15 @@ namespace Meuzz.Persistence
                     var d = (Dictionary<string, object?>)v!;
                     var tt = statement.ParameterSetInfo.GetTypeByName(k) ?? statement.OutputType;
                     var pk = tt.GetPrimaryKey();
-                    if (pk == null) { throw new NotImplementedException(); }
 
                     if (!resultDicts.TryGetValue(k, out var dd) || dd == null)
                     {
-                        dd = new List<(object?, IDictionary<string, object?>)>();
+                        dd = new List<(string?, object?, IDictionary<string, object?>)>();
                         resultDicts[k] = dd;
                     }
 
-                    var pkval = d[pk];
-                    dd.Add((pkval, d));
+                    var pkval = pk != null && d.ContainsKey(pk) ? d[pk] : null;
+                    dd.Add((pk, pkval, d));
                 }
             }
 
@@ -235,20 +235,34 @@ namespace Meuzz.Persistence
             {
                 if (!resultObjects.ContainsKey(k!))
                 {
-                    var tt = statement.ParameterSetInfo.GetTypeByName(k) ?? statement.OutputType;
+                    var tt = statement.ParameterSetInfo.GetTypeByName(k);
                     var objs = v.Select(x =>
                     {
-                        var xv = x.Item2;
-                        xv["__object"] = x.Item1 != null ? PopulateObject(context, tt, xv.Keys, xv.Values) : null;
-                        return (x.Item1, xv);
-                    }).Where(x => x.Item1 != null).GroupBy(x => x.Item1, x => x.Item2);
-                    resultObjects[k!] = objs.ToDictionary(x => x.Key!, x => x.First());
+                        var xv = x.Item3;
+                        if (tt != null || statement.OutputSpec == null)
+                        {
+                            xv["__object"] = x.Item2 != null ? PopulateObject(context, tt ?? statement.Type, xv.Keys, xv.Values) : null;
+                        }
+                        else
+                        {
+                            Func<IDictionary<string, object?>, object?> f = (Func<IDictionary<string, object?>, object?>)statement.OutputSpec.OutputExpression.Compile();
+                            xv["__object"] = f(x.Item3);
+                        }
+                        return (x.Item2, xv);
+                    });
+                    resultObjects[k!] = objs.Where(x => x.Item1 != null).GroupBy(x => x.Item1, x => x.Item2).ToDictionary(x => x.Key!, x => x.First());
+                    resultDefaultObjects[k!] = objs.Where(x => x.Item1 == null).Select(x => x.Item2);
                 }
             }
 
             BuildBindings(statement, resultObjects);
 
-            return (IEnumerable<object>)EnumerableCast(t, resultObjects[statement.ParameterSetInfo.GetDefaultParamName()!].Values.Select(x => x["__object"]))!;
+            var objects = resultObjects[statement.ParameterSetInfo.GetDefaultParamName()!].Values;
+            if (!objects.Any())
+            {
+                objects = resultDefaultObjects[statement.ParameterSetInfo.GetDefaultParamName()!].ToArray();
+            }
+            return (IEnumerable<object>)EnumerableCast(t, objects.Select(x => x["__object"]));
         }
 
         private void BuildBindings(SqlSelectStatement statement, IDictionary<string, IDictionary<dynamic, IDictionary<string, object?>>> resultObjects)
@@ -320,12 +334,23 @@ namespace Meuzz.Persistence
             yield break;
         }
 
-        private object? EnumerableCast(Type t, params object[] args)
+        private object EnumerableCast(Type t, IEnumerable<object> args)
         {
-            var conv = typeof(Enumerable).GetMethod("Cast")!.MakeGenericMethod((t.IsGenericType) ? t.GetGenericArguments()[0] : t);
-            return conv.Invoke(null, args);
-        }
+            var t1 = t.IsGenericType ? t.GetGenericArguments()[0] : t;
 
+            switch (t1)
+            {
+                case Type inttype when inttype == typeof(int):
+                    return args.Select(x => (object)Convert.ToInt32(x));
+
+                case Type longtype when longtype == typeof(long):
+                    return args.Select(x => (object)Convert.ToInt64(x));
+
+                default:
+                    var conv = typeof(Enumerable).GetMethod("Cast")!.MakeGenericMethod(t1);
+                    return conv.Invoke(null, new[] { args })!;
+            }
+        }
     }
 
     public class ObjectRepository<T> : ObjectRepository where T : class
