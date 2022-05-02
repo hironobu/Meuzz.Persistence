@@ -203,8 +203,8 @@ namespace Meuzz.Persistence
                 return d;
             });
 
-            var resultDict = new Dictionary<string, IDictionary<dynamic, IDictionary<string, object?>>>();
-            var resultObjects = new Dictionary<string, IDictionary<dynamic, IDictionary<string, object?>>>();
+            var resultDicts = new Dictionary<string, IList<(object?, IDictionary<string, object?>)>>();
+            var resultObjects = new Dictionary<string, IDictionary<object, IDictionary<string, object?>>>();
 
             foreach (var row in rows)
             {
@@ -215,38 +215,35 @@ namespace Meuzz.Persistence
                     var pk = tt.GetPrimaryKey();
                     if (pk == null) { throw new NotImplementedException(); }
 
-                    if (!resultDict.TryGetValue(k, out var dd) || dd == null)
+                    if (!resultDicts.TryGetValue(k, out var dd) || dd == null)
                     {
-                        dd = new Dictionary<dynamic, IDictionary<string, object?>>();
-                        resultDict[k] = dd;
+                        dd = new List<(object?, IDictionary<string, object?>)>();
+                        resultDicts[k] = dd;
                     }
 
                     var pkval = d[pk];
-                    if (pkval != null && !dd.TryGetValue(pkval, out var _))
-                    {
-                        dd[pkval] = d;
-                    }
+                    dd.Add((pkval, d));
                 }
             }
 
-            if (resultDict.Count() == 0)
+            if (!resultDicts.Any())
             {
-                return new object[] { };
+                return Enumerable.Empty<object>();
             }
 
-            foreach (var (k, v) in resultDict)
+            foreach (var (k, v) in resultDicts)
             {
-                var tt = statement.ParameterSetInfo.GetTypeByName(k) ?? statement.OutputType;
-                var objs = resultDict[k].Select(x =>
+                if (!resultObjects.ContainsKey(k!))
                 {
-                    var xv = x.Value;
-                    xv["__object"] = PopulateObject(context, tt, xv.Keys, xv.Values);
-                    return xv;
-                });
-                var primaryKey = t.GetPrimaryKey();
-                if (primaryKey == null) { throw new NotImplementedException(); }
-                var primaryKeyValue = tt.GetProperty(StringUtils.ToCamel(primaryKey, true))!;
-                resultObjects.Add(k!, objs.ToDictionary(x => primaryKeyValue.GetValue(x["__object"])!, x => x));
+                    var tt = statement.ParameterSetInfo.GetTypeByName(k) ?? statement.OutputType;
+                    var objs = v.Select(x =>
+                    {
+                        var xv = x.Item2;
+                        xv["__object"] = x.Item1 != null ? PopulateObject(context, tt, xv.Keys, xv.Values) : null;
+                        return (x.Item1, xv);
+                    }).Where(x => x.Item1 != null).GroupBy(x => x.Item1, x => x.Item2);
+                    resultObjects[k!] = objs.ToDictionary(x => x.Key!, x => x.First());
+                }
             }
 
             BuildBindings(statement, resultObjects);
