@@ -1,5 +1,6 @@
 using Meuzz.Persistence.Sql;
 using Meuzz.Persistence.Sqlite;
+using Meuzz.Persistence.Tests.Models;
 using Xunit;
 
 namespace Meuzz.Persistence.Tests

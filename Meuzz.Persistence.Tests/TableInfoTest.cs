@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Meuzz.Persistence.Tests.Models;
 using Xunit;
 
 namespace Meuzz.Persistence.Tests

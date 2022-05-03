@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using Meuzz.Persistence.Tests.Models;
 
-namespace Meuzz.Persistence.Tests
+namespace Meuzz.Persistence.Tests.Models
 {
     [PersistentClass("Players")]
     public class Player
@@ -58,6 +59,87 @@ namespace Meuzz.Persistence.Tests
     }
 }
 
+namespace Meuzz.Persistence.Tests.Models.ReadOnly
+{
+    [PersistentClass("Players")]
+    public class Player
+    {
+        public int Id { get; }
+
+        [PersistentProperty]
+        public string Name { get; }
+
+        public int Age { get; }
+
+        public int PlayTime { get; }
+
+        [HasMany(ForeignKey: "player_id")]
+        public IEnumerable<Character> Characters { get; }
+
+        [HasMany(ForeignKey: "last_player_id")]
+        public IEnumerable<Character> LastCharacters { get; }
+
+        // public IEnumerable<Item> Items { get; set; }
+
+        public Player(int id, string name, int age, int playTime)
+        {
+            Id = id;
+            Name = name;
+            Age = age;
+            PlayTime = playTime;
+        }
+    }
+
+    public class Item
+    {
+        public int Id { get; }
+
+        public string Name { get; }
+
+        public string Description { get; }
+
+        public Item(int id, string name, string description)
+        {
+            Id = id;
+            Name = name;
+            Description = description;
+        }
+    }
+
+
+    [PersistentClass("Characters")]
+    public class Character
+    {
+        public int Id { get; }
+
+        public string Name { get; }
+
+        public Player Player { get; }
+
+        public Player LastPlayer { get; }
+
+        public Character(int id, string name)
+        {
+            Id = id;
+            Name = name;
+        }
+    }
+
+    public class Geometry
+    {
+        public double Latitude { get; }
+        public double Longitude { get; }
+
+        public double Altitude { get; }
+
+        public Geometry(double latitude, double longitude, double altitude)
+        {
+            Latitude = latitude;
+            Longitude = longitude;
+            Altitude = altitude;
+        }
+    }
+}
 
 namespace Meuzz.Persistence.Tests.Models.NoForeignKeyProperty
 {

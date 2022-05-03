@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Meuzz.Persistence.Sql;
+using Meuzz.Persistence.Tests.Models;
 using Xunit;
 
 namespace Meuzz.Persistence.Tests.Sqlite

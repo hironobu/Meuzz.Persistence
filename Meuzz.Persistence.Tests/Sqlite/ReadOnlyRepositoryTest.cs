@@ -1,36 +1,33 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Meuzz.Persistence.Sql;
-using Meuzz.Persistence.Tests.Models;
+using Meuzz.Persistence.Tests.Models.ReadOnly;
 using Xunit;
 
-namespace Meuzz.Persistence.Tests.Mssql
+namespace Meuzz.Persistence.Tests.Sqlite
 {
-    public class RepositoryTest
+    public class ReadOnlyRepositoryTest
     {
         private IStorageContext _context;
         private ObjectRepository _repository;
-        public RepositoryTest()
+        public ReadOnlyRepositoryTest()
         {
-            var engine = PersistenceEngineFactory.Instance().GetEngine("mssql");
+            var engine = PersistenceEngineFactory.Instance().GetEngine("sqlite");
 
-            _context = engine.CreateContext("type=mssql;host=localhost;port=1433;database=Persistence;user=sa;password=P@ssw0rd!");
+            _context = engine.CreateContext("type=sqlite;file=:memory:");
             _context.Open();
 
             _context.Execute(@"
-                DROP TABLE IF EXISTS Characters;
-                DROP TABLE IF EXISTS Players;
-                CREATE TABLE Players (ID integer PRIMARY KEY IDENTITY(1,1), NAME nvarchar(255), AGE integer, PLAY_TIME integer);
-                CREATE TABLE Characters (ID integer PRIMARY KEY IDENTITY(1,1), NAME nvarchar(255), PLAYER_ID integer, LAST_PLAYER_ID integer NULL, FOREIGN KEY (PLAYER_ID) REFERENCES Players(ID), FOREIGN KEY (LAST_PLAYER_ID) REFERENCES Players(ID));
+                CREATE TABLE Players (ID integer PRIMARY KEY, NAME text, AGE integer, PLAY_TIME integer);
+                CREATE TABLE Characters (ID integer PRIMARY KEY, NAME text, PLAYER_ID integer, LAST_PLAYER_ID integer NULL, FOREIGN KEY (PLAYER_ID) REFERENCES Players(ID), FOREIGN KEY (LAST_PLAYER_ID) REFERENCES Players(ID));
             ");
             _context.Execute(@"
-                INSERT INTO Players VALUES ('aaa', 10, 100);
-                INSERT INTO Players VALUES ('bbb', 20, 200);
-                INSERT INTO Players VALUES ('ccc''s', 10, 200);
-                INSERT INTO Characters VALUES ('aaaa', 1, 3);
-                INSERT INTO Characters VALUES ('bbbb', 1, NULL);
-                INSERT INTO Characters VALUES ('cccc', 2, 3);
+                INSERT INTO Players VALUES (1, 'aaa', 10, 100);
+                INSERT INTO Players VALUES (2, 'bbb', 20, 200);
+                INSERT INTO Players VALUES (3, 'ccc''s', 10, 200);
+                INSERT INTO Characters VALUES (1, 'aaaa', 1, 3);
+                INSERT INTO Characters VALUES (2, 'bbbb', 1, NULL);
+                INSERT INTO Characters VALUES (3, 'cccc', 2, 3);
             ");
 
             _repository = new ObjectRepository();
@@ -184,13 +181,30 @@ namespace Meuzz.Persistence.Tests.Mssql
         }
 
         [Fact]
+        public void TestLoadByLambdaWithSelect()
+        {
+            var playerRepository = new ObjectRepository<Player>();
+
+            var objs = playerRepository.Load(_context, st => st.Where(x => x.Age == 10).Select(x => x.Age));
+            Assert.Equal(2, objs.Count());
+        }
+
+        [Fact]
+        public void TestLoadByLambdaWithSelect2()
+        {
+            var playerRepository = new ObjectRepository<Player>();
+
+            var objs = playerRepository.Load(_context, st => st.Where(x => x.Age == 10).Select(x => new { Name = x.Name, Age = x.Age }));
+            Assert.Equal(2, objs.Count());
+        }
+
+#if false
+        [Fact]
         public void TestCreateAndUpdate()
         {
-            var p = new Player() { Name = "Create Test", Age = 999 };
-            var q = new Player() { Name = "Create Test 2", PlayTime = 10000 };
-            var r = new Player() { Id = 1 };
-            PersistableState.Generate(r); // dummy
-            r.Name = "Update Test";
+            var p = new Player(default, "Create Test", 999, default);
+            var q = new Player(default, "Create Test 2", 10000, default);
+            var r = new Player(1, "Update Test", default, default);
 
             p.Characters = new[]
             {
@@ -211,14 +225,14 @@ namespace Meuzz.Persistence.Tests.Mssql
 
             Assert.Equal(5, rset.Results.Count());
             Assert.Equal("Update Test", rset.Results.ElementAt(0)["name"]);
-            Assert.Equal(10, rset.Results.ElementAt(0)["age"]);
-            Assert.Equal(100, rset.Results.ElementAt(0)["play_time"]);
+            Assert.Equal((Int64)10, rset.Results.ElementAt(0)["age"]);
+            Assert.Equal((Int64)100, rset.Results.ElementAt(0)["play_time"]);
             Assert.Equal("bbb", rset.Results.ElementAt(1)["name"]);
             Assert.Equal("ccc's", rset.Results.ElementAt(2)["name"]);
             Assert.Equal("Create Test", rset.Results.ElementAt(3)["name"]);
-            Assert.Equal(999, rset.Results.ElementAt(3)["age"]);
+            Assert.Equal((Int64)999, rset.Results.ElementAt(3)["age"]);
             Assert.Equal("Create Test 2", rset.Results.ElementAt(4)["name"]);
-            Assert.Equal(10000, rset.Results.ElementAt(4)["play_time"]);
+            Assert.Equal((Int64)10000, rset.Results.ElementAt(4)["play_time"]);
 
             Assert.Equal(4, p.Id);
             Assert.Equal(5, q.Id);
@@ -229,11 +243,11 @@ namespace Meuzz.Persistence.Tests.Mssql
         }
 
         [Fact]
-        public void TestCreateBy1000ItemsWithRawSQL()
+        public void TestCreateBy10000ItemsWithRawSQL()
         {
             var sql = "INSERT INTO Characters (name) VALUES ";
             var values = new List<string>();
-            for (int i = 0; i < 1000; i++)
+            for (int i = 0; i < 10000; i++)
             {
                 values.Add($"('Char {i}')");
             };
@@ -241,14 +255,14 @@ namespace Meuzz.Persistence.Tests.Mssql
             _context.Execute(sql + string.Join(", ", values));
 
             var rset = _context.Execute("SELECT * FROM Characters");
-            Assert.Equal(1003, rset.Results.Count());
+            Assert.Equal(10003, rset.Results.Count());
         }
 
         [Fact]
-        public void TestCreateBy1000Items()
+        public void TestCreateBy10000Items()
         {
             var characters = new List<Character>();
-            for (int i = 0; i < 1000; i++)
+            for (int i = 0; i < 10000; i++)
             {
                 characters.Add(new Character() { Name = $"Char {i}" });
             };
@@ -256,7 +270,7 @@ namespace Meuzz.Persistence.Tests.Mssql
             _repository.Store(_context, characters.ToArray());
 
             var rset = _context.Execute("SELECT * FROM Characters");
-            Assert.Equal(1003, rset.Results.Count());
+            Assert.Equal(10003, rset.Results.Count());
         }
 
         [Fact]
@@ -292,9 +306,9 @@ namespace Meuzz.Persistence.Tests.Mssql
 
             var rset3 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
-            Assert.Equal(1, rset3.Results.ElementAt(0)["id"]);
-            Assert.Equal(2, rset3.Results.ElementAt(1)["id"]);
-            Assert.Equal(3, rset3.Results.ElementAt(2)["id"]);
+            Assert.Equal((Int64)1, rset3.Results.ElementAt(0)["id"]);
+            Assert.Equal((Int64)2, rset3.Results.ElementAt(1)["id"]);
+            Assert.Equal((Int64)3, rset3.Results.ElementAt(2)["id"]);
         }
 
         [Fact]
@@ -314,11 +328,11 @@ namespace Meuzz.Persistence.Tests.Mssql
 
             var rset3 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(5, rset3.Results.Count());
-            Assert.Equal(1, rset3.Results.ElementAt(0)["id"]);
-            Assert.Equal(2, rset3.Results.ElementAt(1)["id"]);
-            Assert.Equal(3, rset3.Results.ElementAt(2)["id"]);
-            Assert.Equal(4, rset3.Results.ElementAt(3)["id"]);
-            Assert.Equal(6, rset3.Results.ElementAt(4)["id"]);
+            Assert.Equal((Int64)1, rset3.Results.ElementAt(0)["id"]);
+            Assert.Equal((Int64)2, rset3.Results.ElementAt(1)["id"]);
+            Assert.Equal((Int64)3, rset3.Results.ElementAt(2)["id"]);
+            Assert.Equal((Int64)4, rset3.Results.ElementAt(3)["id"]);
+            Assert.Equal((Int64)6, rset3.Results.ElementAt(4)["id"]);
         }
 
         [Fact]
@@ -339,9 +353,9 @@ namespace Meuzz.Persistence.Tests.Mssql
 
             var rset3 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
-            Assert.Equal(1, rset3.Results.ElementAt(0)["id"]);
-            Assert.Equal(2, rset3.Results.ElementAt(1)["id"]);
-            Assert.Equal(3, rset3.Results.ElementAt(2)["id"]);
+            Assert.Equal((Int64)1, rset3.Results.ElementAt(0)["id"]);
+            Assert.Equal((Int64)2, rset3.Results.ElementAt(1)["id"]);
+            Assert.Equal((Int64)3, rset3.Results.ElementAt(2)["id"]);
         }
 
 
@@ -362,9 +376,9 @@ namespace Meuzz.Persistence.Tests.Mssql
 
             var rset3 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
-            Assert.Equal(1, rset3.Results.ElementAt(0)["id"]);
-            Assert.Equal(2, rset3.Results.ElementAt(1)["id"]);
-            Assert.Equal(3, rset3.Results.ElementAt(2)["id"]);
+            Assert.Equal((Int64)1, rset3.Results.ElementAt(0)["id"]);
+            Assert.Equal((Int64)2, rset3.Results.ElementAt(1)["id"]);
+            Assert.Equal((Int64)3, rset3.Results.ElementAt(2)["id"]);
         }
 
         [Fact]
@@ -385,9 +399,10 @@ namespace Meuzz.Persistence.Tests.Mssql
 
             var rset3 = _context.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
-            Assert.Equal(1, rset3.Results.ElementAt(0)["id"]);
-            Assert.Equal(2, rset3.Results.ElementAt(1)["id"]);
-            Assert.Equal(3, rset3.Results.ElementAt(2)["id"]);
+            Assert.Equal((Int64)1, rset3.Results.ElementAt(0)["id"]);
+            Assert.Equal((Int64)2, rset3.Results.ElementAt(1)["id"]);
+            Assert.Equal((Int64)3, rset3.Results.ElementAt(2)["id"]);
         }
+#endif
     }
 }

@@ -64,17 +64,37 @@ namespace Meuzz.Persistence
             });
         }
 
-        protected object PopulateObject(IStorageContext context, Type t, IEnumerable<string> cols, IEnumerable<object?> vals)
+        protected object PopulateObject(IStorageContext context, Type t, IEnumerable<string> columns, IEnumerable<object?> values)
         {
-            Func<PropertyInfo, object, MemberAssignment> mapper = (k, v) =>
-            {
-                return Expression.Bind(k, Expression.Constant(Convert.ChangeType(v, k.PropertyType)));
-            };
+            Func<PropertyInfo, object, MemberAssignment> mapper = (k, v) => Expression.Bind(k, Expression.Constant(Convert.ChangeType(v, k.PropertyType)));
             var bindings = new List<MemberAssignment>();
+            var arguments = new List<Expression>();
 
             IDictionary<PropertyInfo, IEnumerable<object>> reverseLoaders = new Dictionary<PropertyInfo, IEnumerable<object>>();
 
-            foreach (var (c, v) in cols.Zip(vals))
+            var ctors = t.GetConstructors().OrderBy(x => x.GetParameters().Length);
+            var ctor = ctors.First();
+            var ctorParamTypesAndNames = ctor.GetParameters().Select(x => (x.ParameterType, StringUtils.ToSnake(x.Name))).ToArray();
+
+            var colsValsPairs = columns.Zip(values);
+            var ctorParamsDict = colsValsPairs.Where(x => ctorParamTypesAndNames.Any(p => p.Item2 == x.First)).ToDictionary(x => x.First, x => x.Second);
+            var memberParamsDict = colsValsPairs.Where(x => !ctorParamTypesAndNames.Any(p => p.Item2 == x.First)).ToDictionary(x => x.First, x => x.Second);
+
+            foreach (var (pt, n) in ctorParamTypesAndNames)
+            {
+                switch (pt)
+                {
+                    case Type intType when intType == typeof(int):
+                        arguments.Add(Expression.Constant(Convert.ToInt32(ctorParamsDict[n])));
+                        break;
+
+                    default:
+                        arguments.Add(Expression.Constant(ctorParamsDict[n]));
+                        break;
+                }
+            }
+
+            foreach (var (c, v) in memberParamsDict)
             {
                 var prop = t.GetPropertyInfoFromColumnName(c, true);
                 if (prop == null)
@@ -96,7 +116,7 @@ namespace Meuzz.Persistence
                 }
             };
 
-            NewExpression instance = Expression.New(t);
+            NewExpression instance = Expression.New(ctor, arguments);
             Expression expr = Expression.MemberInit(instance, bindings);
 
             var ft = typeof(Func<>).MakeGenericType(t);
@@ -110,7 +130,7 @@ namespace Meuzz.Persistence
             foreach (var reli in ci.Relations)
             {
                 var prop = reli.PropertyInfo;
-                if (prop != null)
+                if (prop != null && prop.SetMethod != null)
                 {
                     prop.SetValue(obj, EnumerableCast(prop.PropertyType, MakeDefaultLoader(context, obj, reli)));
                 }
@@ -118,8 +138,11 @@ namespace Meuzz.Persistence
 
             foreach (var (prop, proploader) in reverseLoaders)
             {
-                var loaderField = obj.GetType().GetField($"__load_{prop.Name}", BindingFlags.NonPublic | BindingFlags.Instance)!;
-                loaderField.SetValue(obj, EnumerableCast(prop.PropertyType, proploader));
+                var loaderField = obj.GetType().GetField($"__load_{prop.Name}", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (loaderField != null)
+                {
+                    loaderField.SetValue(obj, EnumerableCast(prop.PropertyType, proploader));
+                }
             }
 
             PersistableState.Generate(obj); // for reset

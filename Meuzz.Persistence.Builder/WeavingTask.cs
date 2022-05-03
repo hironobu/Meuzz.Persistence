@@ -336,15 +336,20 @@ namespace Meuzz.Persistence.Builder
 
             td.Methods.Add(generatePersistableState);
 
-            // here
+            // dirty flag operations
             var props = td.Properties;
             foreach (var pr in props)
             {
                 var ptr = pr.PropertyType;
+                if (pr.SetMethod == null)
+                {
+                    continue;
+                }
+
                 var originalGetterInstructions = pr.GetMethod.Body.Instructions.ToArray();
                 var originalSetterInstructions = pr.SetMethod.Body.Instructions.ToArray();
 
-                if (!ptr.IsGenericInstance && !ptr.FullName.StartsWith("System."))
+                if (!ptr.IsGenericInstance && !ptr.FullName.StartsWith("System.") && originalSetterInstructions != null)
                 {
                     AddPropertyGetterLoader(module, td, pr, originalSetterInstructions);
                 }
