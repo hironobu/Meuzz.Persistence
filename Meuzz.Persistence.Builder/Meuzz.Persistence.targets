@@ -9,9 +9,9 @@
 
   <UsingTask AssemblyFile="$(MeuzzPersistenceAssembly)" TaskName="Meuzz.Persistence.Builder.WeavingTask" Condition="$(MSBuildProjectName) != 'Meuzz.Persistence.Builder'"></UsingTask>
 
-  <Target Name="Persistentize" AfterTargets="AfterCompile" Condition="$(MSBuildProjectName) != 'Meuzz.Persistence.Builder'">
+  <Target Name="Persistentize" AfterTargets="Build" Condition="$(MSBuildProjectName) != 'Meuzz.Persistence.Builder'">
     <Meuzz.Persistence.Builder.WeavingTask
-      AssemblyFile="@(IntermediateAssembly)"
+      AssemblyFile="$(TargetPath)"
       IntermediateDirectory="$(ProjectDir)$(IntermediateOutputPath)"
       PackageReferences="@(PackageReference)"
       ProjectDirectory="$(MSBuildProjectDirectory)"

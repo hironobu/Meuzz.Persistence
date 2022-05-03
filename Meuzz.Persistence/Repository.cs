@@ -140,6 +140,7 @@ namespace Meuzz.Persistence
                 var rset = context.Execute(insertStatement);
 
                 var pkey = t.GetPrimaryKey();
+                if (pkey == null) { throw new NotImplementedException(); }
                 var prop = t.GetProperty(StringUtils.ToCamel(pkey, true))!;
                 var classinfo = t.GetClassInfo();
                 if (classinfo == null) { throw new NotImplementedException(); }
@@ -335,9 +336,9 @@ namespace Meuzz.Persistence
             yield break;
         }
 
-        private object EnumerableCast(Type t, IEnumerable<object> args)
+        private object EnumerableCast(Type t, IEnumerable<object?> args)
         {
-            // TODO: IDictionary等、array or list以外は避けるように
+            // TODO: array or list以外は避けるように(ex. IDictionary<>)
             var t1 = t.IsGenericType && t.GetGenericArguments().Length == 1 ? t.GetGenericArguments()[0] : t;
 
             switch (t1)
