@@ -139,6 +139,20 @@ namespace Meuzz.Persistence.Builder
             return reference;
         }
 
+        private void AddPropertyBackingFieldAttribute(ModuleDefinition module, TypeDefinition td, PropertyDefinition pd)
+        {
+            var getter = pd.GetMethod;
+            var backingField = (FieldReference)getter.Body.Instructions.First(x => x.OpCode == OpCodes.Ldfld && ((FieldReference)x.Operand).FieldType.FullName == pd.PropertyType.FullName).Operand;
+
+            var backingFieldAttribute = module.ImportReference(typeof(BackingFieldAttribute)).Resolve();
+            var backingFieldAttributeCtor = backingFieldAttribute.Methods.First(m => m.IsConstructor && m.Parameters.Count == 1);
+
+            var cattr = new CustomAttribute(module.ImportReference(backingFieldAttributeCtor));
+            cattr.ConstructorArguments.Add(new CustomAttributeArgument(module.ImportReference(typeof(string)).Resolve(), backingField.Name));
+
+            pd.CustomAttributes.Add(cattr);
+        }
+
         private void AddPropertyGetterLoader(ModuleDefinition module, TypeDefinition td, PropertyDefinition pd, Instruction[] originalSetterInstructions)
         {
             try
@@ -162,9 +176,10 @@ namespace Meuzz.Persistence.Builder
                 var getter = pd.GetMethod;
                 var ilp = getter.Body.GetILProcessor();
                 var first = getter.Body.Instructions[0];
+                var backingField = (FieldReference)getter.Body.Instructions.First(x => x.OpCode == OpCodes.Ldfld && ((FieldReference)x.Operand).FieldType == pd.PropertyType).Operand;
                 var ret = getter.Body.Instructions.Last();
 
-                var setter = pd.SetMethod;
+                // var setter = pd.SetMethod;
                 // var setterInstructions = setter.Body.Instructions;
 
                 getter.Body.Variables.Add(new VariableDefinition(ptr));
@@ -207,11 +222,18 @@ namespace Meuzz.Persistence.Builder
                 ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldarg_0));
                 ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldloc_0));
                 // ilp.InsertBefore(ret, Instruction.Create(OpCodes.Call, pr.SetMethod));
-                foreach (var si in originalSetterInstructions.Skip(2))
+                if (originalSetterInstructions != null)
                 {
-                    if (si.OpCode == OpCodes.Ret) { break; }
+                    foreach (var si in originalSetterInstructions.Skip(2))
+                    {
+                        if (si.OpCode == OpCodes.Ret) { break; }
 
-                    ilp.InsertBefore(ret, si);
+                        ilp.InsertBefore(ret, si);
+                    }
+                }
+                else
+                {
+                    ilp.InsertBefore(ret, Instruction.Create(OpCodes.Stfld, backingField));
                 }
                 ilp.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
                 ilp.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
@@ -336,25 +358,35 @@ namespace Meuzz.Persistence.Builder
 
             td.Methods.Add(generatePersistableState);
 
+            var typeRef = module.ImportReference(typeof(HasManyAttribute));
+
             // dirty flag operations
             var props = td.Properties;
+            foreach (var prop in props)
+            {
+                var ptr = prop.PropertyType;
+                if (prop.CustomAttributes.Any(x => x.AttributeType.Name == typeRef.Name))
+                {
+                    AddPropertyBackingFieldAttribute(module, td, prop);
+                }
+            }
+
             foreach (var pr in props)
             {
                 var ptr = pr.PropertyType;
-                if (pr.SetMethod == null)
-                {
-                    continue;
-                }
 
                 var originalGetterInstructions = pr.GetMethod.Body.Instructions.ToArray();
-                var originalSetterInstructions = pr.SetMethod.Body.Instructions.ToArray();
+                var originalSetterInstructions = pr.SetMethod != null ? pr.SetMethod.Body.Instructions.ToArray() : null;
 
-                if (!ptr.IsGenericInstance && !ptr.FullName.StartsWith("System.") && originalSetterInstructions != null)
+                if (!ptr.IsGenericInstance && !ptr.FullName.StartsWith("System."))
                 {
                     AddPropertyGetterLoader(module, td, pr, originalSetterInstructions);
                 }
 
-                AddPropertyDirtySetter(module, td, pr, dirtydictfield, originalGetterInstructions);
+                if (pr.SetMethod != null)
+                {
+                    AddPropertyDirtySetter(module, td, pr, dirtydictfield, originalGetterInstructions);
+                }
             }
         }
     }

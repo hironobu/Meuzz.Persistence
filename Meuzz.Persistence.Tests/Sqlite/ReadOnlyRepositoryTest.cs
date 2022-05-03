@@ -121,6 +121,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
             var objs = _repository.Load<Player>(_context, st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters, (x, r) => x.Id == r.Player.Id)
                 .Joins(x => x.LastCharacters, (x, r) => x.Id == r.LastPlayer.Id));
+            Assert.NotNull(objs);
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);

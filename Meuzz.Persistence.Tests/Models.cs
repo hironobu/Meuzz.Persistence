@@ -57,6 +57,19 @@ namespace Meuzz.Persistence.Tests.Models
 
         public double Altitude { get; set; }
     }
+
+    public class Geometry2
+    {
+        public double Latitude { get => _latitude; set => _latitude = value; }
+        public double Longitude { get => _longitude; set => _longitude = value; }
+
+        public double Altitude { get => _altitude; set => _altitude = value; }
+
+        private double _latitude;
+        private double _longitude;
+        private double _altitude;
+    }
+
 }
 
 namespace Meuzz.Persistence.Tests.Models.ReadOnly

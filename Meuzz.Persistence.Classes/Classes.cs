@@ -66,4 +66,15 @@ namespace Meuzz.Persistence
     {
         PersistableState GeneratePersistableState();
     }
+
+    [AttributeUsage(AttributeTargets.Property)]
+    public class BackingFieldAttribute : Attribute
+    {
+        public BackingFieldAttribute(string backingFieldName)
+        {
+            BackingFieldName = backingFieldName;
+        }
+
+        public string BackingFieldName { get; }
+    }
 }
