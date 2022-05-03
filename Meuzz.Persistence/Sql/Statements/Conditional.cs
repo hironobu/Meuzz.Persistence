@@ -199,18 +199,53 @@ namespace Meuzz.Persistence.Sql
 
         public IDictionary<ExpressionComparer, MemberExpression[]> SourceMemberExpressions { get; }
 
-        private LambdaExpression GetOutputExpression(LambdaExpression outputexp)
+        private Expression _GetOutputExpression(Expression expr, ParameterExpression[] parameters)
         {
-            switch (outputexp.Body)
+            var mi = new Func<object, object>(x => Convert.ToUInt32(x)).GetMethodInfo();
+
+            switch (expr)
             {
+                case NewExpression ne:
+                    var args = ne.Arguments.Zip(ne.Members, (a, m) =>
+                    {
+                        var a1 = _GetOutputExpression(a, parameters);
+                        switch (m)
+                        {
+                            case PropertyInfo pi:
+                                switch (pi.PropertyType)
+                                {
+                                    case Type intType when intType == typeof(int):
+                                        return Expression.Convert(Expression.Convert(a1, typeof(long)), typeof(int));
+                                    case Type stringType when stringType == typeof(string):
+                                        return Expression.Convert(a1, stringType);
+                                    default:
+                                        return Expression.Convert(a1, pi.PropertyType);
+                                }
+                            default:
+                                throw new NotImplementedException();
+                        }
+                    });
+                    return Expression.New(ne.Constructor, args, ne.Members);
+
                 case MemberExpression me:
                     var memberInfo = me.Member;
-                    var (px, memberAccessor) = ExpressionHelpers.MakeDictionaryAccessorExpression(memberInfo.GetColumnName());
-                    return Expression.Lambda<Func<IDictionary<string, object?>, object?>>(memberAccessor, px);
+                    var px0 = (ParameterExpression)me.Expression;
+                    var px = parameters.First(x => x.Name == px0.Name);
+                    return ExpressionHelpers.MakeDictionaryAccessorExpression(px.Name, memberInfo.GetColumnName(), parameters);
 
                 default:
                     throw new NotImplementedException();
             }
+        }
+
+        private LambdaExpression GetOutputExpression(LambdaExpression outputexp)
+        {
+            var t1 = typeof(IDictionary<string, object?>);
+            var parameters = outputexp.Parameters.Select(x => Expression.Parameter(t1, x.Name)).ToArray();
+
+            var bodyexp = _GetOutputExpression(outputexp.Body, parameters);
+
+            return Expression.Lambda<Func<IDictionary<string, object?>, object?>>(bodyexp, parameters);
         }
 
         private IDictionary<ExpressionComparer, MemberExpression[]> GetSourceMemberExpressions(LambdaExpression outputexp)

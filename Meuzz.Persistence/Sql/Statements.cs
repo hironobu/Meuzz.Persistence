@@ -49,9 +49,9 @@ namespace Meuzz.Persistence.Sql
             }
             else
             {
-                var (parameter, methodCallExpression) = ExpressionHelpers.MakeDictionaryAccessorExpression(key);
-                px = parameter;
-                memberAccessor = methodCallExpression;
+                var t1 = typeof(Dictionary<string, object?>);
+                px = Expression.Parameter(t1, "x");
+                memberAccessor = ExpressionHelpers.MakeDictionaryAccessorExpression(px.Name, key, new[] { px });
             }
 
             Expression f;

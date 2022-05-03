@@ -262,7 +262,8 @@ namespace Meuzz.Persistence
             {
                 objects = resultDefaultObjects[statement.ParameterSetInfo.GetDefaultParamName()!].ToArray();
             }
-            return (IEnumerable<object>)EnumerableCast(t, objects.Select(x => x["__object"]));
+            var rets = EnumerableCast(t, objects.Select(x => x["__object"]));
+            return (IEnumerable<object>)rets;
         }
 
         private void BuildBindings(SqlSelectStatement statement, IDictionary<string, IDictionary<dynamic, IDictionary<string, object?>>> resultObjects)
@@ -336,7 +337,8 @@ namespace Meuzz.Persistence
 
         private object EnumerableCast(Type t, IEnumerable<object> args)
         {
-            var t1 = t.IsGenericType ? t.GetGenericArguments()[0] : t;
+            // TODO: IDictionary等、array or list以外は避けるように
+            var t1 = t.IsGenericType && t.GetGenericArguments().Length == 1 ? t.GetGenericArguments()[0] : t;
 
             switch (t1)
             {
