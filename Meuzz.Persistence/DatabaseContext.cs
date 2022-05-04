@@ -16,7 +16,11 @@ namespace Meuzz.Persistence
 
     public interface IDatabaseEngine
     {
-        IDatabaseContext CreateContext(IDictionary<string, object> parameters);
+        void Configure(string connectionString);
+
+        void Configure(IDictionary<string, object> parameters);
+
+        IDatabaseContext CreateContext();
     }
 
     public interface IDatabaseContext : IDisposable

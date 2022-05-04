@@ -9,15 +9,20 @@ namespace Meuzz.Persistence.MySql
     {
         public void Register(DatabaseEngineFactory factory)
         {
-            factory.Register("mysql", new MySqlEngine());
+            factory.Register("mysql", typeof(MySqlEngine));
         }
     }
 
     public class MySqlEngine : IDatabaseEngine
     {
-        public IDatabaseContext CreateContext(IDictionary<string, object> parameters)
+        public void Configure(string connectionString)
         {
-            var connection = new MySqlConnection(new MySqlConnectionStringBuilder()
+            _connectionString = connectionString;
+        }
+
+        public void Configure(IDictionary<string, object> parameters)
+        {
+            Configure(new MySqlConnectionStringBuilder()
             {
                 Server = parameters["host"].ToString(),
                 Port = Convert.ToUInt32(parameters["port"]),
@@ -25,9 +30,16 @@ namespace Meuzz.Persistence.MySql
                 UserID = parameters["user"].ToString(),
                 Password = parameters["password"].ToString()
             }.ConnectionString);
+        }
+
+        public IDatabaseContext CreateContext()
+        {
+            var connection = new MySqlConnection(_connectionString);
 
             return new DatabaseContextBase(connection, _formatter);
         }
+
+        private string _connectionString;
 
         private SqlFormatter _formatter = new MySqlFormatter();
     }

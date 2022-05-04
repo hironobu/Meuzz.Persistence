@@ -8,18 +8,30 @@ namespace Meuzz.Persistence.Sqlite
     {
         public void Register(DatabaseEngineFactory factory)
         {
-            factory.Register("sqlite", new SqliteEngine());
+            factory.Register("sqlite", typeof(SqliteEngine));
         }
     }
 
     public class SqliteEngine : IDatabaseEngine
     {
-        public IDatabaseContext CreateContext(IDictionary<string, object> parameters)
+        public void Configure(string connectionString)
         {
-            var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = parameters["file"].ToString() }.ToString());
+            _connectionString = connectionString;
+        }
+
+        public void Configure(IDictionary<string, object> parameters)
+        {
+            _connectionString = new SqliteConnectionStringBuilder { DataSource = parameters["file"].ToString() }.ToString();
+        }
+
+        public IDatabaseContext CreateContext()
+        {
+            var connection = new SqliteConnection(_connectionString);
 
             return new DatabaseContextBase(connection, _formatter);
         }
+
+        private string _connectionString;
 
         private SqlFormatter _formatter = new SqliteFormatter();
     }

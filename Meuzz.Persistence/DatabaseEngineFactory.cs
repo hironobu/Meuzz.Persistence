@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
 using System.Linq;
 using System.Reflection;
 
@@ -13,15 +14,17 @@ namespace Meuzz.Persistence
             return connectionString.Split(";").Select(x => x.Split("=", 2)).ToDictionary(x => x[0], x => (object)x[1]);
         }
 
+        /*
         public static IDatabaseContext CreateContext(this IDatabaseEngine self, string connectionString)
         {
             return self.CreateContext(ParseContextString(connectionString));
         }
+        */
     }
 
     public class DatabaseEngineFactory
     {
-        private IDictionary<string, IDatabaseEngine> _engines = new Dictionary<string, IDatabaseEngine>();
+        private IDictionary<string, Type> _engines = new Dictionary<string, Type>();
 
         public void Initialize()
         {
@@ -31,9 +34,31 @@ namespace Meuzz.Persistence
             }
         }
 
-        public void Register(string name, IDatabaseEngine engine)
+        public void Register(string name, Type engineType)
         {
-            _engines.Add(name, engine);
+            if (!typeof(IDatabaseEngine).IsAssignableFrom(engineType))
+            {
+                throw new NotSupportedException();
+            }
+
+            _engines.Add(name, engineType);
+        }
+
+        public IDatabaseEngine GetEngine(string type, string connectionString)
+        {
+            if (!_engines.TryGetValue(type.ToString(), out var engineType))
+            {
+                throw new NotImplementedException();
+            }
+
+            var engine = (IDatabaseEngine)Activator.CreateInstance(engineType);
+            engine.Configure(connectionString);
+            return engine;
+        }
+
+        public IDatabaseEngine GetEngine(string type, DbConnectionStringBuilder dbConnectionStringBuilder)
+        {
+            return GetEngine(type, dbConnectionStringBuilder.ConnectionString);
         }
 
         private void CallServiceProvidersOnAssembly(Assembly asm)
@@ -46,16 +71,6 @@ namespace Meuzz.Persistence
                     provider.Register(this);
                 }
             }
-        }
-
-        public IDatabaseEngine GetEngine(string type)
-        {
-            if (!_engines.TryGetValue(type.ToString(), out var engine))
-            {
-                throw new NotImplementedException();
-            }
-
-            return engine;
         }
 
         private IDictionary<string, object> ParseConnectionString(string connectionString)

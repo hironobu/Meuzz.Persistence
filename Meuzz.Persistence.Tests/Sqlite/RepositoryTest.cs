@@ -13,9 +13,9 @@ namespace Meuzz.Persistence.Tests.Sqlite
         private ObjectRepository _repository;
         public RepositoryTest()
         {
-            var engine = DatabaseEngineFactory.Instance().GetEngine("sqlite");
+            var engine = DatabaseEngineFactory.Instance().GetEngine("sqlite", "Data Source=:memory:");
 
-            _context = engine.CreateContext("type=sqlite;file=:memory:");
+            _context = engine.CreateContext();
             _context.Open();
 
             _context.Execute(@"

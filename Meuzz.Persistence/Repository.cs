@@ -94,7 +94,7 @@ namespace Meuzz.Persistence
 
         protected object PopulateObject(IDatabaseContext context, Type t, IEnumerable<string> columns, IEnumerable<object?> values)
         {
-            Func<PropertyInfo, object, MemberAssignment> mapper = (k, v) => Expression.Bind(k, Expression.Constant(Convert.ChangeType(v, k.PropertyType)));
+            Func<PropertyInfo, object?, MemberAssignment> mapper = (k, v) => Expression.Bind(k, Expression.Constant(Convert.ChangeType(v, k.PropertyType)));
             var bindings = new List<MemberAssignment>();
             var arguments = new List<Expression>();
 
