@@ -1,15 +1,12 @@
-﻿using Microsoft.Build.Framework;
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using Mono.Collections.Generic;
-using System;
-using System.IO;
-using System.Linq;
-using System.Reflection;
-using Meuzz.Persistence;
-using System.Collections.Generic;
-using System.Collections;
 
 namespace Meuzz.Persistence.Builder
 {
@@ -139,7 +136,7 @@ namespace Meuzz.Persistence.Builder
             return reference;
         }
 
-        private void AddPropertyBackingFieldAttribute(ModuleDefinition module, TypeDefinition td, PropertyDefinition pd)
+        private void AddPropertyBackingFieldAttribute(ModuleDefinition module, PropertyDefinition pd)
         {
             var getter = pd.GetMethod;
             var backingField = (FieldReference)getter.Body.Instructions.First(x => x.OpCode == OpCodes.Ldfld && ((FieldReference)x.Operand).FieldType.FullName == pd.PropertyType.FullName).Operand;
@@ -252,7 +249,7 @@ namespace Meuzz.Persistence.Builder
             }
         }
 
-        private void AddPropertyDirtySetter(ModuleDefinition module, TypeDefinition td, PropertyDefinition pd, FieldDefinition dirtyDict, Instruction[] originalGetterInstructions)
+        private void AddPropertyDirtySetter(ModuleDefinition module, PropertyDefinition pd, FieldDefinition dirtyDict, Instruction[] originalGetterInstructions)
         {
             var dictionary = module.ImportReference(typeof(IDictionary<,>)).Resolve();
             var setItem = module.ImportReference(MakeHostInstanceGeneric(dictionary.Methods.Single(x => x.Name == "set_Item" && x.Parameters.Count == 2), module.ImportReference(typeof(string)), module.ImportReference(typeof(bool))));
@@ -299,16 +296,55 @@ namespace Meuzz.Persistence.Builder
 
         private void WeaveTypeAsPersistent(ModuleDefinition module, TypeDefinition td)
         {
+            var dirtydictfield = MakeDirtyField(module, td);
+
+            AddGeneratePersistentState(module, td, dirtydictfield);
+
+            // add IPersistable interface
+            var ipersistable = module.ImportReference(typeof(IPersistable));
+            td.Interfaces.Add(new InterfaceImplementation(ipersistable));
+
+            // backing field
+            var hasManyAttributeTypeRef = module.ImportReference(typeof(HasManyAttribute));
+
+            foreach (var prop in td.Properties)
+            {
+                var ptr = prop.PropertyType;
+                if (prop.CustomAttributes.Any(x => x.AttributeType.Name == hasManyAttributeTypeRef.Name))
+                {
+                    AddPropertyBackingFieldAttribute(module, prop);
+                }
+            }
+
+            // weave properties (for dirty flag operations)
+            foreach (var pr in td.Properties)
+            {
+                var ptr = pr.PropertyType;
+
+                var originalGetterInstructions = pr.GetMethod.Body.Instructions.ToArray();
+                var originalSetterInstructions = pr.SetMethod != null ? pr.SetMethod.Body.Instructions.ToArray() : null;
+
+                if (!ptr.IsGenericInstance && !ptr.FullName.StartsWith("System."))
+                {
+                    AddPropertyGetterLoader(module, td, pr, originalSetterInstructions);
+                }
+
+                if (pr.SetMethod != null)
+                {
+                    AddPropertyDirtySetter(module, pr, dirtydictfield, originalGetterInstructions);
+                }
+            }
+        }
+
+        private FieldDefinition MakeDirtyField(ModuleDefinition module, TypeDefinition td)
+        {
             var dirtyDictName = "__dirty";
 
             if (td.Fields.Any(x => x.Name == dirtyDictName))
             {
-                return;
+                return null;
             }
 
-            var ipersistable = module.ImportReference(typeof(IPersistable));
-            td.Interfaces.Add(new InterfaceImplementation(ipersistable));
-            
             var dirtydict = module.ImportReference(MakeGenericType(module.ImportReference(typeof(IDictionary<,>)), module.ImportReference(typeof(string)), module.ImportReference(typeof(bool))));
             var dirtydictfield = new FieldDefinition(dirtyDictName, Mono.Cecil.FieldAttributes.Private, dirtydict);
             td.Fields.Add(dirtydictfield);
@@ -323,6 +359,11 @@ namespace Meuzz.Persistence.Builder
             ilp.InsertBefore(first, Instruction.Create(OpCodes.Newobj, dirtydictInstanceCtor));
             ilp.InsertBefore(first, Instruction.Create(OpCodes.Stfld, dirtydictfield));
 
+            return dirtydictfield;
+        }
+
+        private void AddGeneratePersistentState(ModuleDefinition module, TypeDefinition td, FieldDefinition dirtydictfield)
+        {
             var getKeys = module.ImportReference(MakeHostInstanceGeneric(module.ImportReference(typeof(IDictionary<,>)).Resolve().Methods.Single(x => x.Name == "get_Keys"), module.ImportReference(typeof(string)), module.ImportReference(typeof(bool))));
             var toArray = module.ImportReference(MakeGenericMethod(module.ImportReference(typeof(Enumerable)).Resolve().Methods.Single(x => x.Name == nameof(Enumerable.ToArray)), module.ImportReference(typeof(string))));
 
@@ -357,37 +398,7 @@ namespace Meuzz.Persistence.Builder
             ilpGeneratePersistableState.Append(Instruction.Create(OpCodes.Ret));
 
             td.Methods.Add(generatePersistableState);
-
-            var typeRef = module.ImportReference(typeof(HasManyAttribute));
-
-            // dirty flag operations
-            var props = td.Properties;
-            foreach (var prop in props)
-            {
-                var ptr = prop.PropertyType;
-                if (prop.CustomAttributes.Any(x => x.AttributeType.Name == typeRef.Name))
-                {
-                    AddPropertyBackingFieldAttribute(module, td, prop);
-                }
-            }
-
-            foreach (var pr in props)
-            {
-                var ptr = pr.PropertyType;
-
-                var originalGetterInstructions = pr.GetMethod.Body.Instructions.ToArray();
-                var originalSetterInstructions = pr.SetMethod != null ? pr.SetMethod.Body.Instructions.ToArray() : null;
-
-                if (!ptr.IsGenericInstance && !ptr.FullName.StartsWith("System."))
-                {
-                    AddPropertyGetterLoader(module, td, pr, originalSetterInstructions);
-                }
-
-                if (pr.SetMethod != null)
-                {
-                    AddPropertyDirtySetter(module, td, pr, dirtydictfield, originalGetterInstructions);
-                }
-            }
         }
+
     }
 }
