@@ -9,11 +9,11 @@ namespace Meuzz.Persistence.Tests.Mssql
 {
     public class RepositoryTest
     {
-        private IStorageContext _context;
+        private IDatabaseContext _context;
         private ObjectRepository _repository;
         public RepositoryTest()
         {
-            var engine = PersistenceEngineFactory.Instance().GetEngine("mssql");
+            var engine = DatabaseEngineFactory.Instance().GetEngine("mssql");
 
             _context = engine.CreateContext("type=mssql;host=localhost;port=1433;database=Persistence;user=sa;password=P@ssw0rd!");
             _context.Open();

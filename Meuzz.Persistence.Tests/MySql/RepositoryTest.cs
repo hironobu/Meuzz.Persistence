@@ -8,11 +8,11 @@ namespace Meuzz.Persistence.Tests.MySql
 {
     public class RepositoryTest
     {
-        private IStorageContext _context;
+        private IDatabaseContext _context;
         private ObjectRepository _repository;
         public RepositoryTest()
         {
-            var engine = PersistenceEngineFactory.Instance().GetEngine("mysql");
+            var engine = DatabaseEngineFactory.Instance().GetEngine("mysql");
 
             _context = engine.CreateContext("type=mysql;host=localhost;port=3306;database=persistence;user=user;password=password");
             _context.Open();

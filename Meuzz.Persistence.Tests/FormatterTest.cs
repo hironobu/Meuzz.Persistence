@@ -7,7 +7,7 @@ namespace Meuzz.Persistence.Tests
 {
     public class FormatterTest
     {
-        private IStorageContext _context;
+        private IDatabaseContext _context;
         /*private ObjectRepository<Player> _repository;
         private ObjectRepository<Character> _characterRepository;*/
 
@@ -15,7 +15,7 @@ namespace Meuzz.Persistence.Tests
 
         public FormatterTest()
         {
-            var engine = PersistenceEngineFactory.Instance().GetEngine("sqlite");
+            var engine = DatabaseEngineFactory.Instance().GetEngine("sqlite");
 
             _context = engine.CreateContext("type=sqlite;file=:memory:");
             _context.Open();

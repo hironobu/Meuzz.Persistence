@@ -1,25 +1,24 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Meuzz.Persistence.Sql;
 using Microsoft.Data.Sqlite;
 
 namespace Meuzz.Persistence.Sqlite
 {
-    public class PersistenceEngineProvider : IPersistenceEngineProvider
+    public class DatabaseEngineProvider : IDatabaseEngineProvider
     {
-        public void Register(PersistenceEngineFactory factory)
+        public void Register(DatabaseEngineFactory factory)
         {
             factory.Register("sqlite", new SqliteEngine());
         }
     }
 
-    public class SqliteEngine : IPersistenceEngine
+    public class SqliteEngine : IDatabaseEngine
     {
-        public IStorageContext CreateContext(IDictionary<string, object> parameters)
+        public IDatabaseContext CreateContext(IDictionary<string, object> parameters)
         {
             var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = parameters["file"].ToString() }.ToString());
 
-            return new StorageContextBase(connection, _formatter);
+            return new DatabaseContextBase(connection, _formatter);
         }
 
         private SqlFormatter _formatter = new SqliteFormatter();

@@ -5,17 +5,17 @@ using MySql.Data.MySqlClient;
 
 namespace Meuzz.Persistence.MySql
 {
-    public class PersistenceEngineProvider : IPersistenceEngineProvider
+    public class DatabaseEngineProvider : IDatabaseEngineProvider
     {
-        public void Register(PersistenceEngineFactory factory)
+        public void Register(DatabaseEngineFactory factory)
         {
             factory.Register("mysql", new MySqlEngine());
         }
     }
 
-    public class MySqlEngine : IPersistenceEngine
+    public class MySqlEngine : IDatabaseEngine
     {
-        public IStorageContext CreateContext(IDictionary<string, object> parameters)
+        public IDatabaseContext CreateContext(IDictionary<string, object> parameters)
         {
             var connection = new MySqlConnection(new MySqlConnectionStringBuilder()
             {
@@ -26,7 +26,7 @@ namespace Meuzz.Persistence.MySql
                 Password = parameters["password"].ToString()
             }.ConnectionString);
 
-            return new StorageContextBase(connection, _formatter);
+            return new DatabaseContextBase(connection, _formatter);
         }
 
         private SqlFormatter _formatter = new MySqlFormatter();

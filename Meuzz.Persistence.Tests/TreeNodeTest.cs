@@ -22,12 +22,12 @@ namespace Meuzz.Persistence.Tests
 
     public class TreeNodeTest
     {
-        private IStorageContext _context;
+        private IDatabaseContext _context;
         private ObjectRepository _repository;
 
         public TreeNodeTest()
         {
-            var engine = PersistenceEngineFactory.Instance().GetEngine("sqlite");
+            var engine = DatabaseEngineFactory.Instance().GetEngine("sqlite");
 
             _context = engine.CreateContext("type=sqlite;file=:memory:");
             _context.Open();

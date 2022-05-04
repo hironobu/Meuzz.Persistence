@@ -1,5 +1,4 @@
-﻿using Meuzz.Persistence.Sql;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -7,22 +6,22 @@ using System.Reflection;
 
 namespace Meuzz.Persistence
 {
-    public static class PersistenceEngineExtensions
+    public static class DatabaseEngineExtensions
     {
         private static IDictionary<string, object> ParseContextString(string connectionString)
         {
             return connectionString.Split(";").Select(x => x.Split("=", 2)).ToDictionary(x => x[0], x => (object)x[1]);
         }
 
-        public static IStorageContext CreateContext(this IPersistenceEngine self, string connectionString)
+        public static IDatabaseContext CreateContext(this IDatabaseEngine self, string connectionString)
         {
             return self.CreateContext(ParseContextString(connectionString));
         }
     }
 
-    public class PersistenceEngineFactory
+    public class DatabaseEngineFactory
     {
-        private IDictionary<string, IPersistenceEngine> _engines = new Dictionary<string, IPersistenceEngine>();
+        private IDictionary<string, IDatabaseEngine> _engines = new Dictionary<string, IDatabaseEngine>();
 
         public void Initialize()
         {
@@ -32,7 +31,7 @@ namespace Meuzz.Persistence
             }
         }
 
-        public void Register(string name, IPersistenceEngine engine)
+        public void Register(string name, IDatabaseEngine engine)
         {
             _engines.Add(name, engine);
         }
@@ -41,15 +40,15 @@ namespace Meuzz.Persistence
         {
             foreach (var type in asm.GetTypes())
             {
-                if (typeof(IPersistenceEngineProvider).IsAssignableFrom(type) && !(type == typeof(IPersistenceEngineProvider)))
+                if (typeof(IDatabaseEngineProvider).IsAssignableFrom(type) && !(type == typeof(IDatabaseEngineProvider)))
                 {
-                    var provider = Activator.CreateInstance(type) as IPersistenceEngineProvider;
+                    var provider = Activator.CreateInstance(type) as IDatabaseEngineProvider;
                     provider.Register(this);
                 }
             }
         }
 
-        public IPersistenceEngine GetEngine(string type)
+        public IDatabaseEngine GetEngine(string type)
         {
             if (!_engines.TryGetValue(type.ToString(), out var engine))
             {
@@ -64,13 +63,13 @@ namespace Meuzz.Persistence
             return connectionString.Split(";").Select(x => x.Split("=", 2)).ToDictionary(x => x[0], x => (object)x[1]);
         }
 
-        private static PersistenceEngineFactory _instance;
+        private static DatabaseEngineFactory _instance;
 
-        public static PersistenceEngineFactory Instance()
+        public static DatabaseEngineFactory Instance()
         {
             if (_instance == null)
             {
-                var instance = new PersistenceEngineFactory();
+                var instance = new DatabaseEngineFactory();
 
                 instance.Initialize();
                 _instance = instance;

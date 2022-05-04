@@ -14,7 +14,7 @@ namespace Meuzz.Persistence
 {
     public class ObjectRepositoryBase
     {
-        protected IEnumerable<object> LoadObjects(IStorageContext context, Type t, SqlSelectStatement statement, Action<IEnumerable<object>>? propertySetter = null)
+        protected IEnumerable<object> LoadObjects(IDatabaseContext context, Type t, SqlSelectStatement statement, Action<IEnumerable<object>>? propertySetter = null)
         {
             var rset = context.Execute(statement);
             if (rset != null)
@@ -33,7 +33,7 @@ namespace Meuzz.Persistence
             yield break;
         }
 
-        protected IEnumerable<object> MakeDefaultReverseLoader(IStorageContext context, object value, Type targetType)
+        protected IEnumerable<object> MakeDefaultReverseLoader(IDatabaseContext context, object value, Type targetType)
         {
             var primaryKey = targetType.GetPrimaryKey();
             if (primaryKey == null) { throw new ArgumentException("Argument type should be persistent", "targetType"); }
@@ -44,7 +44,7 @@ namespace Meuzz.Persistence
             return LoadObjects(context, targetType, statement);
         }
 
-        protected IEnumerable<object> MakeDefaultLoader(IStorageContext context, object obj, ClassInfoManager.RelationInfoEntry reli)
+        protected IEnumerable<object> MakeDefaultLoader(IDatabaseContext context, object obj, ClassInfoManager.RelationInfoEntry reli)
         {
             var statement = new SqlSelectStatement(reli.TargetType);
             var pkval = obj.GetType().GetPrimaryValue(obj);
@@ -92,7 +92,7 @@ namespace Meuzz.Persistence
             });
         }
 
-        protected object PopulateObject(IStorageContext context, Type t, IEnumerable<string> columns, IEnumerable<object?> values)
+        protected object PopulateObject(IDatabaseContext context, Type t, IEnumerable<string> columns, IEnumerable<object?> values)
         {
             Func<PropertyInfo, object, MemberAssignment> mapper = (k, v) => Expression.Bind(k, Expression.Constant(Convert.ChangeType(v, k.PropertyType)));
             var bindings = new List<MemberAssignment>();
@@ -190,7 +190,7 @@ namespace Meuzz.Persistence
             return obj;
         }
 
-        protected bool StoreObjects(IStorageContext context, Type t, IEnumerable<object> objs, IDictionary<string, object?>? extraData)
+        protected bool StoreObjects(IDatabaseContext context, Type t, IEnumerable<object> objs, IDictionary<string, object?>? extraData)
         {
             var updated = objs.Where(x => t.GetPrimaryValue(x) != null).ToList();
             var inserted = objs.Where(x => t.GetPrimaryValue(x) == null).ToList();
@@ -240,7 +240,7 @@ namespace Meuzz.Persistence
             return true;
         }
 
-        protected IEnumerable<object> PopulateObjects(IStorageContext context, Type t, ResultSet rset, SqlSelectStatement statement)
+        protected IEnumerable<object> PopulateObjects(IDatabaseContext context, Type t, ResultSet rset, SqlSelectStatement statement)
         {
             var rows = rset.Results.Select(x =>
             {
@@ -424,19 +424,19 @@ namespace Meuzz.Persistence
     {
         public ObjectRepository() : base() { }
 
-        public IEnumerable<T> Load(IStorageContext context, Func<SelectStatement<T>, SelectStatement<T>> f) => Load<T>(context, f);
+        public IEnumerable<T> Load(IDatabaseContext context, Func<SelectStatement<T>, SelectStatement<T>> f) => Load<T>(context, f);
 
-        public IEnumerable<T2> Load<T2>(IStorageContext context, Func<SelectStatement<T>, SelectStatement<T2>> f) => Load<T, T2>(context, f);
+        public IEnumerable<T2> Load<T2>(IDatabaseContext context, Func<SelectStatement<T>, SelectStatement<T2>> f) => Load<T, T2>(context, f);
 
-        public IEnumerable<T> Load(IStorageContext context, Expression<Func<T, bool>> f) => Load<T>(context, f);
+        public IEnumerable<T> Load(IDatabaseContext context, Expression<Func<T, bool>> f) => Load<T>(context, f);
 
-        public IEnumerable<T> Load(IStorageContext context, params object[] id) => Load<T>(context, id);
+        public IEnumerable<T> Load(IDatabaseContext context, params object[] id) => Load<T>(context, id);
 
-        public bool Store(IStorageContext context, params T[] objs) => Store<T>(context, objs);
+        public bool Store(IDatabaseContext context, params T[] objs) => Store<T>(context, objs);
 
-        public bool Delete(IStorageContext context, Expression<Func<T, bool>> f) => Delete<T>(context, f);
+        public bool Delete(IDatabaseContext context, Expression<Func<T, bool>> f) => Delete<T>(context, f);
 
-        public bool Delete(IStorageContext context, params object[] id) => Delete<T>(context, id);
+        public bool Delete(IDatabaseContext context, params object[] id) => Delete<T>(context, id);
     }
 
 
@@ -446,18 +446,18 @@ namespace Meuzz.Persistence
         {
         }
 
-        public IEnumerable<T> Load<T>(IStorageContext context, Func<SelectStatement<T>, SelectStatement<T>> f)
+        public IEnumerable<T> Load<T>(IDatabaseContext context, Func<SelectStatement<T>, SelectStatement<T>> f)
         {
             return Load<T, T>(context, f);
         }
 
-        public IEnumerable<T2> Load<T, T2>(IStorageContext context, Func<SelectStatement<T>, SelectStatement<T2>> f)
+        public IEnumerable<T2> Load<T, T2>(IDatabaseContext context, Func<SelectStatement<T>, SelectStatement<T2>> f)
         {
             var statement = f(new SelectStatement<T>());
             return Enumerable.Cast<T2>(LoadObjects(context, typeof(T2), statement));
         }
 
-        public IEnumerable<T> Load<T>(IStorageContext context, Expression<Func<T, bool>> f)
+        public IEnumerable<T> Load<T>(IDatabaseContext context, Expression<Func<T, bool>> f)
         {
             var statement = new SelectStatement<T>();
             if (f != null)
@@ -468,7 +468,7 @@ namespace Meuzz.Persistence
             return Enumerable.Cast<T>(LoadObjects(context, typeof(T), statement));
         }
 
-        public IEnumerable<T> Load<T>(IStorageContext context, params object[] id)
+        public IEnumerable<T> Load<T>(IDatabaseContext context, params object[] id)
         {
             var primaryKey = typeof(T).GetPrimaryKey();
             if (primaryKey == null) { throw new NotSupportedException(); }
@@ -479,12 +479,12 @@ namespace Meuzz.Persistence
             return Enumerable.Cast<T>(LoadObjects(context, typeof(T), statement));
         }
 
-        public bool Store<T>(IStorageContext context, params T[] objs) where T : class
+        public bool Store<T>(IDatabaseContext context, params T[] objs) where T : class
         {
             return StoreObjects(context, typeof(T), objs, null);
         }
 
-        public bool Delete<T>(IStorageContext context, Expression<Func<T, bool>> f)
+        public bool Delete<T>(IDatabaseContext context, Expression<Func<T, bool>> f)
         {
             var statement = new DeleteStatement<T>();
             statement.Where(f);
@@ -494,7 +494,7 @@ namespace Meuzz.Persistence
             return true;
         }
 
-        public bool Delete<T>(IStorageContext context, params object[] id)
+        public bool Delete<T>(IDatabaseContext context, params object[] id)
         {
             var primaryKey = typeof(T).GetPrimaryKey();
             if (primaryKey == null) { throw new NotSupportedException(); }

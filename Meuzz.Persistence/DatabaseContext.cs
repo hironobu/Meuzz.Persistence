@@ -3,23 +3,23 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
 using System.Linq;
 using Meuzz.Persistence.Sql;
-using System.Data.Common;
 
 namespace Meuzz.Persistence
 {
-    public interface IPersistenceEngineProvider
+    public interface IDatabaseEngineProvider
     {
-        void Register(PersistenceEngineFactory factory);
+        void Register(DatabaseEngineFactory factory);
     }
 
-    public interface IPersistenceEngine
+    public interface IDatabaseEngine
     {
-        IStorageContext CreateContext(IDictionary<string, object> parameters);
+        IDatabaseContext CreateContext(IDictionary<string, object> parameters);
     }
 
-    public interface IStorageContext : IDisposable
+    public interface IDatabaseContext : IDisposable
     {
         void Open();
 
@@ -30,9 +30,9 @@ namespace Meuzz.Persistence
         void Close();
     }
 
-    public class StorageContextBase : IStorageContext
+    public class DatabaseContextBase : IDatabaseContext
     {
-        public StorageContextBase(DbConnection connection, SqlFormatter formatter)
+        public DatabaseContextBase(DbConnection connection, SqlFormatter formatter)
         {
             Connection = connection;
             Formatter = formatter;

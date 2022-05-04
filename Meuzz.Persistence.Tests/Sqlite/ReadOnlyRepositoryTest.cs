@@ -8,11 +8,11 @@ namespace Meuzz.Persistence.Tests.Sqlite
 {
     public class ReadOnlyRepositoryTest
     {
-        private IStorageContext _context;
+        private IDatabaseContext _context;
         private ObjectRepository _repository;
         public ReadOnlyRepositoryTest()
         {
-            var engine = PersistenceEngineFactory.Instance().GetEngine("sqlite");
+            var engine = DatabaseEngineFactory.Instance().GetEngine("sqlite");
 
             _context = engine.CreateContext("type=sqlite;file=:memory:");
             _context.Open();

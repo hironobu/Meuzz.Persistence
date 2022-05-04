@@ -5,17 +5,17 @@ using Microsoft.Data.SqlClient;
 
 namespace Meuzz.Persistence.Engine.Mssql
 {
-    public class PersistenceEngineProvider : IPersistenceEngineProvider
+    public class DatabaseEngineProvider : IDatabaseEngineProvider
     {
-        public void Register(PersistenceEngineFactory factory)
+        public void Register(DatabaseEngineFactory factory)
         {
             factory.Register("mssql", new MssqlEngine());
         }
     }
 
-    public class MssqlEngine : IPersistenceEngine
+    public class MssqlEngine : IDatabaseEngine
     {
-        public IStorageContext CreateContext(IDictionary<string, object> parameters)
+        public IDatabaseContext CreateContext(IDictionary<string, object> parameters)
         {
             var connection = new SqlConnection(new SqlConnectionStringBuilder()
             {
@@ -25,7 +25,7 @@ namespace Meuzz.Persistence.Engine.Mssql
                 Password = parameters["password"].ToString()
             }.ConnectionString);
 
-            return new StorageContextBase(connection, _formatter);
+            return new DatabaseContextBase(connection, _formatter);
         }
 
         private SqlFormatter _formatter = new MssqlFormatter();
