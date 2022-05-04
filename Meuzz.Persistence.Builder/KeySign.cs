@@ -8,7 +8,6 @@ namespace Meuzz.Persistence.Builder
 {
     public class KeySign
     {
-
         public (StrongNameKeyPair StrongNameKeyPair, byte[] PublicKey) LoadStrongNameKeyEntry(string keyFilePath, bool delaySign)
         {
             if (keyFilePath == null)
@@ -18,7 +17,7 @@ namespace Meuzz.Persistence.Builder
 
             if (!File.Exists(keyFilePath))
             {
-                throw new Exception($"key file not found: '{keyFilePath}'.");
+                throw new FileNotFoundException($"key file not found: '{keyFilePath}'.");
             }
 
             var fileBytes = File.ReadAllBytes(keyFilePath);
@@ -40,7 +39,6 @@ namespace Meuzz.Persistence.Builder
             return (null, fileBytes);
         }
 
-
         public string GetKeyFilePath(ModuleDefinition moduleDefinition, string intermediateDirectoryPath, string keyFilePath)
         {
             if (keyFilePath != null)
@@ -53,12 +51,13 @@ namespace Meuzz.Persistence.Builder
                 .Assembly
                 .CustomAttributes
                 .FirstOrDefault(x => x.AttributeType.Name == "AssemblyKeyFileAttribute");
-            if (assemblyKeyFileAttribute != null)
+            if (assemblyKeyFileAttribute == null)
             {
-                var keyFileSuffix = (string)assemblyKeyFileAttribute.ConstructorArguments.First().Value;
-                return Path.Combine(intermediateDirectoryPath, keyFileSuffix);
+                return null;
             }
-            return null;
+
+            var keyFileSuffix = (string)assemblyKeyFileAttribute.ConstructorArguments.First().Value;
+            return Path.Combine(intermediateDirectoryPath, keyFileSuffix);
         }
     }
 }

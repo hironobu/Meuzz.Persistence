@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using Microsoft.Build.Framework;
@@ -102,14 +103,19 @@ namespace Meuzz.Persistence.Builder
         public void Run()
         {
             var moduleManager = new ModuleManager(References.Split(';'));
-
             var assemblyFileName = AssemblyFile;
-            var (mainModule, hasSymbols) = moduleManager.ReadModule(assemblyFileName);
 
-            var types = mainModule.GetTypes().Where(t => t.HasCustomAttributes && t.CustomAttributes.Any(ca => ca.AttributeType.FullName == typeof(PersistentClassAttribute).FullName));
-            foreach (var t in types)
+            // backup original assembly file
+            var originalAssemblyFileName = $"{assemblyFileName}.orig";
+            File.Delete(originalAssemblyFileName);
+            File.Move(assemblyFileName, originalAssemblyFileName);
+
+            var (mainModule, hasSymbols) = moduleManager.ReadModule(originalAssemblyFileName, false);
+
+            var typeDefs = mainModule.GetTypes().Where(t => t.HasCustomAttributes && t.CustomAttributes.Any(ca => ca.AttributeType.FullName == typeof(PersistentClassAttribute).FullName));
+            foreach (var typeDef in typeDefs)
             {
-                WeaveTypeAsPersistent(mainModule, t);
+                WeaveTypeAsPersistent(mainModule, typeDef);
             }
 
             StrongNameKeyPair strongNameKeyPair = null;

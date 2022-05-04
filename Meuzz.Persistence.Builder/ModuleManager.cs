@@ -1,33 +1,35 @@
-﻿using Microsoft.Build.Framework;
-using Microsoft.Build.Utilities;
-using Mono.Cecil;
-using Mono.Cecil.Cil;
-using System;
-using System.IO;
-using System.Linq;
+﻿using System.IO;
 using System.Reflection;
-using Meuzz.Persistence;
+using Mono.Cecil;
 
 namespace Meuzz.Persistence.Builder
 {
     public class ModuleManager
     {
-        public string[] References;
-
+        /// <summary>
+        ///   コンストラクター。
+        /// </summary>
+        /// <param name="references"></param>
         public ModuleManager(string[] references)
         {
-            References = references;
+            _references = references;
         }
 
-
-
-        public (ModuleDefinition module, bool hasSymbols) ReadModule(string assemblyFileName)
+        /// <summary>
+        ///   アセンブリファイルを読み込み、モジュール定義情報を生成する。
+        /// </summary>
+        /// <remarks>
+        ///   このメソッドの後、<paramref name="assemblyFileName"/>のファイルはオープンされたままになります。
+        /// </remarks>
+        /// <param name="assemblyFileName">対象のアセンブリファイル。</param>
+        /// <returns>モジュール定義情報。</returns>
+        public (ModuleDefinition, bool) ReadModule(string assemblyFileName, bool readSymbols)
         {
             var baseDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             var assemblyResolver = new DefaultAssemblyResolver();
             assemblyResolver.AddSearchDirectory(baseDir);
 
-            foreach (var path in References)
+            foreach (var path in _references)
             {
                 var p = path;
                 if (File.Exists(p))
@@ -36,16 +38,11 @@ namespace Meuzz.Persistence.Builder
                 }
                 assemblyResolver.AddSearchDirectory(p);
             }
-            
-            // for debug and temporary solution
-            var originalAssemblyFileName = $"{assemblyFileName}.orig";
-            File.Delete(originalAssemblyFileName);
-            File.Move(assemblyFileName, originalAssemblyFileName);
 
-            var mainModule = ModuleDefinition.ReadModule(originalAssemblyFileName,
+            var mainModule = ModuleDefinition.ReadModule(assemblyFileName,
                 new ReaderParameters
                 {
-                    AssemblyResolver = assemblyResolver,
+                    AssemblyResolver = assemblyResolver
                 }
             );
 
@@ -57,11 +54,19 @@ namespace Meuzz.Persistence.Builder
             }
             catch
             {
+                // skip.
             }
-
             return (mainModule, hasSymbols);
         }
 
+        /// <summary>
+        ///   モジュール定義情報を用いてアセンブリファイルを書き出す。
+        /// </summary>
+        /// <param name="moduleDefinition">モジュール定義情報。</param>
+        /// <param name="strongNameKeyPair">書き出し時に署名を行うための鍵ペア。</param>
+        /// <param name="publicKey">署名を行うための公開鍵。</param>
+        /// <param name="assemblyFileName">書き出し先のファイル名。</param>
+        /// <param name="hasSymbols">シンボルを含むかどうか。</param>
         public void WriteModule(ModuleDefinition moduleDefinition, StrongNameKeyPair strongNameKeyPair, byte[] publicKey, string assemblyFileName, bool hasSymbols)
         {
             moduleDefinition.Assembly.Name.PublicKey = publicKey;
@@ -71,5 +76,7 @@ namespace Meuzz.Persistence.Builder
                 WriteSymbols = hasSymbols
             });
         }
+
+        private string[] _references;
     }
 }
