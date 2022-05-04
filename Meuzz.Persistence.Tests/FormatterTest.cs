@@ -15,7 +15,7 @@ namespace Meuzz.Persistence.Tests
 
         public FormatterTest()
         {
-            var engine = DatabaseEngineFactory.Instance().GetEngine("sqlite", "Data Source=:memory:");
+            var engine = DatabaseEngineFactory.Instance().CreateEngine("sqlite", "Data Source=:memory:");
 
             _context = engine.CreateContext();
             _context.Open();

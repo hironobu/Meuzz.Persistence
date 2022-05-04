@@ -7,21 +7,6 @@ using System.Reflection;
 
 namespace Meuzz.Persistence
 {
-    public static class DatabaseEngineExtensions
-    {
-        private static IDictionary<string, object> ParseContextString(string connectionString)
-        {
-            return connectionString.Split(";").Select(x => x.Split("=", 2)).ToDictionary(x => x[0], x => (object)x[1]);
-        }
-
-        /*
-        public static IDatabaseContext CreateContext(this IDatabaseEngine self, string connectionString)
-        {
-            return self.CreateContext(ParseContextString(connectionString));
-        }
-        */
-    }
-
     public class DatabaseEngineFactory
     {
         private IDictionary<string, Type> _engines = new Dictionary<string, Type>();
@@ -38,13 +23,13 @@ namespace Meuzz.Persistence
         {
             if (!typeof(IDatabaseEngine).IsAssignableFrom(engineType))
             {
-                throw new NotSupportedException();
+                throw new ArgumentException($"Not Acceptable Type: {engineType}");
             }
 
             _engines.Add(name, engineType);
         }
 
-        public IDatabaseEngine GetEngine(string type, string connectionString)
+        public IDatabaseEngine CreateEngine(string type, string connectionString)
         {
             if (!_engines.TryGetValue(type.ToString(), out var engineType))
             {
@@ -56,9 +41,9 @@ namespace Meuzz.Persistence
             return engine;
         }
 
-        public IDatabaseEngine GetEngine(string type, DbConnectionStringBuilder dbConnectionStringBuilder)
+        public IDatabaseEngine CreateEngine(string type, DbConnectionStringBuilder dbConnectionStringBuilder)
         {
-            return GetEngine(type, dbConnectionStringBuilder.ConnectionString);
+            return CreateEngine(type, dbConnectionStringBuilder.ConnectionString);
         }
 
         private void CallServiceProvidersOnAssembly(Assembly asm)
@@ -71,11 +56,6 @@ namespace Meuzz.Persistence
                     provider.Register(this);
                 }
             }
-        }
-
-        private IDictionary<string, object> ParseConnectionString(string connectionString)
-        {
-            return connectionString.Split(";").Select(x => x.Split("=", 2)).ToDictionary(x => x[0], x => (object)x[1]);
         }
 
         private static DatabaseEngineFactory _instance;

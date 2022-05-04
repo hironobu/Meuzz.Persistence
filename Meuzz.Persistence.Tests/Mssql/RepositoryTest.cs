@@ -13,7 +13,7 @@ namespace Meuzz.Persistence.Tests.Mssql
         private ObjectRepository _repository;
         public RepositoryTest()
         {
-            var engine = DatabaseEngineFactory.Instance().GetEngine("mssql", "Data Source=localhost,1433;Initial Catalog=Persistence;User ID=sa;Password=P@ssw0rd!");
+            var engine = DatabaseEngineFactory.Instance().CreateEngine("mssql", "Data Source=localhost,1433;Initial Catalog=Persistence;User ID=sa;Password=P@ssw0rd!");
 
             _context = engine.CreateContext();
             _context.Open();
