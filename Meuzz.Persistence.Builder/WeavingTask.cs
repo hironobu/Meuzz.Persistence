@@ -119,9 +119,8 @@ namespace Meuzz.Persistence.Builder
                 byte[] publicKey = null;
                 if (SignAssembly)
                 {
-                    var keySign = new KeySign();
-                    var keyFilePath = keySign.GetKeyFilePath(mainModuleDef, IntermediateDirectory, KeyOriginatorFile ?? AssemblyOriginatorKeyFile);
-                    (strongNameKeyPair, publicKey) = keySign.LoadStrongNameKeyEntry(keyFilePath, DelaySign);
+                    var keyFilePath = KeySign.GetKeyFilePath(mainModuleDef, IntermediateDirectory, KeyOriginatorFile ?? AssemblyOriginatorKeyFile);
+                    (strongNameKeyPair, publicKey) = KeySign.LoadStrongNameKeyEntry(keyFilePath, DelaySign);
                 }
 
                 moduleManager.WriteModule(mainModuleDef, strongNameKeyPair, publicKey, hasSymbols);

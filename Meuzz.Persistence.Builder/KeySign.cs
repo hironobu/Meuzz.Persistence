@@ -6,9 +6,9 @@ using System.Reflection;
 
 namespace Meuzz.Persistence.Builder
 {
-    public class KeySign
+    public static class KeySign
     {
-        public (StrongNameKeyPair StrongNameKeyPair, byte[] PublicKey) LoadStrongNameKeyEntry(string keyFilePath, bool delaySign)
+        public static (StrongNameKeyPair StrongNameKeyPair, byte[] PublicKey) LoadStrongNameKeyEntry(string keyFilePath, bool delaySign)
         {
             if (keyFilePath == null)
             {
@@ -39,7 +39,7 @@ namespace Meuzz.Persistence.Builder
             return (null, fileBytes);
         }
 
-        public string GetKeyFilePath(ModuleDefinition moduleDefinition, string intermediateDirectoryPath, string keyFilePath)
+        public static string GetKeyFilePath(ModuleDefinition moduleDefinition, string intermediateDirectoryPath, string keyFilePath)
         {
             if (keyFilePath != null)
             {
