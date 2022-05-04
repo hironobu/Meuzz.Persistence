@@ -105,29 +105,27 @@ namespace Meuzz.Persistence.Builder
             var moduleManager = new ModuleManager(References.Split(';'));
             var assemblyFileName = AssemblyFile;
 
-            // backup original assembly file
-            var originalAssemblyFileName = $"{assemblyFileName}.orig";
-            File.Delete(originalAssemblyFileName);
-            File.Move(assemblyFileName, originalAssemblyFileName);
+            var (mainModuleDef, hasSymbols) = moduleManager.ReadModule(assemblyFileName);
 
-            var (mainModule, hasSymbols) = moduleManager.ReadModule(originalAssemblyFileName, false);
-
-            var typeDefs = mainModule.GetTypes().Where(t => t.HasCustomAttributes && t.CustomAttributes.Any(ca => ca.AttributeType.FullName == typeof(PersistentClassAttribute).FullName));
-            foreach (var typeDef in typeDefs)
+            using (mainModuleDef)
             {
-                WeaveTypeAsPersistent(mainModule, typeDef);
-            }
+                var typeDefs = mainModuleDef.GetTypes().Where(t => t.HasCustomAttributes && t.CustomAttributes.Any(ca => ca.AttributeType.FullName == typeof(PersistentClassAttribute).FullName));
+                foreach (var typeDef in typeDefs)
+                {
+                    WeaveTypeAsPersistent(mainModuleDef, typeDef);
+                }
 
-            StrongNameKeyPair strongNameKeyPair = null;
-            byte[] publicKey = null;
-            if (SignAssembly)
-            {
-                var keySign = new KeySign();
-                var keyFilePath = keySign.GetKeyFilePath(mainModule, IntermediateDirectory, KeyOriginatorFile ?? AssemblyOriginatorKeyFile);
-                (strongNameKeyPair, publicKey) = keySign.LoadStrongNameKeyEntry(keyFilePath, DelaySign);
-            }
+                StrongNameKeyPair strongNameKeyPair = null;
+                byte[] publicKey = null;
+                if (SignAssembly)
+                {
+                    var keySign = new KeySign();
+                    var keyFilePath = keySign.GetKeyFilePath(mainModuleDef, IntermediateDirectory, KeyOriginatorFile ?? AssemblyOriginatorKeyFile);
+                    (strongNameKeyPair, publicKey) = keySign.LoadStrongNameKeyEntry(keyFilePath, DelaySign);
+                }
 
-            moduleManager.WriteModule(mainModule, strongNameKeyPair, publicKey, assemblyFileName, hasSymbols);
+                moduleManager.WriteModule(mainModuleDef, strongNameKeyPair, publicKey, hasSymbols);
+            }
         }
 
         /// <summary>

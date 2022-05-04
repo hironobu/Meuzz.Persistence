@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Reflection;
+using Microsoft.Build.Utilities;
 using Mono.Cecil;
 
 namespace Meuzz.Persistence.Builder
@@ -23,7 +24,7 @@ namespace Meuzz.Persistence.Builder
         /// </remarks>
         /// <param name="assemblyFileName">対象のアセンブリファイル。</param>
         /// <returns>モジュール定義情報。</returns>
-        public (ModuleDefinition, bool) ReadModule(string assemblyFileName, bool readSymbols)
+        public (ModuleDefinition, bool) ReadModule(string assemblyFileName)
         {
             var baseDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             var assemblyResolver = new DefaultAssemblyResolver();
@@ -42,7 +43,8 @@ namespace Meuzz.Persistence.Builder
             var mainModule = ModuleDefinition.ReadModule(assemblyFileName,
                 new ReaderParameters
                 {
-                    AssemblyResolver = assemblyResolver
+                    ReadWrite = true,
+                    AssemblyResolver = assemblyResolver,
                 }
             );
 
@@ -56,6 +58,7 @@ namespace Meuzz.Persistence.Builder
             {
                 // skip.
             }
+
             return (mainModule, hasSymbols);
         }
 
@@ -67,10 +70,15 @@ namespace Meuzz.Persistence.Builder
         /// <param name="publicKey">署名を行うための公開鍵。</param>
         /// <param name="assemblyFileName">書き出し先のファイル名。</param>
         /// <param name="hasSymbols">シンボルを含むかどうか。</param>
-        public void WriteModule(ModuleDefinition moduleDefinition, StrongNameKeyPair strongNameKeyPair, byte[] publicKey, string assemblyFileName, bool hasSymbols)
+        public void WriteModule(ModuleDefinition moduleDefinition, StrongNameKeyPair strongNameKeyPair, byte[] publicKey, bool hasSymbols)
         {
+            // for debug and temporary solution
+            //var originalAssemblyFileName = $"{assemblyFileName}.orig";
+            //File.Delete(originalAssemblyFileName);
+            //File.Move(assemblyFileName, originalAssemblyFileName);
+
             moduleDefinition.Assembly.Name.PublicKey = publicKey;
-            moduleDefinition.Write(assemblyFileName, new WriterParameters
+            moduleDefinition.Write(new WriterParameters
             {
                 StrongNameKeyPair = strongNameKeyPair,
                 WriteSymbols = hasSymbols
