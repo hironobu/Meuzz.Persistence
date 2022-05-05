@@ -58,37 +58,11 @@ namespace Meuzz.Persistence
                     foreach (var x in results)
                     {
                         var iprop = reli.InversePropertyInfo;
-                        if (iprop.SetMethod != null)
-                        {
-                            iprop.SetValue(x, obj);
-                        }
-                        else
-                        {
-                            // prop.GetCustomAttribute
-                            var attr = iprop.GetCustomAttribute<BackingFieldAttribute>();
-                            if (attr != null)
-                            {
-                                var field = iprop.DeclaringType?.GetField(attr.BackingFieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                                field?.SetValue(x, obj);
-                            }
-                        }
+                        SetPropertyValue(iprop, x, obj);
                     }
                 }
                 var prop = reli.PropertyInfo;
-                if (prop.SetMethod != null)
-                {
-                    prop.SetValue(obj, EnumerableCast(reli.TargetType, results));
-                }
-                else
-                {
-                    // prop.GetCustomAttribute
-                    var attr = prop.GetCustomAttribute<BackingFieldAttribute>();
-                    if (attr != null)
-                    {
-                        var field = prop.DeclaringType?.GetField(attr.BackingFieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                        field?.SetValue(obj, EnumerableCast(reli.TargetType, results));
-                    }
-                }
+                SetPropertyValue(prop, obj, EnumerableCast(reli.TargetType, results));
             });
         }
 
@@ -160,20 +134,7 @@ namespace Meuzz.Persistence
                 var prop = reli.PropertyInfo;
                 if (prop != null)
                 {
-                    if (prop.SetMethod != null)
-                    {
-                        prop.SetValue(obj, EnumerableCast(prop.PropertyType, MakeDefaultLoader(context, obj, reli)));
-                    }
-                    else
-                    {
-                        // prop.GetCustomAttribute
-                        var attr = prop.GetCustomAttribute<BackingFieldAttribute>();
-                        if (attr != null)
-                        {
-                            var field = reli.PropertyInfo.DeclaringType?.GetField(attr.BackingFieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                            field?.SetValue(obj, EnumerableCast(prop.PropertyType, MakeDefaultLoader(context, obj, reli)));
-                        }
-                    }
+                    SetPropertyValue(prop, obj, EnumerableCast(prop.PropertyType, MakeDefaultLoader(context, obj, reli)));
                 }
             }
 
@@ -390,6 +351,24 @@ namespace Meuzz.Persistence
 
                 var r = fromObjs.Select(fmap).ToList(); // just do it
                 // Console.WriteLine(r);
+            }
+        }
+
+        private void SetPropertyValue(PropertyInfo propInfo, object obj, object value)
+        {
+            if (propInfo.SetMethod != null)
+            {
+                propInfo.SetValue(obj, value);
+            }
+            else
+            {
+                // prop.GetCustomAttribute
+                var attr = propInfo.GetCustomAttribute<BackingFieldAttribute>();
+                if (attr != null)
+                {
+                    var field = propInfo.DeclaringType?.GetField(attr.BackingFieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    field?.SetValue(obj, value);
+                }
             }
         }
 
