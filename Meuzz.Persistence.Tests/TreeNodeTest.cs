@@ -6,12 +6,12 @@ using Xunit;
 
 namespace Meuzz.Persistence.Tests
 {
-    [PersistentClass("TreeNodes")]
+    [Persistent("TreeNodes")]
     public class TreeNode
     {
         public int Id { get; set; }
 
-        [PersistentProperty]
+        [Column]
         public string Name { get; set; }
 
         [HasMany(ForeignKey: "parent_id")]

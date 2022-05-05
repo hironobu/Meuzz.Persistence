@@ -26,7 +26,7 @@ namespace Meuzz.Persistence.Core
 
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
-                foreach (var type in assembly.GetTypes().Where(t => t.IsDefined(typeof(PersistentClassAttribute), true)))
+                foreach (var type in assembly.GetTypes().Where(t => t.IsDefined(typeof(PersistentAttribute), true)))
                 {
                     var hasManyProps = type.GetProperties().Where(p => p.IsDefined(typeof(HasManyAttribute), true));
                     foreach (var prop in hasManyProps)

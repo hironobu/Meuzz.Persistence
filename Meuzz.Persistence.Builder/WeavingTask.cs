@@ -108,7 +108,7 @@ namespace Meuzz.Persistence.Builder
 
             using (mainModuleDef)
             {
-                var typeDefs = mainModuleDef.GetTypes().Where(t => t.HasCustomAttributes && t.CustomAttributes.Any(ca => ca.AttributeType.FullName == typeof(PersistentClassAttribute).FullName));
+                var typeDefs = mainModuleDef.GetTypes().Where(t => t.HasCustomAttributes && t.CustomAttributes.Any(ca => ca.AttributeType.FullName == typeof(PersistentAttribute).FullName));
                 foreach (var typeDef in typeDefs)
                 {
                     WeaveTypeAsPersistent(mainModuleDef, typeDef);

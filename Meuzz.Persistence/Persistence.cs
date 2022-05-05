@@ -126,7 +126,7 @@ namespace Meuzz.Persistence
         public static bool IsPersistent(this Type t)
         {
             // return TableInfoManager.Instance().TryGetEntry(t, out var _);
-            return t.GetCustomAttribute<PersistentClassAttribute>() != null;
+            return t.GetCustomAttribute<PersistentAttribute>() != null;
         }
 
         /**
@@ -212,10 +212,10 @@ namespace Meuzz.Persistence
             foreach (var p in t.GetProperties())
             {
                 var cc = StringUtils.ToSnake(p.Name).ToLower();
-                var ppa = p.GetCustomAttribute<PersistentPropertyAttribute>();
-                if (ppa != null && ppa.Column != null)
+                var ppa = p.GetCustomAttribute<ColumnAttribute>();
+                if (ppa != null && ppa.Name != null)
                 {
-                    cc = ppa.Column.ToLower();
+                    cc = ppa.Name.ToLower();
                 }
 
                 var primaryKey = p.PropertyType.GetPrimaryKey() ?? "id";
@@ -230,7 +230,7 @@ namespace Meuzz.Persistence
 
         public static string? GetPrimaryKey(this Type t)
         {
-            var attr = t.GetCustomAttribute<PersistentClassAttribute>();
+            var attr = t.GetCustomAttribute<PersistentAttribute>();
             if (attr != null && attr.PrimaryKey != null)
             {
                 return attr.PrimaryKey;
@@ -276,7 +276,7 @@ namespace Meuzz.Persistence
 
         public static string GetTableName(this Type t)
         {
-            var attr = t.GetCustomAttribute<PersistentClassAttribute>();
+            var attr = t.GetCustomAttribute<PersistentAttribute>();
             if (attr == null || attr.TableName == null)
             {
                 return StringUtils.ToSnake(t.Name);
@@ -314,13 +314,13 @@ namespace Meuzz.Persistence
     {
         public static string GetColumnName(this MemberInfo mi)
         {
-            var attr = mi.GetCustomAttribute<PersistentPropertyAttribute>();
-            if (attr == null || attr.Column == null)
+            var attr = mi.GetCustomAttribute<ColumnAttribute>();
+            if (attr == null || attr.Name == null)
             {
                 return StringUtils.ToSnake(mi.Name);
             }
 
-            return attr.Column.ToLower();
+            return attr.Name.ToLower();
         }
     }
 }

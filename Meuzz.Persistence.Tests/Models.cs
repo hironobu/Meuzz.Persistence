@@ -5,12 +5,12 @@ using Meuzz.Persistence.Tests.Models;
 
 namespace Meuzz.Persistence.Tests.Models
 {
-    [PersistentClass("Players")]
+    [Persistent("Players")]
     public class Player
     {
         public int Id { get; set; }
 
-        [PersistentProperty]
+        [Column]
         public string Name { get; set; }
 
         public int Age { get; set; }
@@ -36,7 +36,7 @@ namespace Meuzz.Persistence.Tests.Models
     }
 
 
-    [PersistentClass("Characters")]
+    [Persistent("Characters")]
     public class Character
     {
         public int Id { get; set; }
@@ -74,12 +74,12 @@ namespace Meuzz.Persistence.Tests.Models
 
 namespace Meuzz.Persistence.Tests.Models.ReadOnly
 {
-    [PersistentClass("Players")]
+    [Persistent("Players")]
     public class Player
     {
         public int Id { get; }
 
-        [PersistentProperty]
+        [Column]
         public string Name { get; }
 
         public int Age { get; }
@@ -120,7 +120,7 @@ namespace Meuzz.Persistence.Tests.Models.ReadOnly
     }
 
 
-    [PersistentClass("Characters")]
+    [Persistent("Characters")]
     public class Character
     {
         public int Id { get; }
@@ -156,12 +156,12 @@ namespace Meuzz.Persistence.Tests.Models.ReadOnly
 
 namespace Meuzz.Persistence.Tests.Models.NoForeignKeyProperty
 {
-    [PersistentClass("Players")]
+    [Persistent("Players")]
     public class Player
     {
         public int Id { get; set; }
 
-        [PersistentProperty]
+        [Column]
         public string Name { get; set; }
 
         public int Age { get; set; }
@@ -175,7 +175,7 @@ namespace Meuzz.Persistence.Tests.Models.NoForeignKeyProperty
         public IEnumerable<Character> LastCharacters { get; set; }
     }
 
-    [PersistentClass("Characters")]
+    [Persistent("Characters")]
     public class Character
     {
         public int Id { get; set; }
@@ -189,12 +189,12 @@ namespace Meuzz.Persistence.Tests.Models.NoForeignKeyProperty
 
 namespace Meuzz.Persistence.Tests.Models.AutoForeignKey
 {
-    [PersistentClass("Players")]
+    [Persistent("Players")]
     public class Player
     {
         public int Id { get; set; }
 
-        [PersistentProperty]
+        [Column]
         public string Name { get; set; }
 
         public int Age { get; set; }
@@ -205,7 +205,7 @@ namespace Meuzz.Persistence.Tests.Models.AutoForeignKey
         public IEnumerable<Character> Characters { get; set; }
     }
 
-    [PersistentClass("Characters")]
+    [Persistent("Characters")]
     public class Character
     {
         public int Id { get; set; }
@@ -219,7 +219,7 @@ namespace Meuzz.Persistence.Tests.Models.AutoForeignKey
 
 namespace Meuzz.Persistence.Tests.Models.UsingFields
 {
-    [PersistentClass("Players")]
+    [Persistent("Players")]
     public class Player
     {
         public int Id;
@@ -238,7 +238,7 @@ namespace Meuzz.Persistence.Tests.Models.UsingFields
     }
 
 
-    [PersistentClass("Characters")]
+    [Persistent("Characters")]
     public class Character
     {
         public int Id;

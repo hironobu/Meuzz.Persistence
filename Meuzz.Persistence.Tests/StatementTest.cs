@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Meuzz.Persistence.Tests
 {
-    [PersistentClass("Teams")]
+    [Persistent("Teams")]
     public class Team
     {
         public int Id { get; set; }
@@ -18,7 +18,7 @@ namespace Meuzz.Persistence.Tests
         public IEnumerable<Member> Players { get; set; }
     }
 
-    [PersistentClass("Members")]
+    [Persistent("Members")]
     public class Member
     {
         public int Id { get; set; }
@@ -28,7 +28,7 @@ namespace Meuzz.Persistence.Tests
         public string Name { get; set; }
     }
 
-    [PersistentClass("Matches")]
+    [Persistent("Matches")]
     public class Match
     {
         public int Id { get; set; }

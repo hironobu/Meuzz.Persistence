@@ -3,29 +3,29 @@
 namespace Meuzz.Persistence
 {
     [AttributeUsage(AttributeTargets.Class)]
-    public class PersistentClassAttribute : Attribute
+    public class PersistentAttribute : Attribute
     {
         public string TableName = null;
         public string PrimaryKey = null;
 
-        public PersistentClassAttribute(string tableName) : this(tableName, "id")
+        public PersistentAttribute(string tableName) : this(tableName, "id")
         {
         }
 
-        public PersistentClassAttribute(string tableName, string primaryKey = null)
+        public PersistentAttribute(string TableName, string PrimaryKey = null)
         {
-            this.TableName = tableName;
-            this.PrimaryKey = primaryKey;
+            this.TableName = TableName;
+            this.PrimaryKey = PrimaryKey;
         }
     }
 
     [AttributeUsage(AttributeTargets.Property)]
-    public class PersistentPropertyAttribute : Attribute
+    public class ColumnAttribute : Attribute
     {
-        public string Column = null;
-        public PersistentPropertyAttribute(string column = null)
+        public string Name = null;
+        public ColumnAttribute(string Name = null)
         {
-            Column = column;
+            this.Name = Name;
         }
     }
 
