@@ -12,7 +12,7 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void Test01()
         {
-            var ci = typeof(Player).GetClassInfo();
+            var ci = typeof(Player).GetTableInfo();
             Assert.NotNull(ci);
             Assert.Equal(typeof(Player), ci.ClassType);
             Assert.Equal(2, ci.Relations.Length);
@@ -31,7 +31,7 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestNoForeignKeyProperty()
         {
-            var ci = typeof(Models.NoForeignKeyProperty.Player).GetClassInfo();
+            var ci = typeof(Models.NoForeignKeyProperty.Player).GetTableInfo();
             Assert.NotNull(ci);
             Assert.Equal(typeof(Models.NoForeignKeyProperty.Player), ci.ClassType);
             Assert.Equal(2, ci.Relations.Length);
@@ -50,7 +50,7 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestAutoForeignKey()
         {
-            var ci = typeof(Models.AutoForeignKey.Player).GetClassInfo();
+            var ci = typeof(Models.AutoForeignKey.Player).GetTableInfo();
             Assert.NotNull(ci);
             Assert.Equal(typeof(Models.AutoForeignKey.Player), ci.ClassType);
             Assert.Single(ci.Relations);

@@ -21,7 +21,7 @@ namespace Meuzz.Persistence.Sql
 
         public SqlValueStatement(Type t, bool isInsert) : base(t)
         {
-            var ci = t.GetClassInfo();
+            var ci = t.GetTableInfo();
             if (ci == null) { throw new NotImplementedException(); }
             PrimaryKey = t.GetPrimaryKey();
             Columns = ci.Columns.Select(x => x.Name).Where(x => x != t.GetPrimaryKey()).ToArray();

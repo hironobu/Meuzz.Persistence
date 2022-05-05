@@ -314,7 +314,7 @@ namespace Meuzz.Persistence.Sql
                 return parameters.SelectMany(x =>
                 {
                     var (name, type) = x;
-                    var ci = type.GetClassInfo();
+                    var ci = type.GetTableInfo();
                     if (ci == null) { throw new InvalidOperationException(); }
                     var colnames = ci.Columns.Select(x => x.Name).ToArray();
 

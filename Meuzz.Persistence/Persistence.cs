@@ -11,8 +11,14 @@ using Meuzz.Persistence.Core;
 namespace Meuzz.Persistence
 {
     public static class TypeInfoExtensions
-    {/*
-        public static TableInfoManager.Entry GetTableInfo(this Type t)
+    {
+        /// <summary>
+        ///   テーブル情報を取得する。
+        /// </summary>
+        /// <param name="t">対象となる型情報。</param>
+        /// <returns>テーブル情報。</returns>
+        /// <exception cref="NotImplementedException">Persistent化を受けてない型情報が与えられた場合。</exception>
+        public static TableInfoManager.Entry? GetTableInfo(this Type t)
         {
             if (!t.IsPersistent())
             {
@@ -25,190 +31,32 @@ namespace Meuzz.Persistence
                 return ti;
             }
 
-            var colinfos = new List<TableInfoManager.ColumnInfoEntry>();
-            foreach (var prop in t.GetProperties())
-            {
-                var fke = prop.GetForeignKeyInfo();
-
-                if (fke != null)
-                {
-
-                }
-                else
-                {
-                    colinfos.Add(new TableInfoManager.ColumnInfoEntry()
-                    {
-                        Name = StringUtils.ToSnake(prop.Name),
-                        MemberInfo = prop,
-                        BindingTo = fke != null ? fke.PrimaryTableName : null,
-                        BindingToPrimaryKey = fke != null ? fke.PrimaryKey : null
-                    });
-                }
-            }
-
-            var fkeys = ForeignKeyInfoManager.Instance().GetForeignKeysByTargetType(t);
-            foreach (var fk in fkeys)
-            {
-                colinfos.Add(new TableInfoManager.ColumnInfoEntry()
-                {
-                    Name = StringUtils.ToSnake(fk),
-                });
-            }
-
-            ti = new TableInfoManager.Entry() { Columns = colinfos.ToArray() };
-            TableInfoManager.Instance().RegisterEntry(t, ti);
-
-            return ti;
-        }*/
-
-        // private static IDictionary<string, object> _tableInfo = new ConcurrentDictionary<string, object>();
-
-        public static ClassInfoManager.Entry? GetClassInfo(this Type t)
-        {
-            if (!t.IsPersistent())
-            {
-                // throw new NotImplementedException();
-            }
-
-            var ti = ClassInfoManager.Instance().GetEntry(t);
-            if (ti != null)
-            {
-                return ti;
-            }
-
-            /*var colinfos = new List<ClassInfoManager.ColumnInfoEntry>();
-            var relinfos = new List<ClassInfoManager.RelationInfoEntry>();
-            foreach (var prop in t.GetProperties())
-            {
-                var fke = prop.GetForeignKeyInfo();
-
-                if (fke != null)
-                {
-                    if (fke.ForeignKey != null)
-                    {
-                        var targetType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
-                        relinfos.Add(new ClassInfoManager.RelationInfoEntry()
-                        {
-                            PropertyInfo = prop,
-                            InversePropertyInfo = targetType.GetPropertyInfoFromColumnName(fke.ForeignKey, true),
-                            TargetType = targetType,
-                            ForeignKey = fke.ForeignKey
-                        });
-                    }
-                }
-                else
-                {
-                    colinfos.Add(new ClassInfoManager.ColumnInfoEntry()
-                    {
-                        Name = StringUtils.ToSnake(prop.Name),
-                        MemberInfo = prop,
-                        BindingTo = fke != null ? fke.PrimaryTableName : null,
-                        BindingToPrimaryKey = fke != null ? fke.PrimaryKey : null
-                    });
-                }
-            }
-
-            var fkeys = ForeignKeyInfoManager.Instance().GetForeignKeysByTargetType(t);
-            foreach (var fk in fkeys)
-            {
-                colinfos.Add(new ClassInfoManager.ColumnInfoEntry()
-                {
-                    Name = StringUtils.ToSnake(fk),
-                });
-            }
-
-            ti = new ClassInfoManager.Entry() { Columns = colinfos.ToArray(), Relations = relinfos.ToArray(), ClassType = t };
-            ClassInfoManager.Instance().RegisterEntry(t, ti);*/
-
             return null;
         }
 
+        /// <summary>
+        ///   Persistent化を受けた型かどうか。
+        /// </summary>
+        /// <param name="t">対象となる型情報。</param>
+        /// <returns>Persistent化を受けた型ならばtrue。</returns>
         public static bool IsPersistent(this Type t)
         {
-            // return TableInfoManager.Instance().TryGetEntry(t, out var _);
             return t.GetCustomAttribute<PersistentAttribute>() != null;
         }
 
-        /**
-         * 
-         * DBからテーブル情報を取得し、TableInfoManagerおよびClassInfoManagerにその内容を登録する。
-         * ただし、DBのスキーマ情報をどの程度の優先度をもってTableInfoManagerおよびClassInfoManager上で扱うかについてを精査しないといけないので、
-         * 両クラスでの情報生成・登録のロジックを見直す必要がある。
-         * 
-         * 1) モデルクラスの命名規則
-         * 2) モデルクラスにおけるアノテーション
-         * 3) DBのテーブル情報
-         * 
-         */
-        public static void MakeTypePersistent(this Type t, Func<string, string[]> tableInfoGetter, Func<string, IDictionary<string, object>[]> foreignKeyInfoGetter)
-        {/*
-            if (!t.IsPersistent())
-            {
-                var colinfos = new List<TableInfoManager.ColumnInfoEntry>();
-                var classprops = t.GetProperties().ToList();
-                var tableName = GetTableName(t);
-                var fkdict = new Dictionary<string, object>();
-                foreach (var fke in foreignKeyInfoGetter(tableName))
-                {
-                    var foreignKey = fke["from"] as string;
-                    var primaryKey = fke["to"];
-                    var primaryTableName = fke["table"];
-
-                    fkdict[foreignKey] = new Dictionary<string, object>()
-                    {
-                        { "PrimaryKey", primaryKey },
-                        { "PrimaryTableName", primaryTableName }
-                    };
-                }
-
-                foreach (var col in tableInfoGetter(tableName))
-                {
-                    var c = col.ToLower();
-                    var prop = t.GetPropertyInfoFromColumnName(c);
-                    var fke = fkdict.ContainsKey(c) ? fkdict[c] as IDictionary<string, object> : null;
-                    colinfos.Add(new TableInfoManager.ColumnInfoEntry() { Name = c, MemberInfo = prop, BindingTo = fke != null ? fke["PrimaryTableName"] as string : null, BindingToPrimaryKey = fke != null ? fke["PrimaryKey"] as string : null });
-                    classprops.Remove(prop);
-                }
-
-                TableInfoManager.Instance().RegisterEntry(t, new TableInfoManager.Entry() { Columns = colinfos.ToArray() });
-
-                var relinfos = new List<ClassInfoManager.RelationInfoEntry>();
-                foreach (var x in classprops)
-                {
-                    var hasmany = x.GetCustomAttribute<HasManyAttribute>();
-                    relinfos.Add(new ClassInfoManager.RelationInfoEntry()
-                    {
-                        PropertyInfo = x,
-                        TargetClassType = x.PropertyType.IsGenericType ? x.PropertyType.GetGenericArguments()[0] : x.PropertyType,
-                        ForeignKey = hasmany != null ? hasmany.ForeignKey : null
-                    });
-                }
-
-                ClassInfoManager.Instance().RegisterEntry(t, new ClassInfoManager.Entry() { ClassType = t, Relations = relinfos.ToArray() });
-
-                foreach (var prop in t.GetProperties())
-                {
-                    if (prop.PropertyType.IsGenericType)
-                    {
-                        prop.PropertyType.GetGenericArguments()[0].MakeTypePersistent(tableInfoGetter, foreignKeyInfoGetter);
-                    }
-                    else
-                    {
-                        prop.PropertyType.MakeTypePersistent(tableInfoGetter, foreignKeyInfoGetter);
-                    }
-                }
-
-            }*/
-        }
-
-        private static string GetShortColumnName(string fcol)
+        /// <summary>
+        ///   カラム名からプロパティ情報を取得する。
+        /// </summary>
+        /// <param name="t">プロパティ情報の検索対象となる型。</param>
+        /// <param name="columnName">カラム名。</param>
+        /// <param name="usingPrimaryKey">
+        ///   プロパティの型のプライマリキーを検索に使うか否か。
+        ///   trueの場合、対象プロパティ名と対象プロパティ型のプライマリキー名を連結した文字列を<paramref name="columnName"/>の検索対象に含める。
+        /// </param>
+        /// <returns>検索に一致したプロパティ情報。一致したものがない場合はnull。</returns>
+        public static PropertyInfo? GetPropertyInfoFromColumnName(this Type t, string columnName, bool usingPrimaryKey = false)
         {
-            return fcol.Split('.').Last();
-        }
-
-        public static PropertyInfo? GetPropertyInfoFromColumnName(this Type t, string fcol, bool usingPk = false)
-        {
-            var c = GetShortColumnName(fcol).ToLower();
+            var c = GetShortColumnName(columnName).ToLower();
             foreach (var p in t.GetProperties())
             {
                 var cc = p.Name.ToSnake().ToLower();
@@ -218,8 +66,7 @@ namespace Meuzz.Persistence
                     cc = ppa.Name.ToLower();
                 }
 
-                var primaryKey = p.PropertyType.GetPrimaryKey() ?? "id";
-                if (cc == c || (usingPk && $"{cc}_{primaryKey.ToLower()}" == c))
+                if (cc == c || (usingPrimaryKey && $"{cc}_{(p.PropertyType.GetPrimaryKey() ?? "id").ToLower()}" == c))
                 {
                     return p;
                 }
@@ -228,6 +75,11 @@ namespace Meuzz.Persistence
             return null;
         }
 
+        /// <summary>
+        ///   対象の型におけるプロパティキーを取得する。
+        /// </summary>
+        /// <param name="t">対象となる型。</param>
+        /// <returns>プロパティキー名。</returns>
         public static string? GetPrimaryKey(this Type t)
         {
             var attr = t.GetCustomAttribute<PersistentAttribute>();
@@ -238,30 +90,16 @@ namespace Meuzz.Persistence
             return null;
         }
 
-        public static object? GetPrimaryValue(this Type t,  object obj)
+        public static object? GetPrimaryValue(this Type t, object obj)
         {
             var pkey = t.GetPrimaryKey();
             if (pkey == null) { return null; }
-            return GetPropertyValue(t, pkey, obj);
-        }
 
-        public static PropertyInfo? GetPrimaryPropertyInfo(this Type t)
-        {
-            var pkey = t.GetPrimaryKey();
-            if (pkey == null) { return null; }
-            return t.GetPropertyInfo(pkey);
-        }
-        public static PropertyInfo? GetPropertyInfo(this Type t, string propname)
-        {
-            return t.GetProperty(propname.ToCamel(true));
-        }
-
-        public static object? GetPropertyValue(this Type t, string propname, object obj)
-        {
-            var prop = t.GetProperty(propname.ToCamel(true));
-            if (prop == null) { return null; }
-
-            var pval = prop.GetValue(obj);
+            var propPKey = t.GetProperty(pkey.ToCamel(true));
+            if (propPKey == null) { return null; }
+            
+            // TODO: defaultの値も(場合によっては)正規の値として処理できる(=nullを返さない)ようにせよ
+            var pval = propPKey.GetValue(obj);
             if (pval is int)
             {
                 return default(int) != (int)pval ? pval : null;
@@ -274,6 +112,19 @@ namespace Meuzz.Persistence
             return pval;
         }
 
+        /// <summary>
+        ///   型情報から連動するテーブル名を取得する。
+        /// </summary>
+        /// <remarks>
+        ///   <para>
+        ///     <see cref="PersistentAttribute"/>による指定があれば、<see cref="PersistentAttribute.TableName"/>を返す。
+        ///   </para>
+        ///   <para>
+        ///     指定がなければ、型名から<see cref="StringUtilsExtensions.ToSnake"/>した値を自動生成して返す。
+        ///   </para>
+        /// </remarks>
+        /// <param name="t">型情報。</param>
+        /// <returns>テーブル名。</returns>
         public static string GetTableName(this Type t)
         {
             var attr = t.GetCustomAttribute<PersistentAttribute>();
@@ -284,40 +135,96 @@ namespace Meuzz.Persistence
             return attr.TableName;
         }
 
-        public static object? GetValueForColumnName(this Type t, string c, object obj)
+        /// <summary>
+        ///   対象オブジェクトから型情報とカラム名を指定して値を取り出す。
+        /// </summary>
+        /// <param name="t">型情報。テーブル化したときにカラムに<paramref name="col"/>を持つものとする。</param>
+        /// <param name="col">カラム名。</param>
+        /// <param name="obj">対象オブジェクト。</param>
+        /// <returns>取得された値。</returns>
+        public static object? GetValueForColumnName(this Type t, string col, object obj)
         {
-            var propInfo = t.GetPropertyInfoFromColumnName(c);
+            var propInfo = t.GetPropertyInfoFromColumnName(col);
             return propInfo?.GetValue(obj);
         }
 
+        /// <summary>
+        ///   対象オブジェクトから型情報とカラム名の配列を指定して値を取り出し、辞書オブジェクトを生成する。
+        /// </summary>
+        /// <param name="t">型情報。テーブル化したときにカラムに<paramref name="cols"/>を持つものとする。</param>
+        /// <param name="cols">カラム名。</param>
+        /// <param name="obj">対象オブジェクト。</param>
+        /// <returns>取得された値と<paramref name="cols"/>を組み合わせた辞書オブジェクト。</returns>
         public static IDictionary<string, object?> GetValueDictFromColumnNames(this Type t, string[] cols, object obj)
         {
             return cols.Zip(t.GetValuesFromColumnNames(cols, obj), (x, y) => new { x, y }).ToDictionary(x => x.x, x => x.y);
         }
+
+        /// <summary>
+        ///   対象オブジェクトから、型情報とカラム名の配列を指定して値を取り出す。
+        /// </summary>
+        /// <param name="t">型情報。テーブル化したときにカラムに<paramref name="cols"/>を持つものとする。</param>
+        /// <param name="cols">カラム名。</param>
+        /// <param name="obj">対象オブジェクト。</param>
+        /// <returns>取得された値のコレクション。個数と順序は<paramref name="cols"/>に一致することを保証する。</returns>
         public static IEnumerable<object?> GetValuesFromColumnNames(this Type t, string[] cols, object obj)
         {
             return cols.Select(c => t.GetValueForColumnName(c, obj));
         }
 
-        public static string GetForeignKey(this Type t, string prediction, Type primaryType, string primaryKey)
+        /// <summary>
+        ///   外部キーを取得する。
+        /// </summary>
+        /// <remarks>
+        ///   <para>以下の条件に従ってカラム情報を検索する。</para>
+        ///   <list type="bullet">
+        ///     <item><paramref name="predictedForeignKey"/>で始まる名前を持つカラム。</item>
+        ///     <item><see cref="TableInfoManager.ColumnInfoEntry.BindingToPrimaryKey"/>が<paramref name="primaryKey"/>と一致するかnull。</item>
+        ///     <item><see cref="TableInfoManager.ColumnInfoEntry.BindingTo"/>が<paramref name="primaryType"/>の示すテーブル名(<see cref="GetTableName(Type)"/>)と一致する。</item>
+        ///   </list>
+        /// </remarks>
+        /// <param name="t">外部キーを持つ側の型情報。</param>
+        /// <param name="predictedForeignKey">予測された外部キー。前方一致で検索する。</param>
+        /// <param name="primaryType"><paramref name="primaryKey"/>を持つ側の型情報。</param>
+        /// <param name="primaryKey">プライマリキー。</param>
+        /// <returns>取得された外部キー。</returns>
+        /// <exception cref="NotImplementedException"></exception>
+        public static string GetForeignKey(this Type t, string predictedForeignKey, Type primaryType, string primaryKey)
         {
-            var ci = t.GetClassInfo();
+            var ci = t.GetTableInfo();
             if (ci == null) { throw new NotImplementedException(); }
-            return ci.Columns.Where(x => x.Name.StartsWith(prediction)
+            return ci.Columns.Where(x => x.Name.StartsWith(predictedForeignKey)
                 && (x.BindingToPrimaryKey == null || x.BindingToPrimaryKey == primaryKey)
                 && (x.BindingTo == null || x.BindingTo == primaryType.GetTableName())).Single().Name;
         }
-    }
 
+        private static string GetShortColumnName(string fcol)
+        {
+            return fcol.Split('.').Last();
+        }
+    }
 
     public static class MemberInfoExtensions
     {
-        public static string GetColumnName(this MemberInfo mi)
+        /// <summary>
+        ///   メンバー情報から連動するDB上のカラム名を取得する。
+        /// </summary>
+        /// <remarks>
+        ///   <para>
+        ///     <see cref="ColumnAttribute"/>による指定があれば、<see cref="ColumnAttribute.Name"/>を返す。
+        ///   </para>
+        ///   <para>
+        ///     指定がなければ、メンバー名から<see cref="StringUtilsExtensions.ToSnake"/>した値を自動生成して返す。
+        ///   </para>
+        /// </remarks>
+        /// <param name="memberInfo">メンバー情報。</param>
+        /// <returns>カラム名。</returns>
+        public static string GetColumnName(this MemberInfo memberInfo)
         {
-            var attr = mi.GetCustomAttribute<ColumnAttribute>();
+            var attr = memberInfo.GetCustomAttribute<ColumnAttribute>();
             if (attr == null || attr.Name == null)
             {
-                return mi.Name.ToSnake();
+                return memberInfo.Name.ToSnake();
             }
 
             return attr.Name.ToLower();

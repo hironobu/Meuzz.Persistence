@@ -12,7 +12,7 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void Test01()
         {
-            var ci = typeof(Player).GetClassInfo();
+            var ci = typeof(Player).GetTableInfo();
             Assert.Equal(4, ci.Columns.Length);
             var cis = ci.Columns.OrderBy(c => c.Name);
 
@@ -25,7 +25,7 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void Test02()
         {
-            var ci = typeof(Character).GetClassInfo();
+            var ci = typeof(Character).GetTableInfo();
             Assert.Equal(4, ci.Columns.Length);
             var cis = ci.Columns.OrderBy(c => c.Name);
 

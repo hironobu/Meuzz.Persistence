@@ -8,11 +8,11 @@ using Meuzz.Foundation;
 
 namespace Meuzz.Persistence.Core
 {
-    public class ClassInfoManager
+    public class TableInfoManager
     {
         private ConcurrentDictionary<Type, Entry> _dict;
 
-        public ClassInfoManager()
+        public TableInfoManager()
         {
             _dict = new ConcurrentDictionary<Type, Entry>();
         }
@@ -29,8 +29,8 @@ namespace Meuzz.Persistence.Core
 
         private Entry MakeReadyEntryForType(Type t)
         {
-            var colinfos = new List<ClassInfoManager.ColumnInfoEntry>();
-            var relinfos = new List<ClassInfoManager.RelationInfoEntry>();
+            var colinfos = new List<TableInfoManager.ColumnInfoEntry>();
+            var relinfos = new List<TableInfoManager.RelationInfoEntry>();
             foreach (var prop in t.GetProperties())
             {
                 var fke = ForeignKeyInfoManager.Instance().GetForeignKeyInfoByPropertyInfo(prop);
@@ -41,12 +41,12 @@ namespace Meuzz.Persistence.Core
                     {
                         var targetType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
                         var targetPropertyInfo = targetType.GetPropertyInfoFromColumnName(fke.ForeignKey, true);
-                        relinfos.Add(new ClassInfoManager.RelationInfoEntry(targetType, prop, targetPropertyInfo, fke.ForeignKey));
+                        relinfos.Add(new TableInfoManager.RelationInfoEntry(targetType, prop, targetPropertyInfo, fke.ForeignKey));
                    }
                 }
                 else
                 {
-                    colinfos.Add(new ClassInfoManager.ColumnInfoEntry(
+                    colinfos.Add(new TableInfoManager.ColumnInfoEntry(
                         prop.Name.ToSnake(),
                         prop,
                         fke)
@@ -57,16 +57,16 @@ namespace Meuzz.Persistence.Core
             var fkeys = ForeignKeyInfoManager.Instance().GetForeignKeysByTargetType(t);
             foreach (var fk in fkeys)
             {
-                colinfos.Add(new ClassInfoManager.ColumnInfoEntry(fk.ToSnake()));
+                colinfos.Add(new TableInfoManager.ColumnInfoEntry(fk.ToSnake()));
             }
 
-            var ti = new ClassInfoManager.Entry(t, colinfos.ToArray(), relinfos.ToArray());
+            var ti = new TableInfoManager.Entry(t, colinfos.ToArray(), relinfos.ToArray());
             _dict.TryAdd(t, ti);
 
             return ti;
         }
 
-        public static ClassInfoManager Instance()
+        public static TableInfoManager Instance()
         {
             if (_instance == null)
             {
@@ -74,7 +74,7 @@ namespace Meuzz.Persistence.Core
                 {
                     if (_instance == null)
                     {
-                        _instance = new ClassInfoManager();
+                        _instance = new TableInfoManager();
                     }
                 }
             }
@@ -82,7 +82,7 @@ namespace Meuzz.Persistence.Core
             return _instance;
         }
 
-        private static ClassInfoManager? _instance = null;
+        private static TableInfoManager? _instance = null;
         private static readonly object _instanceLocker = new Object();
 
         public class RelationInfoEntry

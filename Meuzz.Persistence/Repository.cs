@@ -44,7 +44,7 @@ namespace Meuzz.Persistence
             return LoadObjects(context, targetType, statement);
         }
 
-        protected IEnumerable<object> MakeDefaultLoader(IDatabaseContext context, object obj, ClassInfoManager.RelationInfoEntry reli)
+        protected IEnumerable<object> MakeDefaultLoader(IDatabaseContext context, object obj, TableInfoManager.RelationInfoEntry reli)
         {
             var statement = new SqlSelectStatement(reli.TargetType);
             var pkval = obj.GetType().GetPrimaryValue(obj);
@@ -126,7 +126,7 @@ namespace Meuzz.Persistence
             dynamic func = Convert.ChangeType(lambda.Compile(), ft);
             object obj = func();
 
-            var ci = t.GetClassInfo();
+            var ci = t.GetTableInfo();
             if (ci == null) { throw new NotImplementedException(); }
 
             foreach (var reli in ci.Relations)
@@ -167,7 +167,7 @@ namespace Meuzz.Persistence
                 var pkey = t.GetPrimaryKey();
                 if (pkey == null) { throw new NotImplementedException(); }
                 var prop = t.GetProperty(pkey.ToCamel(true))!;
-                var classinfo = t.GetClassInfo();
+                var classinfo = t.GetTableInfo();
                 if (classinfo == null) { throw new NotImplementedException(); }
 
                 var results = rset!.Results;

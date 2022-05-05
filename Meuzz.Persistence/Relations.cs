@@ -113,7 +113,7 @@ namespace Meuzz.Persistence
                 else
                 {
                     var primaryTable = relationMemberInfo.DeclaringType.GetTableName();
-                    var foreignClassInfo = rightType.GetClassInfo();
+                    var foreignClassInfo = rightType.GetTableInfo();
                     var matched = foreignClassInfo.Columns.Where(x => x.BindingTo == primaryTable).First();
                     relationSpec = new RelationSpec(matched.Name.ToLower(), matched.BindingToPrimaryKey.ToLower());
                 }
