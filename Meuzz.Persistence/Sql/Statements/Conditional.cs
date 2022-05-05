@@ -181,8 +181,8 @@ namespace Meuzz.Persistence.Sql
         public ColumnSpec(string parameter, string name, string? alias = null)
         {
             Parameter = parameter;
-            Name = StringUtils.ToSnake(name);
-            Alias = alias != null ? StringUtils.ToSnake(alias) : null;
+            Name = name.ToSnake();
+            Alias = alias != null ? alias.ToSnake() : null;
         }
     }
 

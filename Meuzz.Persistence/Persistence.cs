@@ -211,7 +211,7 @@ namespace Meuzz.Persistence
             var c = GetShortColumnName(fcol).ToLower();
             foreach (var p in t.GetProperties())
             {
-                var cc = StringUtils.ToSnake(p.Name).ToLower();
+                var cc = p.Name.ToSnake().ToLower();
                 var ppa = p.GetCustomAttribute<ColumnAttribute>();
                 if (ppa != null && ppa.Name != null)
                 {
@@ -253,12 +253,12 @@ namespace Meuzz.Persistence
         }
         public static PropertyInfo? GetPropertyInfo(this Type t, string propname)
         {
-            return t.GetProperty(StringUtils.ToCamel(propname, true));
+            return t.GetProperty(propname.ToCamel(true));
         }
 
         public static object? GetPropertyValue(this Type t, string propname, object obj)
         {
-            var prop = t.GetProperty(StringUtils.ToCamel(propname, true));
+            var prop = t.GetProperty(propname.ToCamel(true));
             if (prop == null) { return null; }
 
             var pval = prop.GetValue(obj);
@@ -279,7 +279,7 @@ namespace Meuzz.Persistence
             var attr = t.GetCustomAttribute<PersistentAttribute>();
             if (attr == null || attr.TableName == null)
             {
-                return StringUtils.ToSnake(t.Name);
+                return t.Name.ToSnake();
             }
             return attr.TableName;
         }
@@ -317,7 +317,7 @@ namespace Meuzz.Persistence
             var attr = mi.GetCustomAttribute<ColumnAttribute>();
             if (attr == null || attr.Name == null)
             {
-                return StringUtils.ToSnake(mi.Name);
+                return mi.Name.ToSnake();
             }
 
             return attr.Name.ToLower();

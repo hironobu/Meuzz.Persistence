@@ -58,7 +58,7 @@ namespace Meuzz.Persistence
             Func<Func<dynamic, dynamic, bool>, Func<dynamic, dynamic>, Func<dynamic, dynamic>, Func<dynamic, dynamic, bool>> joiningConditionMaker
                 = (Func<dynamic, dynamic, bool> eval, Func<dynamic, dynamic> f, Func<dynamic, dynamic> g) => (dynamic x, dynamic y) => eval(f(x), g(y));
             Func<dynamic, dynamic, bool> eq = (x, y) => x == y;
-            Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).GetValue(x);
+            Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) => x.GetType().GetProperty(prop.ToCamel(true)).GetValue(x);
             Func<string, Func<dynamic, dynamic>> dictionaryGetter = (string key) => (dynamic x) => x[key];
             Func<string, Func<dynamic, dynamic>> memberAccessor = (string memb) => (dynamic x) =>
             {
@@ -90,8 +90,8 @@ namespace Meuzz.Persistence
             {
                 var relationCond = Condition.New(relationMemberInfo.DeclaringType, condexp.Body);
 
-                var primaryKey = StringUtils.ToSnake(string.Join("_", relationCond.Left.PathComponents));
-                var foreignKey = StringUtils.ToSnake(string.Join("_", relationCond.Right.PathComponents));
+                var primaryKey = string.Join("_", relationCond.Left.PathComponents).ToSnake();
+                var foreignKey = string.Join("_", relationCond.Right.PathComponents).ToSnake();
 
                 primaryKey = string.IsNullOrEmpty(primaryKey) ? leftType.GetPrimaryKey() : primaryKey;
                 foreignKey = rightType.GetForeignKey(foreignKey, leftType, primaryKey);
@@ -153,7 +153,7 @@ namespace Meuzz.Persistence
                     throw new NotImplementedException();
                 }
 
-                Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) => x.GetType().GetProperty(StringUtils.ToCamel(prop, true)).GetValue(x);
+                Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) => x.GetType().GetProperty(prop.ToCamel(true)).GetValue(x);
                 var arr = el.Evaluate().ToArray();
                 var obj = arr.First();
                 var propkeys = arr.Skip(1).Select(x => x.Name);
@@ -165,7 +165,7 @@ namespace Meuzz.Persistence
 
                 Func<string, Func<dynamic, dynamic>> memberAccessor = (string memb) => (dynamic x) =>
                 {
-                    var col = StringUtils.ToSnake(memb);
+                    var col = memb.ToSnake();
                     if (x.ContainsKey(col))
                     {
                         return x[col];

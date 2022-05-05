@@ -41,7 +41,7 @@ namespace Meuzz.Persistence.Sql
             Expression memberAccessor;
             ParameterExpression px;
 
-            var ppi = string.IsNullOrEmpty(key) ? t?.GetPrimaryPropertyInfo() : t?.GetProperty(StringUtils.ToCamel(key, true));
+            var ppi = string.IsNullOrEmpty(key) ? t?.GetPrimaryPropertyInfo() : t?.GetProperty(key.ToCamel(true));
             if (ppi != null)
             {
                 px = Expression.Parameter(t, "x");

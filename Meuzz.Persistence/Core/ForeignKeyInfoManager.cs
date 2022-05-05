@@ -42,7 +42,7 @@ namespace Meuzz.Persistence.Core
                             }
 
                             var revprop = t.GetProperties().Where(x => x.PropertyType == prop.DeclaringType).Single();
-                            fk = StringUtils.ToSnake(revprop.Name) + "_id";
+                            fk = revprop.Name.ToSnake() + "_id";
                         }
                         propertyInfoToForeignKeyTable.Add(prop, fk);
 

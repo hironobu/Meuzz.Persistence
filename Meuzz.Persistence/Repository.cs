@@ -76,7 +76,7 @@ namespace Meuzz.Persistence
 
             var ctors = t.GetConstructors().OrderBy(x => x.GetParameters().Length);
             var ctor = ctors.First();
-            var ctorParamTypesAndNames = ctor.GetParameters().Select(x => (x.ParameterType, StringUtils.ToSnake(x.Name))).ToArray();
+            var ctorParamTypesAndNames = ctor.GetParameters().Select(x => (x.ParameterType, x.Name.ToSnake())).ToArray();
 
             var colsValsPairs = columns.Zip(values);
             var ctorParamsDict = colsValsPairs.Where(x => ctorParamTypesAndNames.Any(p => p.Item2 == x.First)).ToDictionary(x => x.First, x => x.Second);
@@ -166,7 +166,7 @@ namespace Meuzz.Persistence
 
                 var pkey = t.GetPrimaryKey();
                 if (pkey == null) { throw new NotImplementedException(); }
-                var prop = t.GetProperty(StringUtils.ToCamel(pkey, true))!;
+                var prop = t.GetProperty(pkey.ToCamel(true))!;
                 var classinfo = t.GetClassInfo();
                 if (classinfo == null) { throw new NotImplementedException(); }
 
@@ -298,7 +298,7 @@ namespace Meuzz.Persistence
             {
                 if (x != null)
                 {
-                    x.GetType().GetProperty(StringUtils.ToCamel(prop, true), BindingFlags.InvokeMethod)?.SetValue(x, value);
+                    x.GetType().GetProperty(prop.ToCamel(true), BindingFlags.InvokeMethod)?.SetValue(x, value);
                 }
             };
             Action<IDictionary<string, object?>, string, object?> memberUpdater = (x, memb, value) =>
@@ -311,7 +311,7 @@ namespace Meuzz.Persistence
 
             Func<string, Func<object?, object?>> propertyGetter = (string prop) => (object? x) =>
             {
-                return x != null ? x.GetType().GetProperty(StringUtils.ToCamel(prop, true))!.GetValue(x) : null;
+                return x != null ? x.GetType().GetProperty(prop.ToCamel(true))!.GetValue(x) : null;
             };
             Func<string, Func<IDictionary<string, object?>, object?>> memberAccessor = (string memb) => (IDictionary<string, object?> x) =>
             {
@@ -337,7 +337,7 @@ namespace Meuzz.Persistence
                     {
                         foreach (var o in targetToObjs)
                         {
-                            var k0 = StringUtils.ToCamel(joiningSpec.ForeignKey.Replace("_id", ""), true);
+                            var k0 = joiningSpec.ForeignKey.Replace("_id", "").ToCamel(true);
                             memberUpdater(o, k0, x["__object"]);
                         }
                         memberUpdater(x, joiningSpec.MemberInfo.Name, regularCollection(((PropertyInfo)joiningSpec.MemberInfo).PropertyType, targetToObjs.Select(y => y["__object"])));

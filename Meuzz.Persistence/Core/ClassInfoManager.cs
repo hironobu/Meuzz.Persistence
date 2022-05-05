@@ -47,7 +47,7 @@ namespace Meuzz.Persistence.Core
                 else
                 {
                     colinfos.Add(new ClassInfoManager.ColumnInfoEntry(
-                        StringUtils.ToSnake(prop.Name),
+                        prop.Name.ToSnake(),
                         prop,
                         fke)
                     );
@@ -57,7 +57,7 @@ namespace Meuzz.Persistence.Core
             var fkeys = ForeignKeyInfoManager.Instance().GetForeignKeysByTargetType(t);
             foreach (var fk in fkeys)
             {
-                colinfos.Add(new ClassInfoManager.ColumnInfoEntry(StringUtils.ToSnake(fk)));
+                colinfos.Add(new ClassInfoManager.ColumnInfoEntry(fk.ToSnake()));
             }
 
             var ti = new ClassInfoManager.Entry(t, colinfos.ToArray(), relinfos.ToArray());
