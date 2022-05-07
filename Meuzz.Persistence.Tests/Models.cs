@@ -1,7 +1,140 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Meuzz.Persistence.Tests.Models;
+
+namespace Meuzz.Persistence.Tests
+{
+    // dummy
+    public class PersistableStateImpl : PersistableState
+    {
+        public PersistableStateImpl(string[] dirtyKeys) : base(dirtyKeys.Where(x => !string.IsNullOrEmpty(x)).ToArray())
+        {
+        }
+    }
+}
+
+namespace Meuzz.Persistence.Tests.Models.Sample
+{
+    public class Player0
+    {
+        public string Name
+        {
+            get => _name;
+            set 
+            {
+                if (_name != value)
+                {
+                    _name = value;
+                }
+            }
+        }
+
+        private string _name = string.Empty;
+    }
+
+    public class Player1
+    {
+        public string Name
+        {
+            get => _name;
+            set
+            {
+                lock (this)
+                {
+                    if (_name != value)
+                    {
+                        _name = value;
+
+                        __dirty["Name"] = true;
+                    }
+                }
+            }
+        }
+
+        public PersistableState GetDirtyState()
+        {
+            PersistableState state;
+
+            lock (this)
+            {
+                state = new PersistableStateImpl(__dirty.Keys.ToArray());
+                __dirty.Clear();
+            }
+            return state;
+        }
+
+        private string _name = string.Empty;
+
+        private IDictionary<string, object> __dirty = new Dictionary<string, object>();
+    }
+
+    public class Player2
+    {
+        public string Name
+        {
+            get => _name;
+            set
+            {
+                lock (this)
+                {
+                    if (_name != value)
+                    {
+                        _name = value;
+
+                        _Name__dirty = true;
+                    }
+                }
+            }
+        }
+
+        public int Age
+        {
+            get => _age;
+            set
+            {
+                lock (this)
+                {
+                    if (_age != value)
+                    {
+                        _age = value;
+
+                        _Age__dirty = true;
+                    }
+                }
+            }
+        }
+
+        public PersistableState GetDirtyState()
+        {
+            PersistableState state;
+
+            lock (this)
+            {
+                state = new PersistableStateImpl(new[]
+                {
+                    _Name__dirty ? "Name" : null,
+                    _Age__dirty ? "Age" : null,
+                });
+
+                _Name__dirty = false;
+                _Age__dirty = false;
+            }
+
+            return state;
+        }
+
+        private string _name = default(string);
+        private int _age = default(int);
+
+        // [IsDirty]
+        private bool _Name__dirty = false;
+        // [IsDirty]
+        private bool _Age__dirty = false;
+    }
+
+}
 
 namespace Meuzz.Persistence.Tests.Models
 {

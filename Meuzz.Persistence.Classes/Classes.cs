@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 
 namespace Meuzz.Persistence
 {
@@ -42,7 +43,7 @@ namespace Meuzz.Persistence
         }
     }
 
-    public class PersistableState
+    public abstract class PersistableState
     {
         public string[] DirtyKeys { get; }
 
@@ -58,13 +59,13 @@ namespace Meuzz.Persistence
                 return null;
             }
 
-            return ip.GeneratePersistableState();
+            return ip.GetDirtyState();
         }
     }
 
     public interface IPersistable
     {
-        PersistableState GeneratePersistableState();
+        PersistableState GetDirtyState();
     }
 
     [AttributeUsage(AttributeTargets.Property)]

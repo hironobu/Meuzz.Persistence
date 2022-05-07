@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
 using Mono.Cecil;
@@ -133,9 +134,7 @@ namespace Meuzz.Persistence.Builder
         /// <param name="typeDef">対象となる型定義情報。</param>
         private void WeaveTypeAsPersistent(ModuleDefinition moduleDef, TypeDefinition typeDef)
         {
-            var dirtyDictFieldDef = MakeDirtyField(moduleDef, typeDef);
-
-            AddGeneratePersistentState(moduleDef, typeDef, dirtyDictFieldDef);
+            // AddGeneratePersistentState(moduleDef, typeDef, dirtyDictFieldDef);
 
             // add IPersistable interface
             var ipersistableTypeRef = moduleDef.ImportReference(typeof(IPersistable));
@@ -153,6 +152,8 @@ namespace Meuzz.Persistence.Builder
                 }
             }
 
+            var dirtyFieldDefAndNames = new List<(FieldDefinition, string)>();
+
             // weave properties (for dirty flag operations)
             foreach (var pr in typeDef.Properties)
             {
@@ -168,9 +169,15 @@ namespace Meuzz.Persistence.Builder
 
                 if (pr.SetMethod != null)
                 {
-                    AddPropertyDirtySetter(moduleDef, pr, dirtyDictFieldDef, originalGetterInstructions);
+                    var dirtyFieldDef = MakeDirtyField(moduleDef, typeDef, pr.Name);
+
+                    AddPropertyDirtySetter(moduleDef, typeDef, pr, dirtyFieldDef, originalGetterInstructions);
+
+                    dirtyFieldDefAndNames.Add((dirtyFieldDef, pr.Name));
                 }
             }
+
+            AddGeneratePersistentState(moduleDef, typeDef, dirtyFieldDefAndNames);
         }
 
         /// <summary>
@@ -284,12 +291,18 @@ namespace Meuzz.Persistence.Builder
         /// </summary>
         /// <param name="moduleDef">メインモジュール。</param>
         /// <param name="propDef">対象となるプロパティ定義情報。</param>
-        /// <param name="dirtyDictFieldDef">dirtyフラグの定義情報。</param>
+        /// <param name="dirtyFieldDef">dirtyフラグの定義情報。</param>
         /// <param name="originalGetterInstructions">当該プロパティにおける変更前のgetterメソッドIL。</param>
-        private void AddPropertyDirtySetter(ModuleDefinition moduleDef, PropertyDefinition propDef, FieldDefinition dirtyDictFieldDef, Instruction[] originalGetterInstructions)
+        private void AddPropertyDirtySetter(ModuleDefinition moduleDef, TypeReference typeRef, PropertyDefinition propDef, FieldDefinition dirtyFieldDef, Instruction[] originalGetterInstructions)
         {
             var dictionaryTypeDef = moduleDef.ImportReference(typeof(IDictionary<,>)).Resolve();
             var setItemMethodRef = moduleDef.ImportReference(MakeHostInstanceGenericMethodReference(dictionaryTypeDef.Methods.Single(x => x.Name == "set_Item" && x.Parameters.Count == 2), moduleDef.ImportReference(typeof(string)), moduleDef.ImportReference(typeof(bool))));
+            
+            var monitorTypeDef = moduleDef.ImportReference(typeof(Monitor)).Resolve();
+            var enterMethodRef = moduleDef.ImportReference(monitorTypeDef.Methods.Single(x => x.Name == "Enter" && x.Parameters.Count == 2));
+            var exitMethodRef = moduleDef.ImportReference(monitorTypeDef.Methods.Single(x => x.Name == "Exit" && x.Parameters.Count == 1));
+
+            // var opInequalityMethodRef = moduleDef.ImportReference(typeRef.Resolve().Methods.Single(x => x.Name == "op_Inequality"));
 
             var setterMethodDef = propDef.SetMethod;
             var ilp = setterMethodDef.Body.GetILProcessor();
@@ -299,10 +312,29 @@ namespace Meuzz.Persistence.Builder
             // var getterMethodDef = pd.GetMethod;
             // var getterInstructions = getterMethodDef.Body.Instructions;
 
+            setterMethodDef.Body.Variables.Add(new VariableDefinition(typeRef));
+            var v_1 = new VariableDefinition(moduleDef.ImportReference(typeof(bool)));
+            setterMethodDef.Body.Variables.Add(v_1);
             setterMethodDef.Body.Variables.Add(new VariableDefinition(moduleDef.ImportReference(typeof(bool))));
 
             var il_002c = ret;
 
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Nop));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Ldarg_0));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Stloc_0));
+
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Ldc_I4_0));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Stloc_1));
+
+            // .try {
+            var il_0005 = Instruction.Create(OpCodes.Ldloc_0);
+            ilp.InsertBefore(first, il_0005);
+            ilp.InsertBefore(first, ilp.Create(OpCodes.Ldloca_S, v_1));
+
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Call, enterMethodRef));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Nop));
+
+            // if (_field != value) {
             ilp.InsertBefore(first, Instruction.Create(OpCodes.Nop));
             foreach (var i in originalGetterInstructions)
             {
@@ -314,21 +346,51 @@ namespace Meuzz.Persistence.Builder
             ilp.InsertBefore(first, Instruction.Create(OpCodes.Ceq));
             ilp.InsertBefore(first, Instruction.Create(OpCodes.Ldc_I4_0));
             ilp.InsertBefore(first, Instruction.Create(OpCodes.Ceq));
-            ilp.InsertBefore(first, Instruction.Create(OpCodes.Stloc_0));
-            ilp.InsertBefore(first, Instruction.Create(OpCodes.Ldloc_0));
-            ilp.InsertBefore(first, Instruction.Create(OpCodes.Brfalse_S, il_002c));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Stloc_2));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Ldloc_2));
+            var il_002f = Instruction.Create(OpCodes.Nop);
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Brfalse_S, il_002f));
 
+            // _name = value;
             ilp.InsertBefore(first, Instruction.Create(OpCodes.Nop));
 
             // original code here
 
+            // (set dirty)
             ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldarg_0));
-            ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldfld, dirtyDictFieldDef));
-            ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldstr, propDef.Name));
             ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldc_I4_1));
-            ilp.InsertBefore(ret, Instruction.Create(OpCodes.Callvirt, setItemMethodRef));
+            ilp.InsertBefore(ret, Instruction.Create(OpCodes.Stfld, dirtyFieldDef));
             ilp.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
+
+            // }
+            ilp.InsertBefore(ret, il_002f);
+            var il_003d = ret;
+            var il_0030 = Instruction.Create(OpCodes.Leave_S, il_003d);
+            ilp.InsertBefore(ret, il_0030);
+            // end .try
+
+            //
+            var il_0032 = Instruction.Create(OpCodes.Ldloc_1);
+            ilp.InsertBefore(ret, il_0032);
+            var il_003c = Instruction.Create(OpCodes.Endfinally);
+            ilp.InsertBefore(ret, Instruction.Create(OpCodes.Brfalse_S, il_003c));
+
+            ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldloc_0));
+            ilp.InsertBefore(ret, Instruction.Create(OpCodes.Call, exitMethodRef));
             ilp.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
+
+            var handler = new ExceptionHandler(ExceptionHandlerType.Finally)
+            {
+                TryStart = il_0005,
+                TryEnd = il_0032,
+                HandlerStart = il_0032,
+                HandlerEnd = ret,
+            };
+
+            ilp.InsertBefore(ret, il_003c);
+
+            setterMethodDef.Body.ExceptionHandlers.Add(handler);
+            // end handler
         }
 
         /// <summary>
@@ -356,74 +418,140 @@ namespace Meuzz.Persistence.Builder
         /// <param name="moduleDef">メインモジュール。</param>
         /// <param name="typeDef">対象となる型定義情報。</param>
         /// <returns>dirtyフィールドを示す<see cref="FieldDefinition"/>。もしすでに作成済みの型であればnullを返す。</returns>
-        private FieldDefinition MakeDirtyField(ModuleDefinition moduleDef, TypeDefinition typeDef)
+        private FieldDefinition MakeDirtyField(ModuleDefinition moduleDef, TypeDefinition typeDef, string name)
         {
-            var dirtyDictName = "__dirty";
+            var dirtyFieldName = $"<{name}>k__Dirty";
 
-            if (typeDef.Fields.Any(x => x.Name == dirtyDictName))
+            if (typeDef.Fields.Any(x => x.Name == dirtyFieldName))
             {
                 return null;
             }
 
             var dirtyDictTypeRef = moduleDef.ImportReference(MakeGenericType(moduleDef.ImportReference(typeof(IDictionary<,>)), moduleDef.ImportReference(typeof(string)), moduleDef.ImportReference(typeof(bool))));
-            var dirtyDictFieldDef = new FieldDefinition(dirtyDictName, Mono.Cecil.FieldAttributes.Private, dirtyDictTypeRef);
-            typeDef.Fields.Add(dirtyDictFieldDef);
+            var dirtyFieldDef = new FieldDefinition(dirtyFieldName, Mono.Cecil.FieldAttributes.Private, moduleDef.ImportReference(typeof(bool)));
+            typeDef.Fields.Add(dirtyFieldDef);
 
-            var dirtyDictTypeDef = moduleDef.ImportReference(typeof(Dictionary<,>)).Resolve();
-            var dirtyDictInstanceCtor = moduleDef.ImportReference(MakeHostInstanceGenericMethodReference(dirtyDictTypeDef.Methods.Single(x => x.Name == ".ctor" && x.Parameters.Count == 0), moduleDef.ImportReference(typeof(string)), moduleDef.ImportReference(typeof(bool))));
             var ctorMethodDef = typeDef.Methods.Single(x => x.Name == ".ctor");
             var ilp = ctorMethodDef.Body.GetILProcessor();
             var first = ctorMethodDef.Body.Instructions[0];
 
             ilp.InsertBefore(first, Instruction.Create(OpCodes.Ldarg_0));
-            ilp.InsertBefore(first, Instruction.Create(OpCodes.Newobj, dirtyDictInstanceCtor));
-            ilp.InsertBefore(first, Instruction.Create(OpCodes.Stfld, dirtyDictFieldDef));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Ldc_I4_0));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Stfld, dirtyFieldDef));
 
-            return dirtyDictFieldDef;
+            return dirtyFieldDef;
         }
 
         /// <summary>
-        ///   <see cref="IPersistable.GeneratePersistableState"/>メソッドを対象の型に追加する。
+        ///   <see cref="IPersistable.GetDirtyState"/>メソッドを対象の型に追加する。
         /// </summary>
         /// <param name="moduleDef">メインモジュール。</param>
         /// <param name="typeDef">対象となる型定義情報。</param>
         /// <param name="dirtyDictFieldDef">メソッド内で参照する<c>__dirty</c>フィールド。</param>
-        private void AddGeneratePersistentState(ModuleDefinition moduleDef, TypeDefinition typeDef, FieldDefinition dirtyDictFieldDef)
+        private void AddGeneratePersistentState(ModuleDefinition moduleDef, TypeDefinition typeDef, IEnumerable<(FieldDefinition, string)> dirtyFieldDefAndNames)
         {
-            var getKeysMethodRef = moduleDef.ImportReference(MakeHostInstanceGenericMethodReference(moduleDef.ImportReference(typeof(IDictionary<,>)).Resolve().Methods.Single(x => x.Name == "get_Keys"), moduleDef.ImportReference(typeof(string)), moduleDef.ImportReference(typeof(bool))));
-            var toArrayMethodRef = moduleDef.ImportReference(MakeGenericMethodReference(moduleDef.ImportReference(typeof(Enumerable)).Resolve().Methods.Single(x => x.Name == nameof(Enumerable.ToArray)), moduleDef.ImportReference(typeof(string))));
+            //var getKeysMethodRef = moduleDef.ImportReference(MakeHostInstanceGenericMethodReference(moduleDef.ImportReference(typeof(IDictionary<,>)).Resolve().Methods.Single(x => x.Name == "get_Keys"), moduleDef.ImportReference(typeof(string)), moduleDef.ImportReference(typeof(bool))));
+            //var toArrayMethodRef = moduleDef.ImportReference(MakeGenericMethodReference(moduleDef.ImportReference(typeof(Enumerable)).Resolve().Methods.Single(x => x.Name == nameof(Enumerable.ToArray)), moduleDef.ImportReference(typeof(string))));
 
-            var generatePersistableStateMethodDef = new MethodDefinition(nameof(IPersistable.GeneratePersistableState), Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.SpecialName, moduleDef.ImportReference(typeof(PersistableState)));
-            var ilp = generatePersistableStateMethodDef.Body.GetILProcessor();
+            var monitorTypeDef = moduleDef.ImportReference(typeof(Monitor)).Resolve();
+            var enterMethodRef = moduleDef.ImportReference(monitorTypeDef.Methods.Single(x => x.Name == "Enter" && x.Parameters.Count == 2));
+            var exitMethodRef = moduleDef.ImportReference(monitorTypeDef.Methods.Single(x => x.Name == "Exit" && x.Parameters.Count == 1));
 
-            generatePersistableStateMethodDef.Body.Variables.Add(new VariableDefinition(moduleDef.ImportReference(typeof(string[]))));
-            generatePersistableStateMethodDef.Body.Variables.Add(new VariableDefinition(moduleDef.ImportReference(typeof(PersistableState))));
+            var getDirtyStateMethodDef = new MethodDefinition(nameof(IPersistable.GetDirtyState), Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.SpecialName, moduleDef.ImportReference(typeof(PersistableState)));
+            var ilp = getDirtyStateMethodDef.Body.GetILProcessor();
 
-            var persistableStateCtorRef = moduleDef.ImportReference(moduleDef.ImportReference(typeof(PersistableState)).Resolve().Methods.Single(x => x.Name == ".ctor"));
+            getDirtyStateMethodDef.Body.Variables.Add(new VariableDefinition(moduleDef.ImportReference(typeof(PersistableState))));
+            getDirtyStateMethodDef.Body.Variables.Add(new VariableDefinition(typeDef));
+            var v_2 = new VariableDefinition(moduleDef.ImportReference(typeof(bool)));
+            getDirtyStateMethodDef.Body.Variables.Add(v_2);
+            getDirtyStateMethodDef.Body.Variables.Add(new VariableDefinition(moduleDef.ImportReference(typeof(PersistableState))));
+
+            var persistableStateCtorRef = moduleDef.ImportReference(moduleDef.ImportReference(typeof(PersistableStateImpl)).Resolve().Methods.Single(x => x.Name == ".ctor"));
             var clearMethodRef = moduleDef.ImportReference(moduleDef.ImportReference(typeof(IDictionary)).Resolve().Methods.Single(x => x.Name == nameof(IDictionary.Clear)));
 
-            ilp.Append(Instruction.Create(OpCodes.Ldarg_0));
-            ilp.Append(Instruction.Create(OpCodes.Ldfld, dirtyDictFieldDef));
-            ilp.Append(Instruction.Create(OpCodes.Callvirt, getKeysMethodRef));
-            ilp.Append(Instruction.Create(OpCodes.Call, toArrayMethodRef));
-            ilp.Append(Instruction.Create(OpCodes.Stloc_0));
-
-            ilp.Append(Instruction.Create(OpCodes.Ldarg_0));
-            ilp.Append(Instruction.Create(OpCodes.Ldfld, dirtyDictFieldDef));
-            ilp.Append(Instruction.Create(OpCodes.Callvirt, clearMethodRef));
-
             ilp.Append(Instruction.Create(OpCodes.Nop));
-            ilp.Append(Instruction.Create(OpCodes.Ldloc_0));
-            ilp.Append(Instruction.Create(OpCodes.Newobj, persistableStateCtorRef));
+            ilp.Append(Instruction.Create(OpCodes.Ldarg_0));
             ilp.Append(Instruction.Create(OpCodes.Stloc_1));
 
-            var il_0027 = Instruction.Create(OpCodes.Ldloc_1);
-            ilp.Append(Instruction.Create(OpCodes.Br_S, il_0027));
+            // {
+            ilp.Append(Instruction.Create(OpCodes.Ldc_I4_0));
+            ilp.Append(Instruction.Create(OpCodes.Stloc_2));
+            // .try
+            var il_0005 = Instruction.Create(OpCodes.Ldloc_1);
+            ilp.Append(il_0005);
+            ilp.Append(Instruction.Create(OpCodes.Ldloca_S, v_2));
 
-            ilp.Append(il_0027);
-            ilp.Append(Instruction.Create(OpCodes.Ret));
+            ilp.Append(Instruction.Create(OpCodes.Call, enterMethodRef));
+            ilp.Append(Instruction.Create(OpCodes.Nop));
 
-            typeDef.Methods.Add(generatePersistableStateMethodDef);
+            // if (_field != value) {
+            ilp.Append(Instruction.Create(OpCodes.Nop));
+
+            ilp.Append(Instruction.Create(OpCodes.Ldc_I4, dirtyFieldDefAndNames.Count()));
+            ilp.Append(Instruction.Create(OpCodes.Newarr, moduleDef.ImportReference(typeof(string))));
+
+            int i = 0;
+            foreach (var (fieldDef, fieldName) in dirtyFieldDefAndNames)
+            {
+                ilp.Append(Instruction.Create(OpCodes.Dup));
+                ilp.Append(Instruction.Create(OpCodes.Ldc_I4, i++));
+                ilp.Append(Instruction.Create(OpCodes.Ldarg_0));
+                ilp.Append(Instruction.Create(OpCodes.Ldfld, fieldDef));
+                var il_0022 = Instruction.Create(OpCodes.Ldstr, fieldName);
+                ilp.Append(Instruction.Create(OpCodes.Brtrue_S, il_0022));
+                ilp.Append(Instruction.Create(OpCodes.Ldnull));
+                var il_0027 = Instruction.Create(OpCodes.Stelem_Ref);
+                ilp.Append(Instruction.Create(OpCodes.Br_S, il_0027));
+                ilp.Append(il_0022);
+                ilp.Append(il_0027);
+            }
+
+            ilp.Append(Instruction.Create(OpCodes.Newobj, persistableStateCtorRef));
+            ilp.Append(Instruction.Create(OpCodes.Stloc_0));
+            //
+            foreach (var (fieldDef, fieldName) in dirtyFieldDefAndNames)
+            {
+                ilp.Append(Instruction.Create(OpCodes.Ldarg_0));
+                ilp.Append(Instruction.Create(OpCodes.Ldc_I4_0));
+                ilp.Append(Instruction.Create(OpCodes.Stfld, fieldDef));
+            }
+
+            ilp.Append(Instruction.Create(OpCodes.Nop));
+            var il_005d = Instruction.Create(OpCodes.Ldloc_0);
+            ilp.Append(Instruction.Create(OpCodes.Leave_S, il_005d));
+            // end .try
+
+            var il_0052 = Instruction.Create(OpCodes.Ldloc_2);
+            ilp.Append(il_0052);
+            var il_005c = Instruction.Create(OpCodes.Endfinally);
+            ilp.Append(Instruction.Create(OpCodes.Brfalse_S, il_005c));
+
+            ilp.Append(Instruction.Create(OpCodes.Ldloc_1));
+            ilp.Append(Instruction.Create(OpCodes.Call, exitMethodRef));
+            ilp.Append(Instruction.Create(OpCodes.Nop));
+
+            ilp.Append(il_005c);
+            // end handler
+
+            ilp.Append(il_005d);
+            ilp.Append(Instruction.Create(OpCodes.Stloc_3));
+            var il_0061 = Instruction.Create(OpCodes.Ldloc_3);
+            ilp.Append(Instruction.Create(OpCodes.Br_S, il_0061));
+
+            ilp.Append(il_0061);
+            var ret = Instruction.Create(OpCodes.Ret);
+            ilp.Append(ret);
+
+            var handler = new ExceptionHandler(ExceptionHandlerType.Finally)
+            {
+                TryStart = il_0005,
+                TryEnd = il_0052,
+                HandlerStart = il_0052,
+                HandlerEnd = il_005d,
+            };
+
+            getDirtyStateMethodDef.Body.ExceptionHandlers.Add(handler);
+            typeDef.Methods.Add(getDirtyStateMethodDef);
         }
 
         private static TypeReference MakeGenericType(TypeReference type, params TypeReference[] arguments)
@@ -495,6 +623,13 @@ namespace Meuzz.Persistence.Builder
             }
 
             return methodRef;
+        }
+    }
+
+    public class PersistableStateImpl : PersistableState
+    {
+        public PersistableStateImpl(string[] dirtyKeys) : base(dirtyKeys.Where(x => !string.IsNullOrEmpty(x)).ToArray())
+        {
         }
     }
 }
