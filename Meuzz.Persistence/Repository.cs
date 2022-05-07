@@ -58,11 +58,11 @@ namespace Meuzz.Persistence
                     foreach (var x in results)
                     {
                         var iprop = reli.InversePropertyInfo;
-                        SetPropertyValue(iprop, x, obj);
+                        PropertySetValue(x, iprop, obj);
                     }
                 }
                 var prop = reli.PropertyInfo;
-                SetPropertyValue(prop, obj, EnumerableCast(reli.TargetType, results));
+                PropertySetValue(obj, prop, EnumerableCast(reli.TargetType, results));
             });
         }
 
@@ -134,7 +134,7 @@ namespace Meuzz.Persistence
                 var prop = reli.PropertyInfo;
                 if (prop != null)
                 {
-                    SetPropertyValue(prop, obj, EnumerableCast(prop.PropertyType, MakeDefaultLoader(context, obj, reli)));
+                    PropertySetValue(obj, prop, EnumerableCast(prop.PropertyType, MakeDefaultLoader(context, obj, reli)));
                 }
             }
 
@@ -296,21 +296,11 @@ namespace Meuzz.Persistence
         {
             Func<string, Action<object?, object?>> propertySetter = (string prop) => (object? x, object? value) =>
             {
-                if (x != null)
-                {
-                    ReflectionHelpers.PropertySet(x, prop, value);
-                }
+                ReflectionHelpers.PropertySet(x, prop, value);
             };
             Action<IDictionary<string, object?>, string, object?> memberUpdater = (x, memberName, value) =>
             {
-                if (x != null)
-                {
-                    var xo = x["__object"];
-                    if (xo != null)
-                    {
-                        ReflectionHelpers.PropertySet(xo, memberName, value);
-                    }
-                }
+                ReflectionHelpers.PropertySet(x != null ? x["__object"] : null, memberName, value);
             };
 
             Func<string, Func<IDictionary<string, object?>, object?>> memberAccessor = (string memberName) => (IDictionary<string, object?> x) =>
@@ -322,47 +312,46 @@ namespace Meuzz.Persistence
                 return ReflectionHelpers.PropertyGet(x["__object"], memberName);
             };
 
-            foreach (var joiningSpec in statement.RelationSpecs)
+            foreach (var relationSpec in statement.RelationSpecs)
             {
-                var fromObjs = resultObjects[joiningSpec.Left.Name].Values;
-                var proptype = ((PropertyInfo)joiningSpec.MemberInfo).PropertyType;
+                var fromObjs = resultObjects[relationSpec.Left.Name].Values;
+                var proptype = ((PropertyInfo)relationSpec.MemberInfo).PropertyType;
 
-                Func<IDictionary<string, object?>, Func<IDictionary<string, object?>, bool>> filteringConditions = (x) => (y) => joiningSpec.ConditionFunc(x, y);
-                Func<IDictionary<string, object?>, object> fmap = dx =>
+                Func<IDictionary<string, object?>, Func<IDictionary<string, object?>, bool>> filteringConditionsFunc = (x) => (y) => relationSpec.ConditionFunc(x, y);
+                Func<IDictionary<string, object?>, object> mapperFunc = dx =>
                 {
-                    var pkv = memberAccessor(joiningSpec.PrimaryKey)(dx);
-                    var objs = resultObjects[joiningSpec.Right.Name].Values;
-                    var targetToObjs = resultObjects[joiningSpec.Right.Name].Values.Where(filteringConditions(dx));
+                    var pkv = memberAccessor(relationSpec.PrimaryKey)(dx);
+                    var objs = resultObjects[relationSpec.Right.Name].Values;
+                    var targetToObjs = resultObjects[relationSpec.Right.Name].Values.Where(filteringConditionsFunc(dx));
                     if (targetToObjs.Any())
                     {
-                        var inversePropertyName = joiningSpec.ForeignKey.Replace("_id", "").ToCamel(true);
+                        var inversePropertyName = relationSpec.ForeignKey.Replace("_id", "").ToCamel(true);
                         foreach (var o in targetToObjs)
                         {
                             memberUpdater(o, inversePropertyName, dx["__object"]);
                         }
-                        memberUpdater(dx, joiningSpec.MemberInfo.Name, EnumerableCast(proptype, targetToObjs.Select(y => y["__object"])));
+                        memberUpdater(dx, relationSpec.MemberInfo.Name, EnumerableCast(proptype, targetToObjs.Select(y => y["__object"])));
                     }
                     else
                     {
-                        memberUpdater(dx, joiningSpec.MemberInfo.Name, EnumerableCast(proptype, MakeGenerator(joiningSpec, dx["__object"])));
+                        memberUpdater(dx, relationSpec.MemberInfo.Name, EnumerableCast(proptype, MakeGenerator(relationSpec, dx["__object"])));
                     }
                     return dx;
                 };
 
-                var _ = fromObjs.Select(fmap).ToList(); // just do it
+                var _ = fromObjs.Select(mapperFunc).ToList(); // just do it
                 // Console.WriteLine(r);
             }
         }
 
-        private void SetPropertyValue(PropertyInfo propInfo, object obj, object value)
+        private static void PropertySetValue(object obj, PropertyInfo propInfo, object value, bool setFieldIfSetterNone = true)
         {
             if (propInfo.SetMethod != null)
             {
                 propInfo.SetValue(obj, value);
             }
-            else
+            else if (setFieldIfSetterNone)
             {
-                // prop.GetCustomAttribute
                 var attr = propInfo.GetCustomAttribute<BackingFieldAttribute>();
                 if (attr != null)
                 {
@@ -372,7 +361,7 @@ namespace Meuzz.Persistence
             }
         }
 
-        private IEnumerable<object> MakeGenerator(RelationSpec bindingSpec, object? self)
+        private IEnumerable<object> MakeGenerator(RelationSpec relationSpec, object? self)
         {
             // yield return null;
             Console.WriteLine(self);
@@ -485,29 +474,6 @@ namespace Meuzz.Persistence
 
             return true;
         }
-
-        /*
-        public class MyEqualityComparer : IEqualityComparer<object>
-        {
-            private bool IsNumeric(object? x)
-            {
-                return x is int || x is long || x is uint || x is ulong;
-            }
-
-            public new bool Equals(object? x, object? y)
-            {
-                if (IsNumeric(x) && IsNumeric(y))
-                {
-                    return x.Equals(Convert.ToInt64(y));
-                }
-                return x.Equals(y);
-            }
-
-            public int GetHashCode(object obj)
-            {
-                return obj.GetHashCode();
-            }
-        }*/
     }
 
     public static class PersistentObjectExtensions

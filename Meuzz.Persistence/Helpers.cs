@@ -11,8 +11,9 @@ namespace Meuzz.Persistence
             return obj?.GetType()?.GetProperty(propertyName.ToCamel(true))?.GetValue(obj);
         }
 
-        public static void PropertySet(object obj, string propertyName, object? value)
+        public static void PropertySet(object? obj, string propertyName, object? value)
         {
+            if (obj == null) { return; }
             obj.GetType().GetProperty(propertyName.ToCamel(true), BindingFlags.InvokeMethod)?.SetValue(obj, value);
         }
     }
