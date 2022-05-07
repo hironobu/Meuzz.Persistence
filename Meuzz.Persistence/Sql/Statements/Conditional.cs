@@ -139,9 +139,13 @@ namespace Meuzz.Persistence.Sql
         {
             var propbodyexp = propexp.Body;
             var leftparamexp = propexp.Parameters.Single();
-            var memberInfo = ((MemberExpression)propbodyexp).Member;
+            var propertyInfo = ((MemberExpression)propbodyexp).Member as PropertyInfo;
+            if (propertyInfo == null)
+            {
+                throw new NotImplementedException();
+            }
 
-            var rightParamType = ((PropertyInfo)memberInfo).PropertyType;
+            var rightParamType = propertyInfo.PropertyType;
             if (rightParamType.IsGenericType)
             {
                 rightParamType = rightParamType.GetGenericArguments().First();
@@ -150,7 +154,7 @@ namespace Meuzz.Persistence.Sql
             var leftParamName = ParameterSetInfo.GetDefaultParamName();
             var rightParamName = ParameterSetInfo.RegisterParameter(condexp != null ? condexp.Parameters.Skip(1).First().Name : null, rightParamType, false);
 
-            var relationSpec = RelationSpec.Build(leftParamName, leftparamexp.Type, rightParamName, memberInfo, condexp);
+            var relationSpec = RelationSpec.Build(leftParamName, leftparamexp.Type, rightParamName, propertyInfo, condexp);
             AddRelationSpec(relationSpec);
         }
         #endregion

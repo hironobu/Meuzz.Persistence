@@ -106,8 +106,13 @@ namespace Meuzz.Persistence.Sql
             return _defaultParamKey != null ? _parameters[_defaultParamKey] : null;
         }
 
-        public string? GetDefaultParamName()
+        public string GetDefaultParamName()
         {
+            if (_defaultParamKey == null)
+            {
+                throw new NotImplementedException();
+            }
+
             return _defaultParamKey;
         }
 

@@ -123,7 +123,7 @@ namespace Meuzz.Persistence
 
             var ft = typeof(Func<>).MakeGenericType(t);
             LambdaExpression lambda = Expression.Lambda(ft, expr);
-            dynamic func = Convert.ChangeType(lambda.Compile(), ft);
+            Func<object> func = (Func<object>)Convert.ChangeType(lambda.Compile(), ft);
             object obj = func();
 
             var ci = t.GetTableInfo();
@@ -292,7 +292,7 @@ namespace Meuzz.Persistence
             return (IEnumerable<object>)rets;
         }
 
-        private void BuildBindings(SqlSelectStatement statement, IDictionary<string, IDictionary<dynamic, IDictionary<string, object?>>> resultObjects)
+        private void BuildBindings(SqlSelectStatement statement, IDictionary<string, IDictionary<object, IDictionary<string, object?>>> resultObjects)
         {
             Func<string, Action<object?, object?>> propertySetter = (string prop) => (object? x, object? value) =>
             {
@@ -328,10 +328,11 @@ namespace Meuzz.Persistence
             {
                 var fromObjs = resultObjects[joiningSpec.Left.Name].Values;
 
-                Func<dynamic, Func<dynamic, bool>> filteringConditions = (x) => (y) => joiningSpec.ConditionFunc(x, y);
+                Func<IDictionary<string, object?>, Func<IDictionary<string, object?>, bool>> filteringConditions = (x) => (y) => joiningSpec.ConditionFunc(x, y);
                 Func<IDictionary<string, object?>, object> fmap = x =>
                 {
                     var pkv = memberAccessor(joiningSpec.PrimaryKey)(x);
+                    var objs = resultObjects[joiningSpec.Right.Name].Values;
                     var targetToObjs = resultObjects[joiningSpec.Right.Name].Values.Where(filteringConditions(x));
                     if (targetToObjs.Any())
                     {

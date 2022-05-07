@@ -33,10 +33,14 @@ namespace Meuzz.Persistence
         {
             if (!_engines.TryGetValue(type.ToString(), out var engineType))
             {
-                throw new NotImplementedException();
+                throw new ArgumentException($"Not Registerd for Type: {type}");
             }
 
-            var engine = (IDatabaseEngine)Activator.CreateInstance(engineType);
+            var engine = Activator.CreateInstance(engineType) as IDatabaseEngine;
+            if (engine == null)
+            {
+                throw new ArgumentException("CreateInstance() failed for Type: {type}");
+            }
             engine.Configure(connectionString);
             return engine;
         }
@@ -53,12 +57,12 @@ namespace Meuzz.Persistence
                 if (typeof(IDatabaseEngineProvider).IsAssignableFrom(type) && !(type == typeof(IDatabaseEngineProvider)))
                 {
                     var provider = Activator.CreateInstance(type) as IDatabaseEngineProvider;
-                    provider.Register(this);
+                    provider?.Register(this);
                 }
             }
         }
 
-        private static DatabaseEngineFactory _instance;
+        private static DatabaseEngineFactory _instance = default!;
 
         public static DatabaseEngineFactory Instance()
         {

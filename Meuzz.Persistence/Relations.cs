@@ -10,12 +10,12 @@ namespace Meuzz.Persistence
 {
     public class RelationSpec
     {
-        public string PrimaryKey { get; set; } = null;
-        public string ForeignKey { get; set; } = null;
+        public string PrimaryKey { get; set; } = default!;
+        public string ForeignKey { get; set; } = default!;
 
-        public Parameter Left { get; set; }
+        public Parameter Left { get; set; } = default!;
 
-        public Parameter Right { get; set; }
+        public Parameter Right { get; set; } = default!;
 
         public string ConditionSql { get => GetConditionSql(); }
 
@@ -31,11 +31,11 @@ namespace Meuzz.Persistence
                 return ConditionEvaluatorSpec.GetEvaluateFunc();
             }
         }
-        private Func<dynamic, dynamic, bool> _defaultConditionFunc = null;
+        private Func<dynamic, dynamic, bool> _defaultConditionFunc = default!;
 
-        public EvaluatorSpec ConditionEvaluatorSpec { get; set; } = null;
+        public EvaluatorSpec ConditionEvaluatorSpec { get; set; } = default!;
 
-        public MemberInfo MemberInfo { get; set; } = null;
+        public MemberInfo MemberInfo { get; set; } = default!;
 
         public RelationSpec()
         {
@@ -76,24 +76,36 @@ namespace Meuzz.Persistence
             return joiningConditionMaker(eq, memberAccessor(primaryKey), memberAccessor(foreignKey));
         }
 
-        public static RelationSpec Build(string leftName, Type leftType, string rightName, MemberInfo relationMemberInfo, LambdaExpression condexp)
+        public static RelationSpec Build(string leftName, Type leftType, string rightName, PropertyInfo relationPropertyInfo, LambdaExpression? condexp)
         {
-            var propinfo = (relationMemberInfo.MemberType == MemberTypes.Property) ? (relationMemberInfo as PropertyInfo) : null;
-            var rightType = propinfo.PropertyType;
+            if (relationPropertyInfo.DeclaringType == null)
+            {
+                throw new ArgumentException("Invalid Parameter", "relationMemberInfo");
+            }
+
+            var rightType = relationPropertyInfo.PropertyType;
+            if (rightType == null)
+            {
+                throw new NotImplementedException();
+            }
             if (rightType.IsGenericType)
             {
                 rightType = rightType.GetGenericArguments()[0];
             }
 
-            RelationSpec relationSpec = null;
+            RelationSpec? relationSpec = null;
             if (condexp != null)
             {
-                var relationCond = Condition.New(relationMemberInfo.DeclaringType, condexp.Body);
+                var relationCond = Condition.New(relationPropertyInfo.DeclaringType, condexp.Body);
 
                 var primaryKey = string.Join("_", relationCond.Left.PathComponents).ToSnake();
                 var foreignKey = string.Join("_", relationCond.Right.PathComponents).ToSnake();
 
                 primaryKey = string.IsNullOrEmpty(primaryKey) ? leftType.GetPrimaryKey() : primaryKey;
+                if (primaryKey == null)
+                {
+                    throw new NotImplementedException();
+                }
                 foreignKey = rightType.GetForeignKey(foreignKey, leftType, primaryKey);
 
                 relationSpec = new RelationSpec()
@@ -105,39 +117,51 @@ namespace Meuzz.Persistence
             }
             else
             {
-                var fki = ForeignKeyInfoManager.Instance().GetForeignKeyInfoByPropertyInfo(propinfo);
+                var fki = ForeignKeyInfoManager.Instance().GetForeignKeyInfoByPropertyInfo(relationPropertyInfo);
                 if (fki != null)
                 {
+                    if (fki.ForeignKey == null)
+                    {
+                        throw new NotImplementedException();
+                    }
                     relationSpec = new RelationSpec(fki.ForeignKey, fki.PrimaryKey ?? "id");
                 }
                 else
                 {
-                    var primaryTable = relationMemberInfo.DeclaringType.GetTableName();
-                    var foreignClassInfo = rightType.GetTableInfo();
-                    var matched = foreignClassInfo.Columns.Where(x => x.BindingTo == primaryTable).First();
-                    relationSpec = new RelationSpec(matched.Name.ToLower(), matched.BindingToPrimaryKey.ToLower());
+                    var primaryTable = relationPropertyInfo.DeclaringType.GetTableName();
+                    var foreignTableInfo = rightType.GetTableInfo();
+                    if (foreignTableInfo == null)
+                    {
+                        throw new NotImplementedException();
+                    }
+                    var matchedColumnInfo = foreignTableInfo.Columns.Where(x => x.BindingTo == primaryTable).First();
+                    if (matchedColumnInfo.BindingToPrimaryKey == null)
+                    {
+                        throw new NotImplementedException();
+                    }
+                    relationSpec = new RelationSpec(matchedColumnInfo.Name.ToLower(), matchedColumnInfo.BindingToPrimaryKey.ToLower());
                 }
             }
 
             relationSpec.Left = new Parameter() { Type = leftType, Name = leftName };
             relationSpec.Right = new Parameter() { Type = rightType, Name = rightName };
-            relationSpec.MemberInfo = relationMemberInfo;
+            relationSpec.MemberInfo = relationPropertyInfo;
 
             return relationSpec;
         }
 
         public class Parameter
         {
-            public Type Type { get; set; }
+            public Type Type { get; set; } = default!;
 
-            public string Name { get; set; }
+            public string Name { get; set; } = default!;
         }
 
         public class EvaluatorSpec
         {
-            public Func<dynamic, dynamic, bool> Comparator { get; set; } = null;
-            public dynamic Left { get; set; } = null;
-            public dynamic Right { get; set; } = null;
+            public Func<dynamic, dynamic, bool> Comparator { get; set; } = default!;
+            public dynamic Left { get; set; } = default!;
+            public dynamic Right { get; set; } = default!;
 
             public EvaluatorSpec(Func<dynamic, dynamic, bool> comparator, dynamic left, dynamic right)
             {
@@ -193,9 +217,9 @@ namespace Meuzz.Persistence
 
         public class Condition
         {
-            public Func<dynamic, dynamic, bool> Comparator { get; set; } = null;
-            public Entry Left { get; set; } = null;
-            public Entry Right { get; set; } = null;
+            public Func<dynamic, dynamic, bool> Comparator { get; set; } = default!;
+            public Entry Left { get; set; } = default!;
+            public Entry Right { get; set; } = default!;
 
             public Condition(Func<dynamic, dynamic, bool> comparator, Entry left, Entry right)
             {
@@ -258,10 +282,10 @@ namespace Meuzz.Persistence
 
             public class Entry
             {
-                public Func<dynamic, dynamic> f { get; set; } = null;
-                public ParameterExpression e { get; set; } = null;
+                public Func<dynamic, dynamic> f { get; set; } = default!;
+                public ParameterExpression e { get; set; } = default!;
 
-                public string[] PathComponents { get; set; } = null;
+                public string[] PathComponents { get; set; } = default!;
 
                 public static Entry New(Expression exp)
                 {
@@ -270,6 +294,10 @@ namespace Meuzz.Persistence
                         case MemberExpression me:
                             var entry = New(me.Expression);
                             var propertyInfo = me.Member as PropertyInfo;
+                            if (propertyInfo == null)
+                            {
+                                throw new NotImplementedException();
+                            }
                             var newPath = entry.PathComponents.Concat(new string[] { propertyInfo.Name });
                             return new Entry() { f = (x) => new Element(entry.f(x), propertyInfo), e = entry.e, PathComponents = newPath.ToArray() };
 
