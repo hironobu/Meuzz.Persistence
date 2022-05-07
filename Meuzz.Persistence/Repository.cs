@@ -322,7 +322,7 @@ namespace Meuzz.Persistence
                 return propertyGetter(memb)(x["__object"]);
             };
 
-            Func<Type, IEnumerable<object>, IEnumerable<object>> regularCollection = (t, objs) => (IEnumerable<object>)EnumerableCast(t, objs)!;
+            Func<Type, IEnumerable<object?>, IEnumerable<object?>> regularCollection = (t, objs) => (IEnumerable<object?>)EnumerableCast(t, objs);
 
             foreach (var joiningSpec in statement.RelationSpecs)
             {

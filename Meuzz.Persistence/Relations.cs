@@ -19,7 +19,7 @@ namespace Meuzz.Persistence
 
         public string ConditionSql { get => GetConditionSql(); }
 
-        public Func<dynamic, dynamic, bool> ConditionFunc
+        public Func<IDictionary<string, object?>, IDictionary<string, object?>, bool> ConditionFunc
         {
             get 
             {
@@ -31,7 +31,7 @@ namespace Meuzz.Persistence
                 return ConditionEvaluatorSpec.GetEvaluateFunc();
             }
         }
-        private Func<dynamic, dynamic, bool> _defaultConditionFunc = default!;
+        private Func<object, object, bool> _defaultConditionFunc = default!;
 
         public EvaluatorSpec ConditionEvaluatorSpec { get; set; } = default!;
 
@@ -53,19 +53,18 @@ namespace Meuzz.Persistence
             return $"{Left.Name}.{PrimaryKey ?? Left.Type.GetPrimaryKey()} = {Right.Name}.{ForeignKey}";
         }
 
-        private static Func<dynamic, dynamic, bool> MakeDefaultFunc(string foreignKey, string primaryKey)
+        private static Func<object, object, bool> MakeDefaultFunc(string foreignKey, string primaryKey)
         {
-            Func<Func<dynamic, dynamic, bool>, Func<dynamic, dynamic>, Func<dynamic, dynamic>, Func<dynamic, dynamic, bool>> joiningConditionMaker
-                = (Func<dynamic, dynamic, bool> eval, Func<dynamic, dynamic> f, Func<dynamic, dynamic> g) => (dynamic x, dynamic y) => eval(f(x), g(y));
-            Func<dynamic, dynamic, bool> eq = (x, y) => x == y;
-            Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) => x.GetType().GetProperty(prop.ToCamel(true)).GetValue(x);
-            Func<string, Func<dynamic, dynamic>> dictionaryGetter = (string key) => (dynamic x) => x[key];
-            Func<string, Func<dynamic, dynamic>> memberAccessor = (string memb) => (dynamic x) =>
+            Func<Func<object?, object?, bool>, Func<object, object?>, Func<object, object?>, Func<object, object, bool>> joiningConditionMaker
+                = (Func<object?, object?, bool> eval, Func<object, object?> f, Func<object, object?> g) => (object x, object y) => eval(f(x), g(y));
+            Func<object?, object?, bool> eq = (x, y) => x == y;
+            Func<string, Func<object, object?>> propertyGetter = (string prop) => (object x) => x.GetType()?.GetProperty(prop.ToCamel(true))?.GetValue(x);
+            Func<string, Func<IDictionary<string, object?>, object?>> dictionaryGetter = (string key) => (IDictionary<string, object?> x) => x[key];
+            Func<string, Func<object, object?>> memberAccessor = (string memb) => (object x) =>
             {
-                Type t = x.GetType();
-                if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Dictionary<,>))
+                if (x is IDictionary<string, object?> dx)
                 {
-                    return dictionaryGetter(memb)(x);
+                    return dictionaryGetter(memb)(dx);
                 }
                 else
                 {
@@ -159,69 +158,76 @@ namespace Meuzz.Persistence
 
         public class EvaluatorSpec
         {
-            public Func<dynamic, dynamic, bool> Comparator { get; set; } = default!;
-            public dynamic Left { get; set; } = default!;
-            public dynamic Right { get; set; } = default!;
+            public Func<object?, object?, bool> Comparator { get; set; } = default!;
+            public Func<object, object?> Left { get; set; } = default!;
+            public Func<object, object?> Right { get; set; } = default!;
 
-            public EvaluatorSpec(Func<dynamic, dynamic, bool> comparator, dynamic left, dynamic right)
+            public EvaluatorSpec(Func<object?, object?, bool> comparator, Func<object, object?> left, Func<object, object?> right)
             {
                 Comparator = comparator;
                 Left = left;
                 Right = right;
             }
 
-            private static dynamic Evaluate(object o)
+            private static object? Evaluate(object? o)
             {
                 if (!(o is Condition.Element el))
                 {
                     throw new NotImplementedException();
                 }
 
-                Func<string, Func<dynamic, dynamic>> propertyGetter = (string prop) => (dynamic x) => x.GetType().GetProperty(prop.ToCamel(true)).GetValue(x);
+                Func<string, Func<object, object?>> propertyGetter = (string prop) => (object x) => x.GetType()?.GetProperty(prop.ToCamel(true))?.GetValue(x);
                 var arr = el.Evaluate().ToArray();
                 var obj = arr.First();
-                var propkeys = arr.Skip(1).Select(x => x.Name);
+                var propkeys = arr.Skip(1).Select(x => ((MemberInfo)x).Name);
                 if (propkeys.Count() == 0)
                 {
                     propkeys = new string[] { "id" };
                 }
                 var prop = string.Join("_", propkeys);
 
-                Func<string, Func<dynamic, dynamic>> memberAccessor = (string memb) => (dynamic x) =>
+                Func<string, Func<object, object?>> memberAccessor = (string memb) => (object x) =>
                 {
+                    var dx = x as IDictionary<string, object?>;
+                    if (dx == null)
+                    {
+                        return null;
+                    }
+
                     var col = memb.ToSnake();
-                    if (x.ContainsKey(col))
+                    if (dx.ContainsKey(col))
                     {
-                        return x[col];
+                        return dx[col];
                     }
-                    if (col != "id" && x.ContainsKey(col + "_id"))
+                    if (col != "id" && dx.ContainsKey(col + "_id"))
                     {
-                        return x[col + "_id"];
+                        return dx[col + "_id"];
                     }
-                    return propertyGetter(memb)(x["__object"]);
+                    var obj = dx["__object"];
+                    return obj != null ? propertyGetter(memb)(obj) : null;
                 };
 
-                return memberAccessor(prop)(obj);
+                return memberAccessor(prop)((IDictionary<string, object?>)obj);
             }
 
-            public Func<dynamic, dynamic, bool> GetEvaluateFunc()
+            public Func<object?, object?, bool> GetEvaluateFunc()
             {
-                Func<Func<dynamic, dynamic, bool>, dynamic, dynamic, bool> evaluator = (f, xx, yy) =>
+                Func<Func<object?, object?, bool>, object?, object?, bool> evaluator = (f, xx, yy) =>
                 {
                     return f(Evaluate(xx), Evaluate(yy));
                 };
 
-                return (x, y) => evaluator(Comparator, Left(x), Right(y));
+                return (x, y) => evaluator(Comparator, x != null ? Left(x) : null, y != null ? Right(y) : null);
             }
         }
 
         public class Condition
         {
-            public Func<dynamic, dynamic, bool> Comparator { get; set; } = default!;
+            public Func<object?, object?, bool> Comparator { get; set; } = default!;
             public Entry Left { get; set; } = default!;
             public Entry Right { get; set; } = default!;
 
-            public Condition(Func<dynamic, dynamic, bool> comparator, Entry left, Entry right)
+            public Condition(Func<object?, object?, bool> comparator, Entry left, Entry right)
             {
                 Comparator = comparator;
                 Left = left;
@@ -248,33 +254,43 @@ namespace Meuzz.Persistence
                             right = x;
                         }
 
+                        ParameterExpression px = Expression.Parameter(typeof(object), "x");
+                        ParameterExpression py = Expression.Parameter(typeof(object), "y");
+
+                        BinaryExpression? bine2;
+
                         switch (bine.NodeType)
                         {
                             case ExpressionType.Equal:
-                                Func<dynamic, dynamic, bool> eq = (x, y) => x == y;
-                                return new Condition(eq, left, right);
+                                bine2 = Expression.Equal(px, py);
+                                break;
 
                             case ExpressionType.NotEqual:
-                                Func<dynamic, dynamic, bool> ne = (x, y) => x != y;
-                                return new Condition(ne, left, right);
+                                bine2 = Expression.NotEqual(px, py);
+                                break;
 
                             case ExpressionType.LessThan:
-                                Func<dynamic, dynamic, bool> lt = (x, y) => x < y;
-                                return new Condition(lt, left, right);
+                                bine2 = Expression.LessThan(px, py);
+                                break;
 
                             case ExpressionType.LessThanOrEqual:
-                                Func<dynamic, dynamic, bool> lte = (x, y) => x <= y;
-                                return new Condition(lte, left, right);
+                                bine2 = Expression.LessThanOrEqual(px, py);
+                                break;
 
                             case ExpressionType.GreaterThan:
-                                Func<dynamic, dynamic, bool> gt = (x, y) => x > y;
-                                return new Condition(gt, left, right);
+                                bine2 = Expression.GreaterThan(px, py);
+                                break;
 
                             case ExpressionType.GreaterThanOrEqual:
-                                Func<dynamic, dynamic, bool> gte = (x, y) => x >= y;
-                                return new Condition(gte, left, right);
+                                bine2 = Expression.GreaterThanOrEqual(px, py);
+                                break;
+
+                            default:
+                                throw new NotImplementedException();
                         }
-                        break;
+
+                        return new Condition((Func<object?, object?, bool>)Expression.Lambda(bine2, px, py).Compile(), left, right);
+                        // break;
                 }
 
                 throw new NotImplementedException();
@@ -282,7 +298,7 @@ namespace Meuzz.Persistence
 
             public class Entry
             {
-                public Func<dynamic, dynamic> f { get; set; } = default!;
+                public Func<object, Element> f { get; set; } = default!;
                 public ParameterExpression e { get; set; } = default!;
 
                 public string[] PathComponents { get; set; } = default!;
@@ -299,10 +315,10 @@ namespace Meuzz.Persistence
                                 throw new NotImplementedException();
                             }
                             var newPath = entry.PathComponents.Concat(new string[] { propertyInfo.Name });
-                            return new Entry() { f = (x) => new Element(entry.f(x), propertyInfo), e = entry.e, PathComponents = newPath.ToArray() };
+                            return new Entry() { f = x => new Element(entry.f(x), propertyInfo), e = entry.e, PathComponents = newPath.ToArray() };
 
                         case ParameterExpression pe:
-                            return new Entry() { f = (x) => new Element(x, null), e = pe, PathComponents = new string[] { } };
+                            return new Entry() { f = x => new Element(x, null), e = pe, PathComponents = new string[] { } };
                     }
 
                     throw new NotImplementedException();
@@ -311,31 +327,31 @@ namespace Meuzz.Persistence
 
             public class Element
             {
-                public dynamic Left;
-                public dynamic Right;
+                public object? Left;
+                public object? Right;
 
-                public Element(dynamic l, dynamic r)
+                public Element(object? l, object? r)
                 {
                     this.Left = l;
                     this.Right = r;
                 }
 
-                public dynamic[] Evaluate()
+                public object[] Evaluate()
                 {
-                    var ret = new List<dynamic>();
+                    var ret = new List<object>();
 
-                    if (Left is Element)
+                    if (Left is Element le)
                     {
-                        ret.AddRange(Left.Evaluate());
+                        ret.AddRange(le.Evaluate());
                     }
                     else if (Left != null)
                     {
                         ret.Add(Left);
                     }
 
-                    if (Right is Element)
+                    if (Right is Element re)
                     {
-                        ret.AddRange(Right.Evaluate());
+                        ret.AddRange(re.Evaluate());
                     }
                     else if (Right != null)
                     {
