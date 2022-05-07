@@ -33,19 +33,22 @@ namespace Meuzz.Persistence
         }
         private Func<object, object, bool> _defaultConditionFunc = default!;
 
-        public EvaluatorSpec ConditionEvaluatorSpec { get; set; } = default!;
+        public EvaluatorSpec? ConditionEvaluatorSpec { get; } = null;
 
         public MemberInfo MemberInfo { get; set; } = default!;
 
-        public RelationSpec()
-        {
-        }
-
-        public RelationSpec(string fk, string pk)
+        public RelationSpec(string fk, string pk, EvaluatorSpec? conditionEvaluatorSpec = null)
         {
             ForeignKey = fk;
             PrimaryKey = pk ?? "id";
-            _defaultConditionFunc = MakeDefaultFunc(ForeignKey, PrimaryKey);
+            if (conditionEvaluatorSpec != null)
+            {
+                ConditionEvaluatorSpec = conditionEvaluatorSpec;
+            }
+            else
+            {
+                _defaultConditionFunc = MakeDefaultConditionFunc(ForeignKey, PrimaryKey);
+            }
         }
 
         private string GetConditionSql()
@@ -53,22 +56,20 @@ namespace Meuzz.Persistence
             return $"{Left.Name}.{PrimaryKey ?? Left.Type.GetPrimaryKey()} = {Right.Name}.{ForeignKey}";
         }
 
-        private static Func<object, object, bool> MakeDefaultFunc(string foreignKey, string primaryKey)
+        private static Func<object, object, bool> MakeDefaultConditionFunc(string foreignKey, string primaryKey)
         {
             Func<Func<object?, object?, bool>, Func<object, object?>, Func<object, object?>, Func<object, object, bool>> joiningConditionMaker
                 = (Func<object?, object?, bool> eval, Func<object, object?> f, Func<object, object?> g) => (object x, object y) => eval(f(x), g(y));
             Func<object?, object?, bool> eq = (x, y) => x == y;
-            Func<string, Func<object, object?>> propertyGetter = (string prop) => (object x) => x.GetType()?.GetProperty(prop.ToCamel(true))?.GetValue(x);
-            Func<string, Func<IDictionary<string, object?>, object?>> dictionaryGetter = (string key) => (IDictionary<string, object?> x) => x[key];
             Func<string, Func<object, object?>> memberAccessor = (string memb) => (object x) =>
             {
                 if (x is IDictionary<string, object?> dx)
                 {
-                    return dictionaryGetter(memb)(dx);
+                    return dx[memb];
                 }
                 else
                 {
-                    return propertyGetter(memb)(x);
+                    return ReflectionHelpers.PropertyGet(x, memb);
                 }
             };
 
@@ -107,12 +108,7 @@ namespace Meuzz.Persistence
                 }
                 foreignKey = rightType.GetForeignKey(foreignKey, leftType, primaryKey);
 
-                relationSpec = new RelationSpec()
-                {
-                    PrimaryKey = primaryKey,
-                    ForeignKey = foreignKey,
-                    ConditionEvaluatorSpec = new EvaluatorSpec(relationCond.Comparator, relationCond.Left.f, relationCond.Right.f)
-                };
+                relationSpec = new RelationSpec(foreignKey, primaryKey, new EvaluatorSpec(relationCond.Comparator, relationCond.Left.f, relationCond.Right.f));
             }
             else
             {
@@ -176,38 +172,16 @@ namespace Meuzz.Persistence
                     throw new NotImplementedException();
                 }
 
-                Func<string, Func<object, object?>> propertyGetter = (string prop) => (object x) => x.GetType()?.GetProperty(prop.ToCamel(true))?.GetValue(x);
                 var arr = el.Evaluate().ToArray();
                 var obj = arr.First();
                 var propkeys = arr.Skip(1).Select(x => ((MemberInfo)x).Name);
-                if (propkeys.Count() == 0)
+                if (!propkeys.Any())
                 {
                     propkeys = new string[] { "id" };
                 }
                 var prop = string.Join("_", propkeys);
 
-                Func<string, Func<object, object?>> memberAccessor = (string memb) => (object x) =>
-                {
-                    var dx = x as IDictionary<string, object?>;
-                    if (dx == null)
-                    {
-                        return null;
-                    }
-
-                    var col = memb.ToSnake();
-                    if (dx.ContainsKey(col))
-                    {
-                        return dx[col];
-                    }
-                    if (col != "id" && dx.ContainsKey(col + "_id"))
-                    {
-                        return dx[col + "_id"];
-                    }
-                    var obj = dx["__object"];
-                    return obj != null ? propertyGetter(memb)(obj) : null;
-                };
-
-                return memberAccessor(prop)((IDictionary<string, object?>)obj);
+                return MemberGet(obj, prop);
             }
 
             public Func<object?, object?, bool> GetEvaluateFunc()
@@ -218,6 +192,27 @@ namespace Meuzz.Persistence
                 };
 
                 return (x, y) => evaluator(Comparator, x != null ? Left(x) : null, y != null ? Right(y) : null);
+            }
+
+            private static object? MemberGet(object? x, string memb)
+            {
+                var dx = x as IDictionary<string, object?>;
+                if (dx == null)
+                {
+                    return null;
+                }
+
+                var col = memb.ToSnake();
+                if (dx.ContainsKey(col))
+                {
+                    return dx[col];
+                }
+                if (col != "id" && dx.ContainsKey(col + "_id"))
+                {
+                    return dx[col + "_id"];
+                }
+                var obj = dx["__object"];
+                return obj != null ? ReflectionHelpers.PropertyGet(obj, memb) : null;
             }
         }
 

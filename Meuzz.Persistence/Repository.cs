@@ -19,7 +19,7 @@ namespace Meuzz.Persistence
             var rset = context.Execute(statement);
             if (rset != null)
             {
-                var results = (IEnumerable<object>)PopulateObjects(context, t, rset, statement);
+                var results = PopulateObjects(context, t, rset, statement);
                 if (propertySetter != null)
                 {
                     propertySetter(results);
@@ -51,7 +51,7 @@ namespace Meuzz.Persistence
             if (pkval == null) { throw new NotImplementedException(); }
             statement.BuildCondition(reli.ForeignKey, pkval);
 
-            return LoadObjects(context, reli.TargetType, statement, (results) =>
+            return LoadObjects(context, reli.TargetType, statement, results =>
             {
                 if (reli.InversePropertyInfo != null)
                 {
@@ -167,8 +167,8 @@ namespace Meuzz.Persistence
                 var pkey = t.GetPrimaryKey();
                 if (pkey == null) { throw new NotImplementedException(); }
                 var prop = t.GetProperty(pkey.ToCamel(true))!;
-                var classinfo = t.GetTableInfo();
-                if (classinfo == null) { throw new NotImplementedException(); }
+                var tableInfo = t.GetTableInfo();
+                if (tableInfo == null) { throw new NotImplementedException(); }
 
                 var results = rset!.Results;
                 int newPrimaryId = (int)Convert.ChangeType(results.First()["id"], prop.PropertyType)!;
@@ -177,7 +177,7 @@ namespace Meuzz.Persistence
                 {
                     prop.SetValue(y, newPrimaryId + i);
 
-                    foreach (var rel in classinfo.Relations)
+                    foreach (var rel in tableInfo.Relations)
                     {
                         var foreignType = rel.TargetType;
                         var childObjs = rel.PropertyInfo.GetValue(y) as IEnumerable<object>;
@@ -298,59 +298,58 @@ namespace Meuzz.Persistence
             {
                 if (x != null)
                 {
-                    x.GetType().GetProperty(prop.ToCamel(true), BindingFlags.InvokeMethod)?.SetValue(x, value);
+                    ReflectionHelpers.PropertySet(x, prop, value);
                 }
             };
-            Action<IDictionary<string, object?>, string, object?> memberUpdater = (x, memb, value) =>
+            Action<IDictionary<string, object?>, string, object?> memberUpdater = (x, memberName, value) =>
             {
                 if (x != null)
                 {
-                    propertySetter(memb)(x["__object"], value);
+                    var xo = x["__object"];
+                    if (xo != null)
+                    {
+                        ReflectionHelpers.PropertySet(xo, memberName, value);
+                    }
                 }
             };
 
-            Func<string, Func<object?, object?>> propertyGetter = (string prop) => (object? x) =>
+            Func<string, Func<IDictionary<string, object?>, object?>> memberAccessor = (string memberName) => (IDictionary<string, object?> x) =>
             {
-                return x != null ? x.GetType().GetProperty(prop.ToCamel(true))!.GetValue(x) : null;
-            };
-            Func<string, Func<IDictionary<string, object?>, object?>> memberAccessor = (string memb) => (IDictionary<string, object?> x) =>
-            {
-                if (x.ContainsKey(memb))
+                if (x.ContainsKey(memberName))
                 {
-                    return x[memb];
+                    return x[memberName];
                 }
-                return propertyGetter(memb)(x["__object"]);
+                return ReflectionHelpers.PropertyGet(x["__object"], memberName);
             };
-
-            Func<Type, IEnumerable<object?>, IEnumerable<object?>> regularCollection = (t, objs) => (IEnumerable<object?>)EnumerableCast(t, objs);
 
             foreach (var joiningSpec in statement.RelationSpecs)
             {
                 var fromObjs = resultObjects[joiningSpec.Left.Name].Values;
+                var proptype = ((PropertyInfo)joiningSpec.MemberInfo).PropertyType;
 
                 Func<IDictionary<string, object?>, Func<IDictionary<string, object?>, bool>> filteringConditions = (x) => (y) => joiningSpec.ConditionFunc(x, y);
-                Func<IDictionary<string, object?>, object> fmap = x =>
+                Func<IDictionary<string, object?>, object> fmap = dx =>
                 {
-                    var pkv = memberAccessor(joiningSpec.PrimaryKey)(x);
+                    var pkv = memberAccessor(joiningSpec.PrimaryKey)(dx);
                     var objs = resultObjects[joiningSpec.Right.Name].Values;
-                    var targetToObjs = resultObjects[joiningSpec.Right.Name].Values.Where(filteringConditions(x));
+                    var targetToObjs = resultObjects[joiningSpec.Right.Name].Values.Where(filteringConditions(dx));
                     if (targetToObjs.Any())
                     {
+                        var inversePropertyName = joiningSpec.ForeignKey.Replace("_id", "").ToCamel(true);
                         foreach (var o in targetToObjs)
                         {
-                            var k0 = joiningSpec.ForeignKey.Replace("_id", "").ToCamel(true);
-                            memberUpdater(o, k0, x["__object"]);
+                            memberUpdater(o, inversePropertyName, dx["__object"]);
                         }
-                        memberUpdater(x, joiningSpec.MemberInfo.Name, regularCollection(((PropertyInfo)joiningSpec.MemberInfo).PropertyType, targetToObjs.Select(y => y["__object"])));
+                        memberUpdater(dx, joiningSpec.MemberInfo.Name, EnumerableCast(proptype, targetToObjs.Select(y => y["__object"])));
                     }
                     else
                     {
-                        memberUpdater(x, joiningSpec.MemberInfo.Name, regularCollection(((PropertyInfo)joiningSpec.MemberInfo).PropertyType, MakeGenerator(joiningSpec, x["__object"])));
+                        memberUpdater(dx, joiningSpec.MemberInfo.Name, EnumerableCast(proptype, MakeGenerator(joiningSpec, dx["__object"])));
                     }
-                    return x;
+                    return dx;
                 };
 
-                var r = fromObjs.Select(fmap).ToList(); // just do it
+                var _ = fromObjs.Select(fmap).ToList(); // just do it
                 // Console.WriteLine(r);
             }
         }
@@ -380,7 +379,7 @@ namespace Meuzz.Persistence
             yield break;
         }
 
-        private object EnumerableCast(Type t, IEnumerable<object?> args)
+        private IEnumerable<object?> EnumerableCast(Type t, IEnumerable<object?> args)
         {
             // TODO: array or list以外は避けるように(ex. IDictionary<>)
             var t1 = t.IsGenericType && t.GetGenericArguments().Length == 1 ? t.GetGenericArguments()[0] : t;
@@ -395,7 +394,7 @@ namespace Meuzz.Persistence
 
                 default:
                     var conv = typeof(Enumerable).GetMethod("Cast")!.MakeGenericMethod(t1);
-                    return conv.Invoke(null, new[] { args })!;
+                    return (IEnumerable<object?>)conv.Invoke(null, new[] { args })!;
             }
         }
     }
