@@ -442,13 +442,30 @@ namespace Meuzz.Persistence.Builder
             return dirtyFieldDef;
         }
 
+        private Instruction CreateInstructionIdcI4(int n)
+        {
+            switch (n)
+            {
+                case 0: return Instruction.Create(OpCodes.Ldc_I4_0);
+                case 1: return Instruction.Create(OpCodes.Ldc_I4_1);
+                case 2: return Instruction.Create(OpCodes.Ldc_I4_2);
+                case 3: return Instruction.Create(OpCodes.Ldc_I4_3);
+                case 4: return Instruction.Create(OpCodes.Ldc_I4_4);
+                case 5: return Instruction.Create(OpCodes.Ldc_I4_5);
+                case 6: return Instruction.Create(OpCodes.Ldc_I4_6);
+                case 7: return Instruction.Create(OpCodes.Ldc_I4_7);
+                case 8: return Instruction.Create(OpCodes.Ldc_I4_8);
+                default: return Instruction.Create(OpCodes.Ldc_I4, n);
+            }
+        }
+
         /// <summary>
         ///   <see cref="IPersistable.GetDirtyState"/>メソッドを対象の型に追加する。
         /// </summary>
         /// <param name="moduleDef">メインモジュール。</param>
         /// <param name="typeDef">対象となる型定義情報。</param>
-        /// <param name="dirtyDictFieldDef">メソッド内で参照する<c>__dirty</c>フィールド。</param>
-        private void AddGeneratePersistentState(ModuleDefinition moduleDef, TypeDefinition typeDef, IEnumerable<(FieldDefinition, string)> dirtyFieldDefAndNames)
+        /// <param name="dirtyFieldDefsAndNames">メソッド内で参照する<c>__dirty</c>フィールド。</param>
+        private void AddGeneratePersistentState(ModuleDefinition moduleDef, TypeDefinition typeDef, IEnumerable<(FieldDefinition, string)> dirtyFieldDefsAndNames)
         {
             //var getKeysMethodRef = moduleDef.ImportReference(MakeHostInstanceGenericMethodReference(moduleDef.ImportReference(typeof(IDictionary<,>)).Resolve().Methods.Single(x => x.Name == "get_Keys"), moduleDef.ImportReference(typeof(string)), moduleDef.ImportReference(typeof(bool))));
             //var toArrayMethodRef = moduleDef.ImportReference(MakeGenericMethodReference(moduleDef.ImportReference(typeof(Enumerable)).Resolve().Methods.Single(x => x.Name == nameof(Enumerable.ToArray)), moduleDef.ImportReference(typeof(string))));
@@ -487,14 +504,14 @@ namespace Meuzz.Persistence.Builder
             // if (_field != value) {
             ilp.Append(Instruction.Create(OpCodes.Nop));
 
-            ilp.Append(Instruction.Create(OpCodes.Ldc_I4, dirtyFieldDefAndNames.Count()));
+            ilp.Append(CreateInstructionIdcI4(dirtyFieldDefsAndNames.Count()));
             ilp.Append(Instruction.Create(OpCodes.Newarr, moduleDef.ImportReference(typeof(string))));
 
             int i = 0;
-            foreach (var (fieldDef, fieldName) in dirtyFieldDefAndNames)
+            foreach (var (fieldDef, fieldName) in dirtyFieldDefsAndNames)
             {
                 ilp.Append(Instruction.Create(OpCodes.Dup));
-                ilp.Append(Instruction.Create(OpCodes.Ldc_I4, i++));
+                ilp.Append(CreateInstructionIdcI4(i++));
                 ilp.Append(Instruction.Create(OpCodes.Ldarg_0));
                 ilp.Append(Instruction.Create(OpCodes.Ldfld, fieldDef));
                 var il_0022 = Instruction.Create(OpCodes.Ldstr, fieldName);
@@ -509,7 +526,7 @@ namespace Meuzz.Persistence.Builder
             ilp.Append(Instruction.Create(OpCodes.Newobj, persistableStateCtorRef));
             ilp.Append(Instruction.Create(OpCodes.Stloc_0));
             //
-            foreach (var (fieldDef, fieldName) in dirtyFieldDefAndNames)
+            foreach (var (fieldDef, fieldName) in dirtyFieldDefsAndNames)
             {
                 ilp.Append(Instruction.Create(OpCodes.Ldarg_0));
                 ilp.Append(Instruction.Create(OpCodes.Ldc_I4_0));
