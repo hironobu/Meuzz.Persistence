@@ -13,6 +13,19 @@ namespace Meuzz.Persistence.Tests
         {
         }
     }
+
+    public struct PersistableMetadata : IPersistableMetadata
+    {
+        public PersistableState GetDirtyState()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void ResetDirtyState()
+        {
+            throw new NotImplementedException();
+        }
+    }
 }
 
 namespace Meuzz.Persistence.Tests.Models.Sample
@@ -70,20 +83,20 @@ namespace Meuzz.Persistence.Tests.Models.Sample
         private IDictionary<string, object> __dirty = new Dictionary<string, object>();
     }
 
-    public class Player2
+    public class Player2 : IPersistable
     {
         public string Name
         {
             get => _name;
             set
             {
-                lock (this)
+                lock (__metadata)
                 {
                     if (_name != value)
                     {
                         _name = value;
 
-                        _Name__dirty = true;
+                        __metadata._Name__dirty = true;
                     }
                 }
             }
@@ -94,50 +107,59 @@ namespace Meuzz.Persistence.Tests.Models.Sample
             get => _age;
             set
             {
-                lock (this)
+                lock (__metadata)
                 {
                     if (_age != value)
                     {
                         _age = value;
 
-                        _Age__dirty = true;
+                        __metadata._Age__dirty = true;
                     }
                 }
             }
         }
 
-        public PersistableState GetDirtyState()
-        {
-            PersistableState state;
+        private __Metadata__ __metadata = new __Metadata__();
 
-            lock (this)
-            {
-                state = new PersistableStateImpl(new[]
-                {
-                    _Name__dirty ? "Name" : null,
-                    _Age__dirty ? "Age" : null,
-                });
-            }
-
-            return state;
-        }
-
-        public void ResetDirtyState()
-        {
-            lock (this)
-            {
-                _Name__dirty = false;
-                _Age__dirty = false;
-            }
-        }
+        public IPersistableMetadata __Metadata { get => __metadata; }
 
         private string _name = default(string);
         private int _age = default(int);
 
-        // [IsDirty]
-        private bool _Name__dirty = false;
-        // [IsDirty]
-        private bool _Age__dirty = false;
+        class __Metadata__ : IPersistableMetadata
+        {
+            public __Metadata__() { }
+
+            // [IsDirty]
+            public bool _Name__dirty = false;
+            // [IsDirty]
+            public bool _Age__dirty = false;
+
+            public PersistableState GetDirtyState()
+            {
+                PersistableState state;
+
+                lock (this)
+                {
+                    state = new PersistableStateImpl(new[]
+                    {
+                        _Name__dirty ? "Name" : null,
+                        _Age__dirty ? "Age" : null,
+                    });
+                }
+
+                return state;
+            }
+
+            public void ResetDirtyState()
+            {
+                lock (this)
+                {
+                    _Name__dirty = false;
+                    _Age__dirty = false;
+                }
+            }
+        }
     }
 
 }

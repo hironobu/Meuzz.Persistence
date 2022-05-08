@@ -152,6 +152,10 @@ namespace Meuzz.Persistence.Builder
                 }
             }
 
+            var fieldTypeDef = new TypeDefinition(typeDef.Namespace, $"__Metadata__", Mono.Cecil.TypeAttributes.NestedPrivate | Mono.Cecil.TypeAttributes.AutoLayout | Mono.Cecil.TypeAttributes.AnsiClass | Mono.Cecil.TypeAttributes.Sealed | Mono.Cecil.TypeAttributes.BeforeFieldInit, moduleDef.ImportReference(moduleDef.TypeSystem.Object));
+            fieldTypeDef.Interfaces.Add(new InterfaceImplementation(moduleDef.ImportReference(typeof(IPersistableMetadata))));
+
+            var metadataFieldDef = new FieldDefinition("<__Metadata>k__BackingField", Mono.Cecil.FieldAttributes.Private, fieldTypeDef);
             var dirtyFieldDefAndNames = new List<(FieldDefinition, string)>();
 
             // weave properties (for dirty flag operations)
@@ -171,14 +175,16 @@ namespace Meuzz.Persistence.Builder
                 {
                     var dirtyFieldDef = MakeDirtyField(moduleDef, typeDef, pr.Name);
 
-                    AddPropertyDirtySetter(moduleDef, typeDef, pr, dirtyFieldDef, originalGetterInstructions);
+                    AddPropertyDirtySetter(moduleDef, typeDef, pr, metadataFieldDef, dirtyFieldDef, originalGetterInstructions);
 
                     dirtyFieldDefAndNames.Add((dirtyFieldDef, pr.Name));
                 }
             }
 
-            AddGetDirtyState(moduleDef, typeDef, dirtyFieldDefAndNames);
-            AddResetDirtyState(moduleDef, typeDef, dirtyFieldDefAndNames);
+            BuildMetadataProperty(moduleDef, typeDef, fieldTypeDef, metadataFieldDef, dirtyFieldDefAndNames.Select(x => x.Item1));
+
+            AddGetDirtyState(moduleDef, typeDef, fieldTypeDef, metadataFieldDef, dirtyFieldDefAndNames);
+            AddResetDirtyState(moduleDef, typeDef, fieldTypeDef, metadataFieldDef, dirtyFieldDefAndNames);
         }
 
         /// <summary>
@@ -294,7 +300,7 @@ namespace Meuzz.Persistence.Builder
         /// <param name="propDef">対象となるプロパティ定義情報。</param>
         /// <param name="dirtyFieldDef">dirtyフラグの定義情報。</param>
         /// <param name="originalGetterInstructions">当該プロパティにおける変更前のgetterメソッドIL。</param>
-        private void AddPropertyDirtySetter(ModuleDefinition moduleDef, TypeReference typeRef, PropertyDefinition propDef, FieldDefinition dirtyFieldDef, Instruction[] originalGetterInstructions)
+        private void AddPropertyDirtySetter(ModuleDefinition moduleDef, TypeReference typeRef, PropertyDefinition propDef, FieldDefinition metadataFieldDef, FieldDefinition dirtyFieldDef, Instruction[] originalGetterInstructions)
         {
             var dictionaryTypeDef = moduleDef.ImportReference(typeof(IDictionary<,>)).Resolve();
             var setItemMethodRef = moduleDef.ImportReference(MakeHostInstanceGenericMethodReference(dictionaryTypeDef.Methods.Single(x => x.Name == "set_Item" && x.Parameters.Count == 2), moduleDef.ImportReference(typeof(string)), moduleDef.ImportReference(typeof(bool))));
@@ -322,6 +328,7 @@ namespace Meuzz.Persistence.Builder
 
             ilp.InsertBefore(first, Instruction.Create(OpCodes.Nop));
             ilp.InsertBefore(first, Instruction.Create(OpCodes.Ldarg_0));
+            ilp.InsertBefore(first, Instruction.Create(OpCodes.Ldfld, metadataFieldDef));
             ilp.InsertBefore(first, Instruction.Create(OpCodes.Stloc_0));
 
             ilp.InsertBefore(first, Instruction.Create(OpCodes.Ldc_I4_0));
@@ -359,6 +366,7 @@ namespace Meuzz.Persistence.Builder
 
             // (set dirty)
             ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldarg_0));
+            ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldfld, metadataFieldDef));
             ilp.InsertBefore(ret, Instruction.Create(OpCodes.Ldc_I4_1));
             ilp.InsertBefore(ret, Instruction.Create(OpCodes.Stfld, dirtyFieldDef));
             ilp.InsertBefore(ret, Instruction.Create(OpCodes.Nop));
@@ -428,17 +436,8 @@ namespace Meuzz.Persistence.Builder
                 return null;
             }
 
-            var dirtyDictTypeRef = moduleDef.ImportReference(MakeGenericType(moduleDef.ImportReference(typeof(IDictionary<,>)), moduleDef.ImportReference(typeof(string)), moduleDef.ImportReference(typeof(bool))));
-            var dirtyFieldDef = new FieldDefinition(dirtyFieldName, Mono.Cecil.FieldAttributes.Private, moduleDef.ImportReference(typeof(bool)));
-            typeDef.Fields.Add(dirtyFieldDef);
-
-            var ctorMethodDef = typeDef.Methods.Single(x => x.Name == ".ctor");
-            var ilp = ctorMethodDef.Body.GetILProcessor();
-            var first = ctorMethodDef.Body.Instructions[0];
-
-            ilp.InsertBefore(first, Instruction.Create(OpCodes.Ldarg_0));
-            ilp.InsertBefore(first, Instruction.Create(OpCodes.Ldc_I4_0));
-            ilp.InsertBefore(first, Instruction.Create(OpCodes.Stfld, dirtyFieldDef));
+            var dirtyFieldDef = new FieldDefinition(dirtyFieldName, Mono.Cecil.FieldAttributes.Public, moduleDef.ImportReference(typeof(bool)));
+            // typeDef.Fields.Add(dirtyFieldDef);
 
             return dirtyFieldDef;
         }
@@ -449,13 +448,76 @@ namespace Meuzz.Persistence.Builder
         /// <param name="moduleDef">メインモジュール。</param>
         /// <param name="typeDef">対象となる型定義情報。</param>
         /// <param name="dirtyFieldDefsAndNames">メソッド内で参照する<c>__dirty</c>フィールド。</param>
-        private void AddGetDirtyState(ModuleDefinition moduleDef, TypeDefinition typeDef, IEnumerable<(FieldDefinition, string)> dirtyFieldDefsAndNames)
+        private void BuildMetadataProperty(ModuleDefinition moduleDef, TypeDefinition typeDef, TypeDefinition fieldTypeDef, FieldDefinition metadataFieldDef, IEnumerable<FieldDefinition> dirtyFieldDefs)
         {
             var monitorTypeDef = moduleDef.ImportReference(typeof(Monitor)).Resolve();
             var enterMethodRef = moduleDef.ImportReference(monitorTypeDef.Methods.Single(x => x.Name == "Enter" && x.Parameters.Count == 2));
             var exitMethodRef = moduleDef.ImportReference(monitorTypeDef.Methods.Single(x => x.Name == "Exit" && x.Parameters.Count == 1));
 
-            var getDirtyStateMethodDef = new MethodDefinition(nameof(IPersistable.GetDirtyState), Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.SpecialName, moduleDef.ImportReference(typeof(PersistableState)));
+            foreach (var dirtyFieldDef in dirtyFieldDefs)
+            {
+                // var dirtyFieldDef = new FieldDefinition($"<{fdef.Name}>k__Dirty", Mono.Cecil.FieldAttributes.Private, moduleDef.TypeSystem.Boolean);
+                fieldTypeDef.Fields.Add(dirtyFieldDef);
+            }
+
+            var metadataPropertyDef = new PropertyDefinition("__Metadata", Mono.Cecil.PropertyAttributes.None, moduleDef.ImportReference(typeof(IPersistableMetadata)));
+            var getterMethodDef = new MethodDefinition("get___Metadata", Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Final | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.SpecialName | Mono.Cecil.MethodAttributes.NewSlot | Mono.Cecil.MethodAttributes.Virtual, moduleDef.ImportReference(typeof(IPersistableMetadata)));
+            metadataPropertyDef.GetMethod = getterMethodDef;
+
+            var ilp = getterMethodDef.Body.GetILProcessor();
+
+            ilp.Append(Instruction.Create(OpCodes.Ldarg_0));
+            ilp.Append(Instruction.Create(OpCodes.Ldfld, metadataFieldDef));
+            ilp.Append(Instruction.Create(OpCodes.Ret));
+
+            var typeCtorRef = typeDef.Methods.Single(x => x.Name == ".ctor");
+            var fieldTypeCtorRef = new MethodDefinition(".ctor", Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.SpecialName | Mono.Cecil.MethodAttributes.RTSpecialName, moduleDef.TypeSystem.Void);
+            fieldTypeDef.Methods.Add(fieldTypeCtorRef);
+
+            var ilpCtor = typeCtorRef.Body.GetILProcessor();
+            var first = typeCtorRef.Body.Instructions.First();
+
+            ilpCtor.InsertBefore(first, Instruction.Create(OpCodes.Ldarg_0));
+            ilpCtor.InsertBefore(first, Instruction.Create(OpCodes.Newobj, fieldTypeCtorRef));
+            ilpCtor.InsertBefore(first, Instruction.Create(OpCodes.Stfld, metadataFieldDef));
+
+            //var ilpFieldCtor = fieldTypeCtorRef.Body.GetILProcessor();
+            //var ctorFirst = fieldTypeCtorRef.Body.Instructions.First();
+
+            var ilpMetadataCtor = fieldTypeCtorRef.Body.GetILProcessor();
+
+            foreach (var dirtyFieldDef in dirtyFieldDefs)
+            {
+                ilpMetadataCtor.Append(Instruction.Create(OpCodes.Ldarg_0));
+                ilpMetadataCtor.Append(Instruction.Create(OpCodes.Ldc_I4_0));
+                ilpMetadataCtor.Append(Instruction.Create(OpCodes.Stfld, dirtyFieldDef));
+            }
+            ilpMetadataCtor.Append(Instruction.Create(OpCodes.Ldarg_0));
+            ilpMetadataCtor.Append(Instruction.Create(OpCodes.Call, moduleDef.ImportReference(fieldTypeDef.BaseType.Resolve().Methods.Single(x => x.Name == ".ctor"))));
+            ilpMetadataCtor.Append(Instruction.Create(OpCodes.Nop));
+            ilpMetadataCtor.Append(Instruction.Create(OpCodes.Nop));
+            ilpMetadataCtor.Append(Instruction.Create(OpCodes.Ret));
+
+            typeDef.Methods.Add(getterMethodDef);
+            typeDef.Properties.Add(metadataPropertyDef);
+            typeDef.Fields.Add(metadataFieldDef);
+
+            typeDef.NestedTypes.Add(fieldTypeDef);
+        }
+
+        /// <summary>
+        ///   <see cref="IPersistable.GetDirtyState"/>メソッドを対象の型に追加する。
+        /// </summary>
+        /// <param name="moduleDef">メインモジュール。</param>
+        /// <param name="typeDef">対象となる型定義情報。</param>
+        /// <param name="dirtyFieldDefsAndNames">メソッド内で参照する<c>__dirty</c>フィールド。</param>
+        private void AddGetDirtyState(ModuleDefinition moduleDef, TypeDefinition typeDef, TypeDefinition metadataTypeDef, FieldDefinition metadataFieldDef, IEnumerable<(FieldDefinition, string)> dirtyFieldDefsAndNames)
+        {
+            var monitorTypeDef = moduleDef.ImportReference(typeof(Monitor)).Resolve();
+            var enterMethodRef = moduleDef.ImportReference(monitorTypeDef.Methods.Single(x => x.Name == "Enter" && x.Parameters.Count == 2));
+            var exitMethodRef = moduleDef.ImportReference(monitorTypeDef.Methods.Single(x => x.Name == "Exit" && x.Parameters.Count == 1));
+
+            var getDirtyStateMethodDef = new MethodDefinition(nameof(IPersistableMetadata.GetDirtyState), Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.SpecialName, moduleDef.ImportReference(typeof(PersistableState)));
             var ilp = getDirtyStateMethodDef.Body.GetILProcessor();
 
             getDirtyStateMethodDef.Body.Variables.Add(new VariableDefinition(moduleDef.ImportReference(typeof(PersistableState))));
@@ -506,12 +568,6 @@ namespace Meuzz.Persistence.Builder
             ilp.Append(Instruction.Create(OpCodes.Newobj, persistableStateCtorRef));
             ilp.Append(Instruction.Create(OpCodes.Stloc_0));
             //
-            foreach (var (fieldDef, fieldName) in dirtyFieldDefsAndNames)
-            {
-                ilp.Append(Instruction.Create(OpCodes.Ldarg_0));
-                ilp.Append(Instruction.Create(OpCodes.Ldc_I4_0));
-                ilp.Append(Instruction.Create(OpCodes.Stfld, fieldDef));
-            }
 
             ilp.Append(Instruction.Create(OpCodes.Nop));
             var il_005d = Instruction.Create(OpCodes.Ldloc_0);
@@ -548,7 +604,7 @@ namespace Meuzz.Persistence.Builder
             };
 
             getDirtyStateMethodDef.Body.ExceptionHandlers.Add(handler);
-            typeDef.Methods.Add(getDirtyStateMethodDef);
+            metadataTypeDef.Methods.Add(getDirtyStateMethodDef);
         }
 
         /// <summary>
@@ -557,13 +613,13 @@ namespace Meuzz.Persistence.Builder
         /// <param name="moduleDef">メインモジュール。</param>
         /// <param name="typeDef">対象となる型定義情報。</param>
         /// <param name="dirtyFieldDefsAndNames">メソッド内で参照する<c>__dirty</c>フィールド。</param>
-        private void AddResetDirtyState(ModuleDefinition moduleDef, TypeDefinition typeDef, IEnumerable<(FieldDefinition, string)> dirtyFieldDefsAndNames)
+        private void AddResetDirtyState(ModuleDefinition moduleDef, TypeDefinition typeDef, TypeDefinition metadataTypeDef, FieldDefinition metadataFieldDef, IEnumerable<(FieldDefinition, string)> dirtyFieldDefsAndNames)
         {
             var monitorTypeDef = moduleDef.ImportReference(typeof(Monitor)).Resolve();
             var enterMethodRef = moduleDef.ImportReference(monitorTypeDef.Methods.Single(x => x.Name == "Enter" && x.Parameters.Count == 2));
             var exitMethodRef = moduleDef.ImportReference(monitorTypeDef.Methods.Single(x => x.Name == "Exit" && x.Parameters.Count == 1));
 
-            var getDirtyStateMethodDef = new MethodDefinition(nameof(IPersistable.ResetDirtyState), Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.SpecialName, moduleDef.ImportReference(typeof(void)));
+            var getDirtyStateMethodDef = new MethodDefinition(nameof(IPersistableMetadata.ResetDirtyState), Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.SpecialName, moduleDef.ImportReference(typeof(void)));
             var ilp = getDirtyStateMethodDef.Body.GetILProcessor();
 
             getDirtyStateMethodDef.Body.Variables.Add(new VariableDefinition(typeDef));
@@ -624,7 +680,7 @@ namespace Meuzz.Persistence.Builder
             };
 
             getDirtyStateMethodDef.Body.ExceptionHandlers.Add(handler);
-            typeDef.Methods.Add(getDirtyStateMethodDef);
+            metadataTypeDef.Methods.Add(getDirtyStateMethodDef);
         }
 
         private static TypeReference MakeGenericType(TypeReference type, params TypeReference[] arguments)
@@ -720,6 +776,24 @@ namespace Meuzz.Persistence.Builder
     {
         public PersistableStateImpl(string[] dirtyKeys) : base(dirtyKeys.Where(x => !string.IsNullOrEmpty(x)).ToArray())
         {
+        }
+    }
+
+    public struct PersistableMetadata : IPersistableMetadata
+    {
+        public PersistableMetadata(object obj)
+        {
+
+        }
+
+        public PersistableState GetDirtyState()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void ResetDirtyState()
+        {
+            throw new NotImplementedException();
         }
     }
 }

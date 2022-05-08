@@ -156,7 +156,7 @@ namespace Meuzz.Persistence
             var updated = objs.Where(x => t.GetPrimaryValue(x) != null).ToList();
             var inserted = objs.Where(x => t.GetPrimaryValue(x) == null).ToList();
 
-            if (inserted.Count() > 0)
+            if (inserted.Any())
             {
                 var tt = typeof(InsertStatement<>).MakeGenericType(t);
                 var insertStatement = (SqlInsertStatement)Convert.ChangeType(Activator.CreateInstance(tt), tt)!;
@@ -190,7 +190,7 @@ namespace Meuzz.Persistence
                 }
             }
 
-            if (updated.Count() > 0)
+            if (updated.Any())
             {
                 var tt = typeof(UpdateStatement<>).MakeGenericType(t);
                 var updateStatement = (SqlUpdateStatement)Convert.ChangeType(Activator.CreateInstance(tt), tt)!;
@@ -203,31 +203,7 @@ namespace Meuzz.Persistence
 
         protected IEnumerable<object> PopulateObjects(IDatabaseContext context, Type t, ResultSet rset, SqlSelectStatement statement)
         {
-            var rows = rset.Results.Select(x =>
-            {
-                var kvs = x.Select(c => (c.Key.Split('.'), c.Value));
-                var d = new Dictionary<string, object?>();
-                foreach (var (kk, v) in kvs)
-                {
-                    var dx = d;
-                    var k = string.Join('.', kk.Take(kk.Length - 1));
-                    {
-                        var dx0 = dx;
-                        if (dx0.TryGetValue(k, out var value) && value != null)
-                        {
-                            dx = (Dictionary<string, object?>)value;
-                        }
-                        else
-                        {
-                            dx = new Dictionary<string, object?>();
-                            dx0[k] = dx;
-                        }
-                    }
-                    dx[kk.Last().ToLower()] = v;
-                }
-
-                return d;
-            });
+            var rows = RearrangeResultSet(rset);
 
             var resultDicts = new Dictionary<string, IList<(string?, object?, IDictionary<string, object?>)>>();
             var resultObjects = new Dictionary<string, IDictionary<object, IDictionary<string, object?>>>();
@@ -290,6 +266,34 @@ namespace Meuzz.Persistence
             }
             var rets = EnumerableCast(t, objects.Select(x => x["__object"]));
             return (IEnumerable<object>)rets;
+        }
+
+        private IEnumerable<IDictionary<string, object?>> RearrangeResultSet(ResultSet resultSet)
+        {
+            return resultSet.Results.Select(x =>
+            {
+                var kvs = x.Select(c => (c.Key.Split('.'), c.Value));
+                var d = new Dictionary<string, object?>();
+                foreach (var (kk, v) in kvs)
+                {
+                    var dx = d;
+                    var k = string.Join('.', kk.Take(kk.Length - 1));
+                    var dx0 = dx;
+                    if (dx0.TryGetValue(k, out var value) && value != null)
+                    {
+                        dx = (Dictionary<string, object?>)value;
+                    }
+                    else
+                    {
+                        dx = new Dictionary<string, object?>();
+                        dx0[k] = dx;
+                    }
+
+                    dx[kk.Last().ToLower()] = v;
+                }
+
+                return d;
+            });
         }
 
         private void BuildBindings(SqlSelectStatement statement, IDictionary<string, IDictionary<object, IDictionary<string, object?>>> resultObjects)

@@ -61,18 +61,23 @@ namespace Meuzz.Persistence
 
             lock (obj)
             {
-                var state = ip.GetDirtyState();
-                ip.ResetDirtyState();
+                var state = ip.__Metadata.GetDirtyState();
+                ip.__Metadata.ResetDirtyState();
                 return state;
             }
         }
     }
 
-    public interface IPersistable
+    public interface IPersistableMetadata
     {
         PersistableState GetDirtyState();
 
         void ResetDirtyState();
+    }
+
+    public interface IPersistable
+    {
+        IPersistableMetadata __Metadata { get; }
     }
 
     [AttributeUsage(AttributeTargets.Property)]
