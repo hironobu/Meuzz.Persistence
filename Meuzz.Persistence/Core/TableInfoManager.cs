@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using Meuzz.Foundation;
 
@@ -31,7 +32,7 @@ namespace Meuzz.Persistence.Core
         {
             var colinfos = new List<TableInfoManager.ColumnInfoEntry>();
             var relinfos = new List<TableInfoManager.RelationInfoEntry>();
-            foreach (var prop in t.GetProperties())
+            foreach (var prop in t.GetProperties().Where(x => !x.Name.StartsWith("_")))
             {
                 var fke = ForeignKeyInfoManager.Instance().GetForeignKeyInfoByPropertyInfo(prop);
 

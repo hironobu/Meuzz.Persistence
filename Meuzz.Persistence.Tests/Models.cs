@@ -162,6 +162,8 @@ namespace Meuzz.Persistence.Tests.Models
         [HasMany(ForeignKey: "last_player_id")]
         public IEnumerable<Character> LastCharacters { get; set; }
 
+        public string _HiddenString { get; set; }
+
         // public IEnumerable<Item> Items { get; set; }
     }
 
