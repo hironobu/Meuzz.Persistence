@@ -177,7 +177,8 @@ namespace Meuzz.Persistence.Builder
                 }
             }
 
-            AddGeneratePersistentState(moduleDef, typeDef, dirtyFieldDefAndNames);
+            AddGetDirtyState(moduleDef, typeDef, dirtyFieldDefAndNames);
+            AddResetDirtyState(moduleDef, typeDef, dirtyFieldDefAndNames);
         }
 
         /// <summary>
@@ -442,34 +443,14 @@ namespace Meuzz.Persistence.Builder
             return dirtyFieldDef;
         }
 
-        private Instruction CreateInstructionIdcI4(int n)
-        {
-            switch (n)
-            {
-                case 0: return Instruction.Create(OpCodes.Ldc_I4_0);
-                case 1: return Instruction.Create(OpCodes.Ldc_I4_1);
-                case 2: return Instruction.Create(OpCodes.Ldc_I4_2);
-                case 3: return Instruction.Create(OpCodes.Ldc_I4_3);
-                case 4: return Instruction.Create(OpCodes.Ldc_I4_4);
-                case 5: return Instruction.Create(OpCodes.Ldc_I4_5);
-                case 6: return Instruction.Create(OpCodes.Ldc_I4_6);
-                case 7: return Instruction.Create(OpCodes.Ldc_I4_7);
-                case 8: return Instruction.Create(OpCodes.Ldc_I4_8);
-                default: return Instruction.Create(OpCodes.Ldc_I4, n);
-            }
-        }
-
         /// <summary>
         ///   <see cref="IPersistable.GetDirtyState"/>メソッドを対象の型に追加する。
         /// </summary>
         /// <param name="moduleDef">メインモジュール。</param>
         /// <param name="typeDef">対象となる型定義情報。</param>
         /// <param name="dirtyFieldDefsAndNames">メソッド内で参照する<c>__dirty</c>フィールド。</param>
-        private void AddGeneratePersistentState(ModuleDefinition moduleDef, TypeDefinition typeDef, IEnumerable<(FieldDefinition, string)> dirtyFieldDefsAndNames)
+        private void AddGetDirtyState(ModuleDefinition moduleDef, TypeDefinition typeDef, IEnumerable<(FieldDefinition, string)> dirtyFieldDefsAndNames)
         {
-            //var getKeysMethodRef = moduleDef.ImportReference(MakeHostInstanceGenericMethodReference(moduleDef.ImportReference(typeof(IDictionary<,>)).Resolve().Methods.Single(x => x.Name == "get_Keys"), moduleDef.ImportReference(typeof(string)), moduleDef.ImportReference(typeof(bool))));
-            //var toArrayMethodRef = moduleDef.ImportReference(MakeGenericMethodReference(moduleDef.ImportReference(typeof(Enumerable)).Resolve().Methods.Single(x => x.Name == nameof(Enumerable.ToArray)), moduleDef.ImportReference(typeof(string))));
-
             var monitorTypeDef = moduleDef.ImportReference(typeof(Monitor)).Resolve();
             var enterMethodRef = moduleDef.ImportReference(monitorTypeDef.Methods.Single(x => x.Name == "Enter" && x.Parameters.Count == 2));
             var exitMethodRef = moduleDef.ImportReference(monitorTypeDef.Methods.Single(x => x.Name == "Exit" && x.Parameters.Count == 1));
@@ -484,7 +465,6 @@ namespace Meuzz.Persistence.Builder
             getDirtyStateMethodDef.Body.Variables.Add(new VariableDefinition(moduleDef.ImportReference(typeof(PersistableState))));
 
             var persistableStateCtorRef = moduleDef.ImportReference(moduleDef.ImportReference(typeof(PersistableStateImpl)).Resolve().Methods.Single(x => x.Name == ".ctor"));
-            var clearMethodRef = moduleDef.ImportReference(moduleDef.ImportReference(typeof(IDictionary)).Resolve().Methods.Single(x => x.Name == nameof(IDictionary.Clear)));
 
             ilp.Append(Instruction.Create(OpCodes.Nop));
             ilp.Append(Instruction.Create(OpCodes.Ldarg_0));
@@ -571,6 +551,82 @@ namespace Meuzz.Persistence.Builder
             typeDef.Methods.Add(getDirtyStateMethodDef);
         }
 
+        /// <summary>
+        ///   <see cref="IPersistable.GetDirtyState"/>メソッドを対象の型に追加する。
+        /// </summary>
+        /// <param name="moduleDef">メインモジュール。</param>
+        /// <param name="typeDef">対象となる型定義情報。</param>
+        /// <param name="dirtyFieldDefsAndNames">メソッド内で参照する<c>__dirty</c>フィールド。</param>
+        private void AddResetDirtyState(ModuleDefinition moduleDef, TypeDefinition typeDef, IEnumerable<(FieldDefinition, string)> dirtyFieldDefsAndNames)
+        {
+            var monitorTypeDef = moduleDef.ImportReference(typeof(Monitor)).Resolve();
+            var enterMethodRef = moduleDef.ImportReference(monitorTypeDef.Methods.Single(x => x.Name == "Enter" && x.Parameters.Count == 2));
+            var exitMethodRef = moduleDef.ImportReference(monitorTypeDef.Methods.Single(x => x.Name == "Exit" && x.Parameters.Count == 1));
+
+            var getDirtyStateMethodDef = new MethodDefinition(nameof(IPersistable.ResetDirtyState), Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.HideBySig | Mono.Cecil.MethodAttributes.SpecialName, moduleDef.ImportReference(typeof(void)));
+            var ilp = getDirtyStateMethodDef.Body.GetILProcessor();
+
+            getDirtyStateMethodDef.Body.Variables.Add(new VariableDefinition(typeDef));
+            var v_1 = new VariableDefinition(moduleDef.ImportReference(typeof(bool)));
+            getDirtyStateMethodDef.Body.Variables.Add(v_1);
+
+            ilp.Append(Instruction.Create(OpCodes.Nop));
+            ilp.Append(Instruction.Create(OpCodes.Ldarg_0));
+            ilp.Append(Instruction.Create(OpCodes.Stloc_0));
+
+            // {
+            ilp.Append(Instruction.Create(OpCodes.Ldc_I4_0));
+            ilp.Append(Instruction.Create(OpCodes.Stloc_1));
+            // .try
+            var il_0005 = Instruction.Create(OpCodes.Ldloc_0);
+            ilp.Append(il_0005);
+            ilp.Append(Instruction.Create(OpCodes.Ldloca_S, v_1));
+
+            ilp.Append(Instruction.Create(OpCodes.Call, enterMethodRef));
+            ilp.Append(Instruction.Create(OpCodes.Nop));
+
+            // if (_field != value) {
+            ilp.Append(Instruction.Create(OpCodes.Nop));
+
+            //
+            foreach (var (fieldDef, fieldName) in dirtyFieldDefsAndNames)
+            {
+                ilp.Append(Instruction.Create(OpCodes.Ldarg_0));
+                ilp.Append(Instruction.Create(OpCodes.Ldc_I4_0));
+                ilp.Append(Instruction.Create(OpCodes.Stfld, fieldDef));
+            }
+
+            ilp.Append(Instruction.Create(OpCodes.Nop));
+            var il_002b = Instruction.Create(OpCodes.Ret);
+            ilp.Append(Instruction.Create(OpCodes.Leave_S, il_002b));
+            // end .try
+
+            var il_0052 = Instruction.Create(OpCodes.Ldloc_1);
+            ilp.Append(il_0052);
+            var il_005c = Instruction.Create(OpCodes.Endfinally);
+            ilp.Append(Instruction.Create(OpCodes.Brfalse_S, il_005c));
+
+            ilp.Append(Instruction.Create(OpCodes.Ldloc_0));
+            ilp.Append(Instruction.Create(OpCodes.Call, exitMethodRef));
+            ilp.Append(Instruction.Create(OpCodes.Nop));
+
+            ilp.Append(il_005c);
+            // end handler
+
+            ilp.Append(il_002b);
+
+            var handler = new ExceptionHandler(ExceptionHandlerType.Finally)
+            {
+                TryStart = il_0005,
+                TryEnd = il_0052,
+                HandlerStart = il_0052,
+                HandlerEnd = il_002b,
+            };
+
+            getDirtyStateMethodDef.Body.ExceptionHandlers.Add(handler);
+            typeDef.Methods.Add(getDirtyStateMethodDef);
+        }
+
         private static TypeReference MakeGenericType(TypeReference type, params TypeReference[] arguments)
         {
             if (type.GenericParameters.Count != arguments.Length)
@@ -640,6 +696,23 @@ namespace Meuzz.Persistence.Builder
             }
 
             return methodRef;
+        }
+
+        private Instruction CreateInstructionIdcI4(int n)
+        {
+            switch (n)
+            {
+                case 0: return Instruction.Create(OpCodes.Ldc_I4_0);
+                case 1: return Instruction.Create(OpCodes.Ldc_I4_1);
+                case 2: return Instruction.Create(OpCodes.Ldc_I4_2);
+                case 3: return Instruction.Create(OpCodes.Ldc_I4_3);
+                case 4: return Instruction.Create(OpCodes.Ldc_I4_4);
+                case 5: return Instruction.Create(OpCodes.Ldc_I4_5);
+                case 6: return Instruction.Create(OpCodes.Ldc_I4_6);
+                case 7: return Instruction.Create(OpCodes.Ldc_I4_7);
+                case 8: return Instruction.Create(OpCodes.Ldc_I4_8);
+                default: return Instruction.Create(OpCodes.Ldc_I4, n);
+            }
         }
     }
 

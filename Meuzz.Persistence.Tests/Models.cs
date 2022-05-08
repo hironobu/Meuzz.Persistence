@@ -117,12 +117,18 @@ namespace Meuzz.Persistence.Tests.Models.Sample
                     _Name__dirty ? "Name" : null,
                     _Age__dirty ? "Age" : null,
                 });
-
-                _Name__dirty = false;
-                _Age__dirty = false;
             }
 
             return state;
+        }
+
+        public void ResetDirtyState()
+        {
+            lock (this)
+            {
+                _Name__dirty = false;
+                _Age__dirty = false;
+            }
         }
 
         private string _name = default(string);

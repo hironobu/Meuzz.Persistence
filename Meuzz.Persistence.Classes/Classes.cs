@@ -59,13 +59,20 @@ namespace Meuzz.Persistence
                 return null;
             }
 
-            return ip.GetDirtyState();
+            lock (obj)
+            {
+                var state = ip.GetDirtyState();
+                ip.ResetDirtyState();
+                return state;
+            }
         }
     }
 
     public interface IPersistable
     {
         PersistableState GetDirtyState();
+
+        void ResetDirtyState();
     }
 
     [AttributeUsage(AttributeTargets.Property)]
