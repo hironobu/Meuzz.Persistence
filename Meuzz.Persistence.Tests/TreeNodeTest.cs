@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using Meuzz.Persistence.Database;
 using Xunit;
 
 namespace Meuzz.Persistence.Tests

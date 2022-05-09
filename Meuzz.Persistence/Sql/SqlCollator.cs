@@ -1,6 +1,7 @@
 ﻿#nullable enable
 
 using System.Linq;
+using Meuzz.Persistence.Database;
 
 namespace Meuzz.Persistence.Sql
 {

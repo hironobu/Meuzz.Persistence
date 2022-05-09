@@ -8,6 +8,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using Meuzz.Foundation;
 using Meuzz.Persistence.Core;
+using Meuzz.Persistence.Database;
 using Meuzz.Persistence.Sql;
 
 namespace Meuzz.Persistence

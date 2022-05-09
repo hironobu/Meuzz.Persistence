@@ -1,13 +1,11 @@
-﻿#nullable enable
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Linq;
 using Meuzz.Persistence.Sql;
 
-namespace Meuzz.Persistence
+namespace Meuzz.Persistence.Database
 {
     public interface IDatabaseEngineProvider
     {
@@ -139,7 +137,7 @@ namespace Meuzz.Persistence
 
             while (reader.HasRows)
             {
-                var cols = Enumerable.Range(0, reader.FieldCount).Select(x => reader.GetName(x)).ToArray<string>();
+                var cols = Enumerable.Range(0, reader.FieldCount).Select(x => reader.GetName(x)).ToArray();
                 while (reader.Read())
                 {
                     var vals = Enumerable.Range(0, reader.FieldCount).Select(x => reader.IsDBNull(x) ? null : reader.GetValue(x)).ToArray();
