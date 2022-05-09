@@ -190,7 +190,7 @@ namespace Meuzz.Persistence.Tests.Mssql
             var p = new Player() { Name = "Create Test", Age = 999 };
             var q = new Player() { Name = "Create Test 2", PlayTime = 10000 };
             var r = new Player() { Id = 1 };
-            PersistableState.Generate(r); // dummy
+            PersistableState.Reset(r);
             r.Name = "Update Test";
 
             p.Characters = new[]

@@ -134,15 +134,19 @@ namespace Meuzz.Persistence.Sql
 
             foreach (var obj in statement.Values)
             {
-                var pcontext = PersistableState.Generate(obj);
-                var dirtyKeys = pcontext.DirtyKeys;
-                if (dirtyKeys != null && dirtyKeys.Length > 0)
+                lock (obj)
                 {
-                    sb.Append($"UPDATE {GetTableName(statement)} SET ");
-                    var d = obj.GetType().GetValueDictFromColumnNames(dirtyKeys.Select(x => x.ToSnake()).ToArray(), obj);
-                    var valstr = string.Join(", ", d.Select(x => $"{x.Key} = {_f(x.Value)}"));
-                    sb.Append(valstr);
-                    sb.Append($" WHERE {statement.PrimaryKey} = {obj.GetType().GetPrimaryValue(obj)};");
+                    var pcontext = PersistableState.Get(obj);
+                    var dirtyKeys = pcontext.DirtyKeys;
+                    if (dirtyKeys != null && dirtyKeys.Length > 0)
+                    {
+                        sb.Append($"UPDATE {GetTableName(statement)} SET ");
+                        var d = obj.GetType().GetValueDictFromColumnNames(dirtyKeys.Select(x => x.ToSnake()).ToArray(), obj);
+                        var valstr = string.Join(", ", d.Select(x => $"{x.Key} = {_f(x.Value)}"));
+                        sb.Append(valstr);
+                        sb.Append($" WHERE {statement.PrimaryKey} = {obj.GetType().GetPrimaryValue(obj)};");
+                    }
+                    PersistableState.Reset(obj);
                 }
             }
 

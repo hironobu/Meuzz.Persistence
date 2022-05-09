@@ -148,14 +148,14 @@ namespace Meuzz.Persistence
                 }
             }
 
-            PersistableState.Generate(obj); // for reset
+            PersistableState.Reset(obj);
             return obj;
         }
 
         protected bool StoreObjects(IDatabaseContext context, Type t, IEnumerable<object> objs, IDictionary<string, object?>? extraData)
         {
-            var updated = objs.Where(x => t.GetPrimaryValue(x) != null).ToList();
-            var inserted = objs.Where(x => t.GetPrimaryValue(x) == null).ToList();
+            var updated = objs.Where(x => !PersistableState.IsNew(x)).ToList();
+            var inserted = objs.Where(x => PersistableState.IsNew(x)).ToList();
 
             if (inserted.Any())
             {

@@ -16,6 +16,8 @@ namespace Meuzz.Persistence.Tests
 
     public struct PersistableMetadata : IPersistableMetadata
     {
+        public bool IsNew { get => throw new NotImplementedException(); }
+
         public PersistableState GetDirtyState()
         {
             throw new NotImplementedException();
@@ -130,10 +132,7 @@ namespace Meuzz.Persistence.Tests.Models.Sample
         {
             public __Metadata__() { }
 
-            // [IsDirty]
-            public bool _Name__dirty = false;
-            // [IsDirty]
-            public bool _Age__dirty = false;
+            public bool IsNew => _isNew;
 
             public PersistableState GetDirtyState()
             {
@@ -159,9 +158,15 @@ namespace Meuzz.Persistence.Tests.Models.Sample
                     _Age__dirty = false;
                 }
             }
+
+            // [IsDirty]
+            public bool _Name__dirty = false;
+            // [IsDirty]
+            public bool _Age__dirty = false;
+
+            public bool _isNew = false;
         }
     }
-
 }
 
 namespace Meuzz.Persistence.Tests.Models

@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Linq;
 using Meuzz.Persistence.Tests.Models;
 using Xunit;
 
@@ -13,7 +10,7 @@ namespace Meuzz.Persistence.Tests
         public void TestDefault()
         {
             var c = new Character();
-            var context = PersistableState.Generate(c);
+            var context = PersistableState.Get(c);
             Assert.Empty(context.DirtyKeys);
         }
 
@@ -22,11 +19,12 @@ namespace Meuzz.Persistence.Tests
         {
             var c = new Character();
             c.Name = "aaa";
-            var context = PersistableState.Generate(c);
+            var context = PersistableState.Get(c);
+            PersistableState.Reset(c);
             Assert.Single(context.DirtyKeys);
             Assert.Equal("Name", context.DirtyKeys[0]);
 
-            context = PersistableState.Generate(c);
+            context = PersistableState.Get(c);
             Assert.Empty(context.DirtyKeys);
         }
 
@@ -37,14 +35,15 @@ namespace Meuzz.Persistence.Tests
             p.Name = "aaa";
             p.Age = 111;
             p.PlayTime = 222;
-            var context = PersistableState.Generate(p);
+            var context = PersistableState.Get(p);
             var dirtyKeys = context.DirtyKeys.OrderBy(x => x).ToArray();
             Assert.Equal(3, context.DirtyKeys.Length);
             Assert.Equal("Age", dirtyKeys[0]);
             Assert.Equal("Name", dirtyKeys[1]);
             Assert.Equal("PlayTime", dirtyKeys[2]);
+            PersistableState.Reset(p);
 
-            context = PersistableState.Generate(p);
+            context = PersistableState.Get(p);
             Assert.Empty(context.DirtyKeys);
         }
     }

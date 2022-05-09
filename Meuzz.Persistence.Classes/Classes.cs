@@ -52,18 +52,44 @@ namespace Meuzz.Persistence
             DirtyKeys = dirtyKeys;
         }
 
-        public static PersistableState Generate(object obj)
+        public static bool IsNew(object obj)
+        {
+            if (!(obj is IPersistable ip))
+            {
+                throw new ArgumentException("Non-Persistable object passed");
+            }
+
+            lock (ip.__Metadata)
+            {
+                return ip.__Metadata.IsNew;
+            }
+        }
+
+        public static PersistableState Get(object obj)
         {
             if (!(obj is IPersistable ip))
             {
                 return null;
             }
 
-            lock (obj)
+            lock (ip.__Metadata)
             {
                 var state = ip.__Metadata.GetDirtyState();
-                ip.__Metadata.ResetDirtyState();
                 return state;
+            }
+        }
+
+        public static void Reset(object obj)
+        {
+            if (!(obj is IPersistable ip))
+            {
+                return;
+            }
+
+            lock (ip.__Metadata)
+            {
+                ip.__Metadata.ResetDirtyState();
+                return;
             }
         }
     }
@@ -73,6 +99,8 @@ namespace Meuzz.Persistence
         PersistableState GetDirtyState();
 
         void ResetDirtyState();
+
+        bool IsNew { get; }
     }
 
     public interface IPersistable

@@ -139,7 +139,7 @@ namespace Meuzz.Persistence.Tests
             var formatter = new SqliteFormatter();
 
             var obj = new Player() { Id = 1 };
-            PersistableState.Generate(obj); // dummy
+            PersistableState.Reset(obj);
 
             obj.Name = "aaa";
 

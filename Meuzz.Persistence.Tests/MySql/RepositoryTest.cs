@@ -187,7 +187,9 @@ namespace Meuzz.Persistence.Tests.MySql
         {
             var p = new Player() { Name = "Create Test", Age = 999 };
             var q = new Player() { Name = "Create Test 2", PlayTime = 10000 };
-            var r = new Player() { Id = 1, Name = "Update Test" };
+            var r = new Player() { Id = 1 };
+            PersistableState.Reset(r);
+            r.Name = "Update Test";
 
             p.Characters = new[]
             {
