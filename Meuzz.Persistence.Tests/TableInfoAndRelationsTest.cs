@@ -1,13 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Xunit;
+﻿using System.Linq;
 using Meuzz.Persistence.Tests.Models;
-using System.Linq;
+using Xunit;
 
 namespace Meuzz.Persistence.Tests
 {
-    public class ClassInfoTest
+    public class TableInfoAndRelationsTest
     {
         [Fact]
         public void Test01()
@@ -61,7 +58,5 @@ namespace Meuzz.Persistence.Tests
             Assert.Equal(typeof(Models.AutoForeignKey.Player).GetProperty("Characters"), ris.ElementAt(0).PropertyInfo);
             Assert.Equal(typeof(Models.AutoForeignKey.Character).GetProperty("Player"), ris.ElementAt(0).InversePropertyInfo);
         }
-
-
     }
 }
