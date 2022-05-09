@@ -11,7 +11,7 @@ namespace Meuzz.Persistence.Tests
         {
             var ci = typeof(Player).GetTableInfo();
             Assert.NotNull(ci);
-            Assert.Equal(typeof(Player), ci.ClassType);
+            Assert.Equal(typeof(Player), ci.Type);
             Assert.Equal(2, ci.Relations.Length);
 
             var ris = ci.Relations.OrderBy(x => x.ForeignKey);
@@ -30,7 +30,7 @@ namespace Meuzz.Persistence.Tests
         {
             var ci = typeof(Models.NoForeignKeyProperty.Player).GetTableInfo();
             Assert.NotNull(ci);
-            Assert.Equal(typeof(Models.NoForeignKeyProperty.Player), ci.ClassType);
+            Assert.Equal(typeof(Models.NoForeignKeyProperty.Player), ci.Type);
             Assert.Equal(2, ci.Relations.Length);
 
             var ris = ci.Relations.OrderBy(x => x.ForeignKey);
@@ -49,7 +49,7 @@ namespace Meuzz.Persistence.Tests
         {
             var ci = typeof(Models.AutoForeignKey.Player).GetTableInfo();
             Assert.NotNull(ci);
-            Assert.Equal(typeof(Models.AutoForeignKey.Player), ci.ClassType);
+            Assert.Equal(typeof(Models.AutoForeignKey.Player), ci.Type);
             Assert.Single(ci.Relations);
 
             var ris = ci.Relations.OrderBy(x => x.ForeignKey);

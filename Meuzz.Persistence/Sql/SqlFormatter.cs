@@ -130,7 +130,7 @@ namespace Meuzz.Persistence.Sql
             var sb = new StringBuilder();
             IDictionary<string, object?>? parameters = null;
 
-            Func<object?, object> _f = (y) => (y is string s ? Quote(s) : (y != null ? y : "NULL"));
+            Func<object?, object> _f = y => y is string s ? Quote(s) : (y != null ? y : "NULL");
 
             foreach (var obj in statement.Values)
             {

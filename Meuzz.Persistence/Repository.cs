@@ -45,7 +45,7 @@ namespace Meuzz.Persistence
             return LoadObjects(context, targetType, statement);
         }
 
-        protected IEnumerable<object> MakeDefaultLoader(IDatabaseContext context, object obj, TableInfoManager.RelationInfoEntry reli)
+        protected IEnumerable<object> MakeDefaultLoader(IDatabaseContext context, object obj, RelationInfo reli)
         {
             var statement = new SqlSelectStatement(reli.TargetType);
             var pkval = obj.GetType().GetPrimaryValue(obj);

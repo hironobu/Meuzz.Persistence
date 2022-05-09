@@ -211,8 +211,6 @@ namespace Meuzz.Persistence.Tests.Models
 
         public string Name { get; set; }
 
-        // public Geometry Location { get; set; }
-
         public Player Player { get; set; }
 
         public Player LastPlayer { get; set; }

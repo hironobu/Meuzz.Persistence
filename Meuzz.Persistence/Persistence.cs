@@ -18,14 +18,14 @@ namespace Meuzz.Persistence
         /// <param name="t">対象となる型情報。</param>
         /// <returns>テーブル情報。</returns>
         /// <exception cref="NotImplementedException">Persistent化を受けてない型情報が与えられた場合。</exception>
-        public static TableInfoManager.Entry? GetTableInfo(this Type t)
+        public static TableInfo? GetTableInfo(this Type t)
         {
             if (!t.IsPersistent())
             {
                 throw new NotImplementedException();
             }
 
-            var ti = TableInfoManager.Instance().GetEntry(t);
+            var ti = TableInfoManager.Instance().GetTableInfo(t);
             if (ti != null)
             {
                 return ti;
@@ -76,10 +76,10 @@ namespace Meuzz.Persistence
         }
 
         /// <summary>
-        ///   対象の型におけるプロパティキーを取得する。
+        ///   対象の型におけるプライマリキーを取得する。
         /// </summary>
         /// <param name="t">対象となる型。</param>
-        /// <returns>プロパティキー名。</returns>
+        /// <returns>プライマリキー名。</returns>
         public static string? GetPrimaryKey(this Type t)
         {
             var attr = t.GetCustomAttribute<PersistentAttribute>();
@@ -90,6 +90,12 @@ namespace Meuzz.Persistence
             return null;
         }
 
+        /// <summary>
+        ///   対象の型におけるプライマリキーの値を取得する。
+        /// </summary>
+        /// <param name="t">対象となる型。</param>
+        /// <param name="obj">値を取得するインスタンス。</param>
+        /// <returns><paramref name="obj"/>のプライマリキー値。</returns>
         public static object? GetPrimaryValue(this Type t, object obj)
         {
             var pkey = t.GetPrimaryKey();
@@ -98,15 +104,14 @@ namespace Meuzz.Persistence
             var propPKey = t.GetProperty(pkey.ToCamel(true));
             if (propPKey == null) { return null; }
             
-            // TODO: defaultの値も(場合によっては)正規の値として処理できる(=nullを返さない)ようにせよ
             var pval = propPKey.GetValue(obj);
             if (pval is int)
             {
-                return default(int) != (int)pval ? pval : null;
+                return (int)pval;
             }
             if (pval is long)
             {
-                return default(long) != (long)pval ? pval : null;
+                return (long)pval;
             }
 
             return pval;

@@ -10,16 +10,87 @@ using Meuzz.Foundation;
 
 namespace Meuzz.Persistence.Core
 {
+    /// <summary>
+    ///   外部キー情報。
+    /// </summary>
+    public class ForeignKeyInfo
+    {
+        /// <summary>
+        ///   コンストラクター。
+        /// </summary>
+        /// <param name="foreignKey">外部キー。</param>
+        /// <param name="foreignTableName">外部キーを持つテーブル名。</param>
+        /// <param name="primaryKey">親テーブルのプライマリキー。</param>
+        /// <param name="primaryTableName">親テーブル名。</param>
+        public ForeignKeyInfo(string? foreignKey, string? foreignTableName, string primaryKey, string primaryTableName)
+        {
+            ForeignKey = foreignKey;
+            ForeignTableName = foreignTableName;
+            PrimaryKey = primaryKey;
+            PrimaryTableName = primaryTableName;
+        }
+
+        /// <summary>
+        ///   外部キー。
+        /// </summary>
+        public string? ForeignKey { get; }
+
+        /// <summary>
+        ///   外部キーを持つテーブル名。
+        /// </summary>
+        public string? ForeignTableName { get; }
+
+        /// <summary>
+        ///   親テーブルのプライマリキー。
+        /// </summary>
+        public string PrimaryKey { get; }
+
+        /// <summary>
+        ///   親テーブル名。
+        /// </summary>
+        public string PrimaryTableName { get; }
+    }
+
+    /// <summary>
+    ///   外部キー情報(<see cref="ForeignKeyInfo"/>)を管理するクラス。
+    /// </summary>
+    /// <remarks>
+    ///   TODO: 将来的に<see cref="TableInfoManager"/>との統合を目指す。
+    /// </remarks>
     public class ForeignKeyInfoManager
     {
-        private IDictionary<Type, string[]>? _typeToForeignKeysTable;
-        private IDictionary<PropertyInfo, string>? _propertyInfoToForeignKeyTable;
-
+        /// <summary>
+        ///   コンストラクター。
+        /// </summary>
         public ForeignKeyInfoManager()
         {
         }
 
-        public void InitializeForeignKeyTable()
+        /// <summary>
+        ///   全てのPersistable化された型について、外部キー情報を読み込む。
+        /// </summary>
+        /// <remarks>
+        ///   <para>
+        ///     <list type="bullet">
+        ///       <item><see cref="PersistentAttribute"/>属性を付与されたクラスに属する</item>
+        ///       <item><see cref="HasManyAttribute"/>属性を付与されたプロパティ</item>
+        ///     </list>
+        ///     上記を満たすプロパティ全件について、下記の処理を適用する。
+        ///   </para>
+        ///   <list type="bullet">
+        ///     <item>
+        ///       プロパティに付与された<see cref="HasManyAttribute"/>から<see cref="HasManyAttribute.ForeignKey"/>を取得する
+        ///       <list type="bullet">
+        ///         <item>もし<see cref="HasManyAttribute.ForeignKey"/>が<c>null</c>ならば、一対多における「多」側の型から逆参照となるプロパティを特定し、当該プロパティ名から外部キー名を自動生成する。</item>
+        ///       </list>
+        ///     </item>
+        ///     <item>
+        ///       前項までで取得された外部キー名を、「「多」側の型をキーとするディクショナリ」「「一」側の型が持つプロパティ情報をキーとするディクショナリ」それぞれに登録する。
+        ///     </item>
+        ///   </list>
+        /// </remarks>
+        /// <exception cref="NotImplementedException"></exception>
+        public void Initialize()
         {
             var typeToForeignKeysTable = new Dictionary<Type, string[]>();
             var propertyInfoToForeignKeyTable = new Dictionary<PropertyInfo, string>();
@@ -31,9 +102,11 @@ namespace Meuzz.Persistence.Core
                     var hasManyProps = type.GetProperties().Where(p => p.IsDefined(typeof(HasManyAttribute), true));
                     foreach (var prop in hasManyProps)
                     {
-                        var t = typeof(System.Collections.IEnumerable).IsAssignableFrom(prop.PropertyType) ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
+                        var targetType = typeof(IEnumerable).IsAssignableFrom(prop.PropertyType) ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
                         var hasmany = prop.GetCustomAttribute<HasManyAttribute>();
-                        var fk = hasmany?.ForeignKey;
+                        if (hasmany == null) { throw new NotImplementedException(); }
+
+                        var fk = hasmany.ForeignKey;
                         if (fk == null)
                         {
                             if (hasManyProps.Where(p => p.PropertyType == prop.PropertyType).Count() > 1)
@@ -41,18 +114,19 @@ namespace Meuzz.Persistence.Core
                                 throw new NotImplementedException();
                             }
 
-                            var revprop = t.GetProperties().Where(x => x.PropertyType == prop.DeclaringType).Single();
+                            var revprop = targetType.GetProperties().Where(x => x.PropertyType == prop.DeclaringType).Single();
                             fk = revprop.Name.ToSnake() + "_id";
                         }
+
                         propertyInfoToForeignKeyTable.Add(prop, fk);
 
-                        if (typeToForeignKeysTable.ContainsKey(t))
+                        if (typeToForeignKeysTable.ContainsKey(targetType))
                         {
-                            typeToForeignKeysTable[t] = typeToForeignKeysTable[t].Concat(new string[] { fk }).ToArray();
+                            typeToForeignKeysTable[targetType] = typeToForeignKeysTable[targetType].Concat(new string[] { fk }).ToArray();
                         }
                         else
                         {
-                            typeToForeignKeysTable.Add(t, new string[] { fk });
+                            typeToForeignKeysTable.Add(targetType, new string[] { fk });
                         }
                     }
                 }
@@ -67,66 +141,88 @@ namespace Meuzz.Persistence.Core
             return _typeToForeignKeysTable?.ContainsKey(targetType) == true ? _typeToForeignKeysTable[targetType] : new string[] { };
         }
 
-        public string? GetForeignKeyByPropertyInfo(PropertyInfo pi)
+        private string? GetForeignKeyByPropertyInfo(PropertyInfo pi)
         {
             return _propertyInfoToForeignKeyTable?.ContainsKey(pi) == true ? _propertyInfoToForeignKeyTable[pi] : null;
         }
 
-        private Entry GetInversedForeignKeyInfo(Type t, PropertyInfo pi)
+        /// <summary>
+        ///   対象のプロパティ情報に対する外部キー情報を取得する。
+        /// </summary>
+        /// <remarks>
+        ///   <para>
+        ///     次の条件にしたがって外部キー情報を生成する。
+        ///   </para>
+        ///   <list type="bullet">
+        ///     <item>
+        ///       <term>(一対多関係における)逆参照を示すプロパティの場合</term>
+        ///       <description>
+        ///         <list type="bullet">
+        ///           <item>
+        ///             <term>Persistent化されていない型の場合</term>
+        ///             <description><c>null</c>を返す</description>
+        ///           </item>
+        ///           <item>
+        ///             <term>上記以外</term>
+        ///             <description>空の外部キー情報(<c>ForeignKey = null</c>)を返す。</description>
+        ///           </item>
+        ///         </list>
+        ///       </description>
+        ///     </item>
+        ///     <item>
+        ///       <term><see cref="HasManyAttribute"/>を持たないプロパティの場合</term>
+        ///       <description>例外射出(<see cref="NotImplementedException"/>)</description>
+        ///     </item>
+        ///     <item>
+        ///       <term>上記以外</term>
+        ///       <desciprion>外部キー、外部キーを持つテーブル名、プライマリキー、プライマリキーを持つテーブル名を構成要素とする外部キー情報(<see cref="ForeignKeyInfo"/>)を生成して返す。</desciprion>
+        ///     </item>
+        ///   </list>
+        /// </remarks>
+        /// <param name="propertyInfo">対象となるプロパティ情報。</param>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        public ForeignKeyInfo? GetForeignKeyInfoByPropertyInfo(PropertyInfo propertyInfo)
         {
-            // dummy
-            var fki = new Entry(string.Empty, string.Empty, null, null);
-            return fki;
-        }
+            var pt = propertyInfo.PropertyType;
 
-        public Entry? GetForeignKeyInfoByPropertyInfo(PropertyInfo pi)
-        {
-            var pt = pi.PropertyType;
+            // (一対多関係における)逆参照を示すプロパティの場合
             if (!(typeof(IEnumerable).IsAssignableFrom(pt) && !typeof(string).IsAssignableFrom(pt)))
             {
+                // nullもしくは空の外部キー情報を返す。
                 if (!pt.IsPersistent())
                 {
                     return null;
                 }
                 else
                 {
-                    return GetInversedForeignKeyInfo(pt, pi);
+                    return GetInversedForeignKeyInfo(pt, propertyInfo);
                 }
             }
 
-            var hasmany = pi.GetCustomAttribute<HasManyAttribute>();
-            var declaringType = pi.DeclaringType;
+            // 以下、一対多関係を示すプロパティのみ処理を進める
+            var hasmany = propertyInfo.GetCustomAttribute<HasManyAttribute>();
+            if (hasmany == null) { throw new NotImplementedException(); }
+            var declaringType = propertyInfo.DeclaringType;
             if (declaringType == null) { throw new NotImplementedException(); }
-            var primaryKey = hasmany?.PrimaryKey ?? declaringType.GetPrimaryKey();
+            var primaryKey = hasmany.PrimaryKey ?? declaringType.GetPrimaryKey();
             if (primaryKey == null) { throw new NotImplementedException(); }
-            var fki = new Entry(
+
+            return new ForeignKeyInfo(
+                hasmany.ForeignKey ?? (_propertyInfoToForeignKeyTable.ContainsKey(propertyInfo) ? _propertyInfoToForeignKeyTable[propertyInfo] : null),
+                propertyInfo.PropertyType.GetTableName(),
                 primaryKey,
-                declaringType.GetTableName(),
-                hasmany?.ForeignKey ?? GetForeignKeyByPropertyInfo(pi),
-                pi.PropertyType.GetTableName()
-                );
-
-            return fki;
+                declaringType.GetTableName());
         }
 
-        public class Entry
+        // TODO: 現時点でダミー関数。将来的に廃止するかも？
+        private ForeignKeyInfo GetInversedForeignKeyInfo(Type t, PropertyInfo pi)
         {
-            public string PrimaryKey { get; }
-            public string PrimaryTableName { get; }
-            public string? ForeignKey { get; }
-            public string? ForeignTableName { get; }
-
-            public Entry(string primaryKey, string primaryTableName, string? foreignKey, string? foreignTableName)
-            {
-                PrimaryKey = primaryKey;
-                PrimaryTableName = primaryTableName;
-                ForeignKey = foreignKey;
-                ForeignTableName = foreignTableName;
-            }
+            return new ForeignKeyInfo(null, null, string.Empty, string.Empty);
         }
 
-        private static ForeignKeyInfoManager? _instance = null;
-        private static readonly object _instanceLocker = new object();
+        private IDictionary<Type, string[]> _typeToForeignKeysTable = default!;
+        private IDictionary<PropertyInfo, string> _propertyInfoToForeignKeyTable = default!;
 
         public static ForeignKeyInfoManager Instance()
         {
@@ -137,7 +233,7 @@ namespace Meuzz.Persistence.Core
                     if (_instance == null)
                     {
                         var instance = new ForeignKeyInfoManager();
-                        instance.InitializeForeignKeyTable();
+                        instance.Initialize();
 
                         _instance = instance;
                     }
@@ -146,5 +242,8 @@ namespace Meuzz.Persistence.Core
 
             return _instance;
         }
+
+        private static ForeignKeyInfoManager? _instance = null;
+        private static readonly object _instanceLocker = new object();
     }
 }
