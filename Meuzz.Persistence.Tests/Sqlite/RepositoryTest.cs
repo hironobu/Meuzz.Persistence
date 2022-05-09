@@ -24,12 +24,12 @@ namespace Meuzz.Persistence.Tests.Sqlite
                 CREATE TABLE Characters (ID integer PRIMARY KEY, NAME text, PLAYER_ID integer, LAST_PLAYER_ID integer NULL, FOREIGN KEY (PLAYER_ID) REFERENCES Players(ID), FOREIGN KEY (LAST_PLAYER_ID) REFERENCES Players(ID));
             ");
             _context.Execute(@"
-                INSERT INTO Players VALUES (1, 'aaa', 10, 100);
-                INSERT INTO Players VALUES (2, 'bbb', 20, 200);
-                INSERT INTO Players VALUES (3, 'ccc''s', 10, 200);
-                INSERT INTO Characters VALUES (1, 'aaaa', 1, 3);
-                INSERT INTO Characters VALUES (2, 'bbbb', 1, NULL);
-                INSERT INTO Characters VALUES (3, 'cccc', 2, 3);
+                INSERT INTO Players VALUES (1, 'red', 10, 100);
+                INSERT INTO Players VALUES (2, 'blue', 20, 200);
+                INSERT INTO Players VALUES (3, 'green''s', 10, 200);
+                INSERT INTO Characters VALUES (1, 'M1 Abrams', 1, 3);
+                INSERT INTO Characters VALUES (2, 'F/A-18 Hornet', 1, NULL);
+                INSERT INTO Characters VALUES (3, 'AH-64 Apache', 2, 3);
             ");
 
             _repository = new ObjectRepository();
@@ -48,17 +48,17 @@ namespace Meuzz.Persistence.Tests.Sqlite
             var objs3 = _repository.Load<Player>(_context, 1, 2, 3);
             Assert.Equal(3, objs3.Count());
             Assert.Equal((Int64)1, objs3.ElementAt(0).Id);
-            Assert.Equal("aaa", objs3.ElementAt(0).Name);
+            Assert.Equal("red", objs3.ElementAt(0).Name);
             Assert.Equal((Int64)2, objs3.ElementAt(1).Id);
-            Assert.Equal("bbb", objs3.ElementAt(1).Name);
+            Assert.Equal("blue", objs3.ElementAt(1).Name);
             Assert.Equal((Int64)3, objs3.ElementAt(2).Id);
-            Assert.Equal("ccc's", objs3.ElementAt(2).Name);
+            Assert.Equal("green's", objs3.ElementAt(2).Name);
         }
 
         [Fact]
         public void TestLoadByLambda()
         {
-            var objs = _repository.Load<Player>(_context, (x) => x.Name == "aaa");
+            var objs = _repository.Load<Player>(_context, (x) => x.Name == "red");
             Assert.Single(objs);
             var objs2 = _repository.Load<Player>(_context, (x) => x.Age == 10);
             Assert.Equal(2, objs2.Count());
@@ -69,7 +69,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
         [Fact]
         public void TestLoadByLambdaAndVariables()
         {
-            var c = "aaa";
+            var c = "red";
             var objs = _repository.Load<Player>(_context, x => x.Name == c);
             Assert.Single(objs);
             Assert.Equal(1, objs.ElementAt(0).Id);
@@ -87,7 +87,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
         [Fact]
         public void TestLoadByClosure()
         {
-            var c = "aaa";
+            var c = "red";
             var objs = _repository.Load<Player>(_context, x => x.Name == c);
             Assert.Single(objs);
             Assert.Equal(1, objs.ElementAt(0).Id);
@@ -106,14 +106,14 @@ namespace Meuzz.Persistence.Tests.Sqlite
         [Fact]
         public void TestLoadByLambdaNotEquals()
         {
-            var objs = _repository.Load<Player>(_context, x => x.Name != "aaa");
+            var objs = _repository.Load<Player>(_context, x => x.Name != "red");
             Assert.Equal(2, objs.Count());
         }
 
         [Fact]
         public void TestLoadbyLambdaAnd()
         {
-            var objs = _repository.Load<Player>(_context, x => x.Name == "aaa" && x.Age != 10);
+            var objs = _repository.Load<Player>(_context, x => x.Name == "red" && x.Age != 10);
             Assert.Empty(objs);
         }
 
@@ -230,8 +230,8 @@ namespace Meuzz.Persistence.Tests.Sqlite
             Assert.Equal("Update Test", rset.Results.ElementAt(0)["name"]);
             Assert.Equal((Int64)10, rset.Results.ElementAt(0)["age"]);
             Assert.Equal((Int64)100, rset.Results.ElementAt(0)["play_time"]);
-            Assert.Equal("bbb", rset.Results.ElementAt(1)["name"]);
-            Assert.Equal("ccc's", rset.Results.ElementAt(2)["name"]);
+            Assert.Equal("blue", rset.Results.ElementAt(1)["name"]);
+            Assert.Equal("green's", rset.Results.ElementAt(2)["name"]);
             Assert.Equal("Create Test", rset.Results.ElementAt(3)["name"]);
             Assert.Equal((Int64)999, rset.Results.ElementAt(3)["age"]);
             Assert.Equal("Create Test 2", rset.Results.ElementAt(4)["name"]);
