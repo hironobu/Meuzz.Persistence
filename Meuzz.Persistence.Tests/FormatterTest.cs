@@ -61,21 +61,21 @@ namespace Meuzz.Persistence.Tests
             Assert.Empty(statement1.ColumnSpecs);
             Assert.Empty(statement1.RelationSpecs);
 
-            Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) = (1)", objs1.Sql);
+            Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.id) = (1)", objs1.Sql);
             Assert.Null(objs1.Parameters);
 
             var statement2 = new SelectStatement<Player>();
             statement2 = statement2.Where("id", 2);
             var objs2 = formatter.Format(statement2);
 
-            Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) = (2)", objs2.Sql);
+            Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.id) = (2)", objs2.Sql);
             Assert.Null(objs2.Parameters);
 
             var statement3 = new SelectStatement<Player>();
             statement3 = statement3.Where("id", 1, 2, 3);
             var objs3 = formatter.Format(statement3);
 
-            Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) IN (1, 2, 3)", objs3.Sql);
+            Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.id) IN (1, 2, 3)", objs3.Sql);
             Assert.Null(objs3.Parameters);
         }
 
@@ -89,7 +89,7 @@ namespace Meuzz.Persistence.Tests
             var statement2 = statement.Select(x => new { Id = x.Id, HowLong = x.PlayTime });
             var objs2 = formatter.Format(statement2);
 
-            Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.Id) IN (1, 2, 3)", objs.Sql);
+            Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.id) IN (1, 2, 3)", objs.Sql);
             Assert.Null(objs.Parameters);
             Assert.Equal(4, objs.ColumnCollationInfo.GetAliases().Length);
             Assert.Equal("x.id", objs.ColumnCollationInfo._GetOriginalColumnName("_c0"));
@@ -98,7 +98,7 @@ namespace Meuzz.Persistence.Tests
             Assert.Equal("x.play_time", objs.ColumnCollationInfo._GetOriginalColumnName("_c3"));
             Assert.Equal("x.play_time", objs.ColumnCollationInfo.GetOutputColumnName("_c3"));
 
-            Assert.Equal("SELECT x.id AS _c0, x.play_time AS _c1 FROM Players x WHERE (x.Id) IN (1, 2, 3)", objs2.Sql);
+            Assert.Equal("SELECT x.id AS _c0, x.play_time AS _c1 FROM Players x WHERE (x.id) IN (1, 2, 3)", objs2.Sql);
             Assert.Null(objs2.Parameters);
             Assert.Equal(2, objs2.ColumnCollationInfo.GetAliases().Length);
             Assert.Equal("x.id", objs2.ColumnCollationInfo._GetOriginalColumnName("_c0"));
@@ -114,7 +114,7 @@ namespace Meuzz.Persistence.Tests
             var statement = new SelectStatement<Player>().Where("id", 1, 2, 3).Select(x => x.Age);
             var objs2 = formatter.Format(statement);
 
-            Assert.Equal("SELECT x.age AS _c0 FROM Players x WHERE (x.Id) IN (1, 2, 3)", objs2.Sql);
+            Assert.Equal("SELECT x.age AS _c0 FROM Players x WHERE (x.id) IN (1, 2, 3)", objs2.Sql);
             Assert.Null(objs2.Parameters);
             Assert.Equal("x.age", objs2.ColumnCollationInfo._GetOriginalColumnName("_c0"));
             Assert.Equal("x.age", objs2.ColumnCollationInfo.GetOutputColumnName("_c0"));
@@ -128,7 +128,7 @@ namespace Meuzz.Persistence.Tests
             var statement = new SelectStatement<Player>().Where("id", 1, 2, 3);
             var statement2 = statement.Joins(p => p.Characters).Select(x => new { Id = x.Id, HowLong = x.PlayTime });
             var objs4 = formatter.Format(statement2);
-            Assert.Equal("SELECT x.id AS _c0, x.play_time AS _c1 FROM Players x LEFT JOIN Characters _t ON x.id = _t.player_id WHERE (x.Id) IN (1, 2, 3)", objs4.Sql);
+            Assert.Equal("SELECT x.id AS _c0, x.play_time AS _c1 FROM Players x LEFT JOIN Characters _t ON x.id = _t.player_id WHERE (x.id) IN (1, 2, 3)", objs4.Sql);
             Assert.Null(objs4.Parameters);
             Assert.Equal("x.id", objs4.ColumnCollationInfo._GetOriginalColumnName("_c0"));
         }

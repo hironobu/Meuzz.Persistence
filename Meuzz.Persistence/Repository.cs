@@ -481,6 +481,44 @@ namespace Meuzz.Persistence
         }
     }
 
+    public class Repository<T> : ObjectRepository where T : class
+    {
+        public IEnumerable<T> Load(IDatabaseContext context, Func<SelectStatement<T>, SelectStatement<T>> f)
+        {
+            return base.Load<T>(context, f);
+        }
+
+        public IEnumerable<T2> Load<T2>(IDatabaseContext context, Func<SelectStatement<T>, SelectStatement<T2>> f)
+        {
+            return base.Load<T, T2>(context, f);
+        }
+
+        public IEnumerable<T> Load(IDatabaseContext context, Expression<Func<T, bool>> f)
+        {
+            return base.Load<T>(context, f);
+        }
+
+        public IEnumerable<T> Load(IDatabaseContext context, params object[] id)
+        {
+            return base.Load<T>(context, id);
+        }
+
+        public bool Store(IDatabaseContext context, params T[] objs)
+        {
+            return base.Store<T>(context, objs);
+        }
+
+        public bool Delete(IDatabaseContext context, Expression<Func<T, bool>> f)
+        {
+            return base.Delete<T>(context, f);
+        }
+
+        public bool Delete(IDatabaseContext context, params object[] id)
+        {
+            return base.Delete<T>(context, id);
+        }
+    }
+
     public static class PersistentObjectExtensions
     {
         public static bool Save(this object obj)

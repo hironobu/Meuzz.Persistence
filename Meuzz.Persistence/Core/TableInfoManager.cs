@@ -223,7 +223,7 @@ namespace Meuzz.Persistence.Core
             }
 
             var fkeys = ForeignKeyInfoManager.Instance().GetForeignKeysByTargetType(type);
-            foreach (var fk in fkeys)
+            foreach (var fk in fkeys.Where(x => !colinfos.Select(x => x.Name).Contains(x)))
             {
                 colinfos.Add(new ColumnInfo(fk.ToSnake()));
             }

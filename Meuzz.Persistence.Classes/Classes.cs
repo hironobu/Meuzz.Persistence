@@ -35,11 +35,10 @@ namespace Meuzz.Persistence
     {
         public string ForeignKey = null;
         public string PrimaryKey = null;
+        public Type Through = null;
 
-        public HasManyAttribute(string ForeignKey = null, string PrimaryKey = null)
+        public HasManyAttribute()
         {
-            this.ForeignKey = ForeignKey;
-            this.PrimaryKey = PrimaryKey;
         }
     }
 

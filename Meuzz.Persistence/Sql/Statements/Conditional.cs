@@ -18,7 +18,7 @@ namespace Meuzz.Persistence.Sql
             ParameterSetInfo.RegisterParameter(null, t, true);
         }
 
-        public SqlSelectStatement(SqlSelectStatement statement) : base(statement.Type, statement.Condition)
+        public SqlSelectStatement(Type t, SqlSelectStatement statement) : base(t, statement.Condition)
         {
             _source = statement.Source;
             _columnSpecs = statement.ColumnSpecs;
@@ -157,6 +157,12 @@ namespace Meuzz.Persistence.Sql
             var relationSpec = RelationSpec.Build(leftParamName, leftparamexp.Type, rightParamName, propertyInfo, condexp);
             AddRelationSpec(relationSpec);
         }
+
+        protected void BuildRelationSpec(LambdaExpression? condexp)
+        {
+            throw new NotImplementedException();
+        }
+
         #endregion
 
         #region Output
@@ -405,7 +411,11 @@ namespace Meuzz.Persistence.Sql
         {
         }
 
-        public SelectStatement(SqlSelectStatement statement) : base(statement)
+        public SelectStatement(Type t, SqlSelectStatement statement) : base(t, statement)
+        {
+        }
+
+        public SelectStatement(SqlSelectStatement statement) : base(statement.Type, statement)
         {
         }
 
@@ -449,7 +459,9 @@ namespace Meuzz.Persistence.Sql
 
         public virtual SelectStatement<(T _0, T1 _1)> Joins<T1>(Expression<Func<T, T1, bool>>? cond)
         {
-            throw new NotImplementedException();
+            var statement2 = new SelectStatement<(T _0, T1 _1)>(typeof((T _0, T1 _1)), this);
+            statement2.BuildRelationSpec(cond);
+            return statement2;
         }
 
         public virtual SelectStatement<T1> Select<T1>(Expression<Func<T, T1>> expression)

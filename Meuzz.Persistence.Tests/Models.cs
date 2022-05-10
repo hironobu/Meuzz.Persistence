@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using Meuzz.Persistence.Tests.Models;
 
 namespace Meuzz.Persistence.Tests
 {
@@ -183,10 +181,10 @@ namespace Meuzz.Persistence.Tests.Models
 
         public int PlayTime { get; set; }
 
-        [HasMany(ForeignKey: "player_id")]
+        [HasMany(ForeignKey="player_id")]
         public IEnumerable<Character> Characters { get; set; }
 
-        [HasMany(ForeignKey: "last_player_id")]
+        [HasMany(ForeignKey="last_player_id")]
         public IEnumerable<Character> LastCharacters { get; set; }
 
         public string _HiddenString { get; set; }
@@ -252,10 +250,10 @@ namespace Meuzz.Persistence.Tests.Models.ReadOnly
 
         public int PlayTime { get; }
 
-        [HasMany(ForeignKey: "player_id")]
+        [HasMany(ForeignKey="player_id")]
         public IEnumerable<Character> Characters { get; }
 
-        [HasMany(ForeignKey: "last_player_id")]
+        [HasMany(ForeignKey="last_player_id")]
         public IEnumerable<Character> LastCharacters { get; }
 
         // public IEnumerable<Item> Items { get; set; }
@@ -334,10 +332,10 @@ namespace Meuzz.Persistence.Tests.Models.NoForeignKeyProperty
 
         public int PlayTime { get; set; }
 
-        [HasMany(ForeignKey: "player_id")]
+        [HasMany(ForeignKey="player_id")]
         public IEnumerable<Character> Characters { get; set; }
 
-        [HasMany(ForeignKey: "last_player_id")]
+        [HasMany(ForeignKey="last_player_id")]
         public IEnumerable<Character> LastCharacters { get; set; }
     }
 
@@ -396,10 +394,10 @@ namespace Meuzz.Persistence.Tests.Models.UsingFields
 
         public int PlayTime;
 
-        [HasMany(ForeignKey: "player_id")]
+        [HasMany(ForeignKey="player_id")]
         public IEnumerable<Character> Characters { get; set; }
 
-        [HasMany(ForeignKey: "last_player_id")]
+        [HasMany(ForeignKey="last_player_id")]
         public IEnumerable<Character> LastCharacters { get; set; }
     }
 

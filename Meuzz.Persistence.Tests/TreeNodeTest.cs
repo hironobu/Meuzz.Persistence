@@ -15,7 +15,7 @@ namespace Meuzz.Persistence.Tests
         [Column]
         public string Name { get; set; }
 
-        [HasMany(ForeignKey: "parent_id")]
+        [HasMany(ForeignKey= "parent_id")]
         public IEnumerable<TreeNode> Children { get; set; }
 
         public TreeNode Parent { get; set; }

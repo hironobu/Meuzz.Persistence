@@ -26,7 +26,7 @@ namespace Meuzz.Persistence.Sql
             {
                 var ck = $"_c{_columns.Count()}";
 
-                if (!_columns.ContainsKey(ks.First()))
+                if (!_columns.ContainsKey($"{paramName}.{ks.First()}"))
                 {
                     _columns.Add($"{paramName}.{ks.First()}", ck);
                     _outputColumns.Add(ck, $"{paramName}.{ks.Last()}");

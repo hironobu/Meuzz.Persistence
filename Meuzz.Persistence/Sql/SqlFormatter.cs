@@ -227,7 +227,7 @@ namespace Meuzz.Persistence.Sql
                 case MemberExpression me:
                     if (me.Expression.NodeType == ExpressionType.Parameter && !showsParameterName)
                     {
-                        return $"{(me.Member.Name)}";
+                        return $"{(me.Member.Name.ToSnake())}";
                     }
                     else if (me.Expression.NodeType == ExpressionType.Constant)
                     {
@@ -282,7 +282,7 @@ namespace Meuzz.Persistence.Sql
                     }
                     else
                     {
-                        return $"{FormatElement(me.Expression, showsParameterName, useQuote, parameters)}.{(me.Member.Name)}";
+                        return $"{FormatElement(me.Expression, showsParameterName, useQuote, parameters)}.{me.Member.Name.ToSnake()}";
                     }
 
                 case MethodCallExpression mce:
