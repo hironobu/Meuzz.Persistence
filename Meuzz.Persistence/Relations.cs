@@ -35,7 +35,7 @@ namespace Meuzz.Persistence
 
         public EvaluatorSpec? ConditionEvaluatorSpec { get; } = null;
 
-        public MemberInfo MemberInfo { get; set; } = default!;
+        public MemberInfo? MemberInfo { get; set; } = null;
 
         public RelationSpec(string fk, string pk, EvaluatorSpec? conditionEvaluatorSpec = null)
         {
@@ -76,18 +76,8 @@ namespace Meuzz.Persistence
             return joiningConditionMaker(eq, memberAccessor(primaryKey), memberAccessor(foreignKey));
         }
 
-        public static RelationSpec Build(string leftName, Type leftType, string rightName, PropertyInfo relationPropertyInfo, LambdaExpression? condexp)
+        public static RelationSpec Build(string leftName, Type leftType, string rightName, Type rightType, PropertyInfo? relationPropertyInfo, LambdaExpression? condexp)
         {
-            if (relationPropertyInfo.DeclaringType == null)
-            {
-                throw new ArgumentException("Invalid Parameter", "relationMemberInfo");
-            }
-
-            var rightType = relationPropertyInfo.PropertyType;
-            if (rightType == null)
-            {
-                throw new NotImplementedException();
-            }
             if (rightType.IsGenericType)
             {
                 rightType = rightType.GetGenericArguments()[0];
@@ -96,7 +86,7 @@ namespace Meuzz.Persistence
             RelationSpec? relationSpec = null;
             if (condexp != null)
             {
-                var relationCond = Condition.New(relationPropertyInfo.DeclaringType, condexp.Body);
+                var relationCond = Condition.New(leftType, condexp.Body);
 
                 var primaryKey = string.Join("_", relationCond.Left.PathComponents).ToSnake();
                 var foreignKey = string.Join("_", relationCond.Right.PathComponents).ToSnake();
@@ -110,7 +100,7 @@ namespace Meuzz.Persistence
 
                 relationSpec = new RelationSpec(foreignKey, primaryKey, new EvaluatorSpec(relationCond.Comparator, relationCond.Left.f, relationCond.Right.f));
             }
-            else
+            else if (relationPropertyInfo != null)
             {
                 var fki = ForeignKeyInfoManager.Instance().GetForeignKeyInfoByPropertyInfo(relationPropertyInfo);
                 if (fki != null)
@@ -123,7 +113,7 @@ namespace Meuzz.Persistence
                 }
                 else
                 {
-                    var primaryTable = relationPropertyInfo.DeclaringType.GetTableName();
+                    var primaryTable = leftType.GetTableName();
                     var foreignTableInfo = rightType.GetTableInfo();
                     if (foreignTableInfo == null)
                     {
@@ -136,6 +126,10 @@ namespace Meuzz.Persistence
                     }
                     relationSpec = new RelationSpec(matchedColumnInfo.Name.ToLower(), matchedColumnInfo.BindingToPrimaryKey.ToLower());
                 }
+            }
+            else
+            {
+                throw new ArgumentException("eigher relationPropertyInfo or condexp is should be non-null");
             }
 
             relationSpec.Left = new Parameter() { Type = leftType, Name = leftName };

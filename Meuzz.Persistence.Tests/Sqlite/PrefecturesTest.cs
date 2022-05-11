@@ -132,7 +132,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
         public void TestLoadByIdAndEdgesWithJoins()
         {
             var edges = _edgeRepository.Load(_context, st => st.Where(x => x.FromId == 4).Joins<Prefecture>((x, y) => x.ToId == y.Id));
-            Assert.Single(edges);
+            Assert.Equal(3, edges.Count());
             Assert.Equal(4, edges.First().Item1.FromId);
 
             //var edges = prefs.First().Edges.ToList();

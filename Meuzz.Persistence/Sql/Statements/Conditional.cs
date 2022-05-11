@@ -59,7 +59,7 @@ namespace Meuzz.Persistence.Sql
         {
             var p = cond.Parameters.Single();
             ParameterSetInfo.RegisterParameter(p.Name, t ?? p.Type, true);
-            // (return) == p.Name
+            // (return) == p.Name or with number added
 
             base.BuildCondition(cond, t);
         }
@@ -135,7 +135,7 @@ namespace Meuzz.Persistence.Sql
             _relationSpecs = specs;
         }
 
-        protected virtual void BuildRelationSpec(LambdaExpression propexp, LambdaExpression? condexp)
+        protected void BuildRelationSpec(LambdaExpression propexp, LambdaExpression? condexp)
         {
             var propbodyexp = propexp.Body;
             var leftparamexp = propexp.Parameters.Single();
@@ -154,13 +154,20 @@ namespace Meuzz.Persistence.Sql
             var leftParamName = ParameterSetInfo.GetDefaultParamName();
             var rightParamName = ParameterSetInfo.RegisterParameter(condexp != null ? condexp.Parameters.Skip(1).First().Name : null, rightParamType, false);
 
-            var relationSpec = RelationSpec.Build(leftParamName, leftparamexp.Type, rightParamName, propertyInfo, condexp);
+            var relationSpec = RelationSpec.Build(leftParamName, leftparamexp.Type, rightParamName, rightParamType, propertyInfo, condexp);
             AddRelationSpec(relationSpec);
         }
 
-        protected void BuildRelationSpec(LambdaExpression? condexp)
+        protected void BuildRelationSpec(LambdaExpression condexp)
         {
-            throw new NotImplementedException();
+            var leftParamType = condexp.Parameters.First().Type;
+            var rightParamType = condexp.Parameters.Last().Type;
+
+            var leftParamName = ParameterSetInfo.GetDefaultParamName();
+            var rightParamName = ParameterSetInfo.RegisterParameter(condexp.Parameters.Skip(1).First().Name, rightParamType, false);
+
+            var relationSpec = RelationSpec.Build(leftParamName, leftParamType, rightParamName, rightParamType, null, condexp);
+            AddRelationSpec(relationSpec);
         }
 
         #endregion
@@ -450,16 +457,16 @@ namespace Meuzz.Persistence.Sql
             return statement2;
         }
 
-        public virtual SelectStatement<T> Joins<T1>(Expression<Func<T, IEnumerable<T1>>> propexp, Expression<Func<T, T1, bool>>? cond = null)
+        public SelectStatement<T> Joins<T1>(Expression<Func<T, IEnumerable<T1>>> propexp, Expression<Func<T, T1, bool>>? cond = null)
         {
             var statement2 = new SelectStatement<T>(this);
             statement2.BuildRelationSpec(propexp, cond);
             return statement2;
         }
 
-        public virtual SelectStatement<(T _0, T1 _1)> Joins<T1>(Expression<Func<T, T1, bool>>? cond)
+        public SelectStatement<(T, T1)> Joins<T1>(Expression<Func<T, T1, bool>> cond)
         {
-            var statement2 = new SelectStatement<(T _0, T1 _1)>(typeof((T _0, T1 _1)), this);
+            var statement2 = new SelectStatement<(T, T1)>(this);
             statement2.BuildRelationSpec(cond);
             return statement2;
         }

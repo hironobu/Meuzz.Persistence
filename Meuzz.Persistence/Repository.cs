@@ -13,6 +13,24 @@ using Meuzz.Persistence.Sql;
 
 namespace Meuzz.Persistence
 {
+    public static class TupleHelperExtensions
+    {
+        public static bool IsTuple(this Type tuple)
+        {
+            if (!tuple.IsGenericType)
+                return false;
+            var openType = tuple.GetGenericTypeDefinition();
+            return openType == typeof(ValueTuple<>)
+                || openType == typeof(ValueTuple<,>)
+                || openType == typeof(ValueTuple<,,>)
+                || openType == typeof(ValueTuple<,,,>)
+                || openType == typeof(ValueTuple<,,,,>)
+                || openType == typeof(ValueTuple<,,,,,>)
+                || openType == typeof(ValueTuple<,,,,,,>)
+                || (openType == typeof(ValueTuple<,,,,,,,>) && IsTuple(tuple.GetGenericArguments()[7]));
+        }
+    }
+
     public class ObjectRepositoryBase
     {
         protected IEnumerable<object> LoadObjects(IDatabaseContext context, Type t, SqlSelectStatement statement, Action<IEnumerable<object>>? propertySetter = null)
@@ -260,13 +278,20 @@ namespace Meuzz.Persistence
 
             BuildBindings(statement, resultObjects);
 
-            var objects = resultObjects[statement.ParameterSetInfo.GetDefaultParamName()!].Values;
-            if (!objects.Any())
+            if (!t.IsTuple())
             {
-                objects = resultDefaultObjects[statement.ParameterSetInfo.GetDefaultParamName()!].ToArray();
+                var objects = resultObjects[statement.ParameterSetInfo.GetDefaultParamName()!].Values;
+                if (!objects.Any())
+                {
+                    objects = resultDefaultObjects[statement.ParameterSetInfo.GetDefaultParamName()!].ToArray();
+                }
+                var rets = EnumerableCast(t, objects.Select(x => x["__object"]));
+                return (IEnumerable<object>)rets;
             }
-            var rets = EnumerableCast(t, objects.Select(x => x["__object"]));
-            return (IEnumerable<object>)rets;
+            else
+            {
+                throw new NotImplementedException();
+            }
         }
 
         private IEnumerable<IDictionary<string, object?>> RearrangeResultSet(ResultSet resultSet)
@@ -319,6 +344,11 @@ namespace Meuzz.Persistence
 
             foreach (var relationSpec in statement.RelationSpecs)
             {
+                if (relationSpec.MemberInfo == null)
+                {
+                    continue;
+                }
+
                 var fromObjs = resultObjects[relationSpec.Left.Name].Values;
                 var proptype = ((PropertyInfo)relationSpec.MemberInfo).PropertyType;
 
