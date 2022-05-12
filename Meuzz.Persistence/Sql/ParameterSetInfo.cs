@@ -32,35 +32,36 @@ namespace Meuzz.Persistence.Sql
 
         public string RegisterParameter(string? name, Type t, bool asDefault)
         {
-            string k0 = !string.IsNullOrEmpty(name) ? name! : "_t";
-            string k = k0!;
+            string k;
 
-            if (k != null)
+            if (!asDefault)
             {
                 int i = 1;
+
+                string k0 = "_t";
+                k = $"{k0}{i++}";
+
                 while (_parameters.ContainsKey(k))
                 {
                     k = $"{k0}{i++}";
                 }
                 _parameters.Add(k, t);
-            }
-
-            if (asDefault)
-            {
-                if (_defaultParamKey != null)
-                {
-                    _parameters.Remove(_defaultParamKey);
-                    _defaultParamKey = null;
-                }
-
-                _defaultParamKey = k ?? _defaultParamKey;
+                _parameterKeys.Add(k!);
             }
             else
             {
-                _parameterKeys.Add(k!);
+                k = $"_t0";
+
+                if (_parameters.TryGetValue(k, out var t0) && t0 != t)
+                {
+                    throw new InvalidOperationException();
+                }
+
+                _parameters[k] = t;
+                _defaultParamKey = k;
             }
 
-            return k!;
+            return k;
         }
 
         public void SetParameterMemberExpressions(IDictionary<ExpressionComparer, MemberExpression[]> memberExpressions)

@@ -57,6 +57,10 @@ namespace Meuzz.Persistence.Sql
         #region Condition
         public override void BuildCondition(LambdaExpression cond, Type? t)
         {
+            var px0 = cond.Parameters.First();
+            var px = Expression.Parameter(px0.Type, ParameterSetInfo.GetDefaultParamName());
+            cond = Expression.Lambda(ParameterReplacer.Replace(cond.Body, cond.Parameters.First(), px), px);
+
             var p = cond.Parameters.Single();
             ParameterSetInfo.RegisterParameter(p.Name, t ?? p.Type, true);
             // (return) == p.Name or with number added
@@ -67,12 +71,11 @@ namespace Meuzz.Persistence.Sql
         #endregion
 
         #region Columns
-        public void BuildColumnSpec(LambdaExpression columnlistexp)
+        public void BuildColumnSpec(LambdaExpression columnListExpression)
         {
-            Expression[] paramexps = columnlistexp.Parameters.ToArray();
-            Expression bodyexp = columnlistexp.Body;
+            Expression bodyexp = columnListExpression.Body;
             IEnumerable<Expression> args;
-            IEnumerable<MemberInfo> memberInfos = new MemberInfo[] { };
+            IEnumerable<MemberInfo> memberInfos;
 
             switch (bodyexp)
             {
@@ -522,6 +525,40 @@ namespace Meuzz.Persistence.Sql
         {
             BuildCondition(key, value);
             return this;
+        }
+    }
+
+    public static class ParameterReplacer
+    {
+        public static Expression Replace
+                        (Expression expression,
+                        ParameterExpression source,
+                        Expression target)
+        {
+            return new ParameterReplacerVisitor(source, target).Visit(expression);
+        }
+
+        private class ParameterReplacerVisitor : ExpressionVisitor
+        {
+            public ParameterReplacerVisitor(ParameterExpression source, Expression target)
+            {
+                _source = source;
+                _target = target;
+            }
+
+            protected override Expression VisitLambda<T>(Expression<T> node)
+            {
+                var parameters = node.Parameters.Select(p => (ParameterExpression)Visit(p));
+                return Expression.Lambda(Visit(node.Body), parameters);
+            }
+
+            protected override Expression VisitParameter(ParameterExpression node)
+            {
+                return node == _source ? _target : base.VisitParameter(node);
+            }
+
+            private ParameterExpression _source;
+            private Expression _target;
         }
     }
 }

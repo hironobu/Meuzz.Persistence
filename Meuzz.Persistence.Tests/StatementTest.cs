@@ -55,7 +55,7 @@ namespace Meuzz.Persistence.Tests
             Assert.Null(statement.OutputSpec);
             Assert.NotNull(statement.ParameterSetInfo);
             Assert.Single(statement.ParameterSetInfo.GetAllParameters());
-            Assert.Equal("_t", statement.ParameterSetInfo.GetAllParameters().First().Item1);
+            Assert.Equal("_t0", statement.ParameterSetInfo.GetAllParameters().First().Item1);
             Assert.Equal(typeof(Member), statement.ParameterSetInfo.GetAllParameters().First().Item2);
         }
 
@@ -65,12 +65,12 @@ namespace Meuzz.Persistence.Tests
             // SELECT * FROM Member x WHERE ID = 1
             var statement = new SelectStatement<Member>().Where(x => x.Id == 1);
             Assert.NotNull(statement.Condition);
-            Assert.Equal("x => (x.Id == 1)", statement.Condition.ToString());
+            Assert.Equal("_t0 => (_t0.Id == 1)", statement.Condition.ToString());
             Assert.Empty(statement.RelationSpecs);
             Assert.Null(statement.OutputSpec);
 
             Assert.Single(statement.ParameterSetInfo.GetAllParameters());
-            Assert.Equal("x", statement.ParameterSetInfo.GetAllParameters().First().Item1);
+            Assert.Equal("_t0", statement.ParameterSetInfo.GetAllParameters().First().Item1);
             Assert.Equal(typeof(Member), statement.ParameterSetInfo.GetAllParameters().First().Item2);
         }
 
@@ -84,7 +84,7 @@ namespace Meuzz.Persistence.Tests
             var statement2 = statement.Where("id", 1);
             Assert.NotNull(statement2.Condition);
 
-            Assert.Equal("x => (Convert(x.Id, Int32) == 1)", statement2.Condition.ToString());
+            Assert.Equal("_t0 => (Convert(_t0.Id, Int32) == 1)", statement2.Condition.ToString());
         }
 
         [Fact]
@@ -97,7 +97,7 @@ namespace Meuzz.Persistence.Tests
             var statement2 = statement.Where("id", 1, 2, 3);
             Assert.NotNull(statement2.Condition);
 
-            Assert.Equal("x => value(System.Object[]).Contains(Convert(x.Id, Object))", statement2.Condition.ToString());
+            Assert.Equal("_t0 => value(System.Object[]).Contains(Convert(_t0.Id, Object))", statement2.Condition.ToString());
         }
 
         [Fact]
@@ -112,7 +112,7 @@ namespace Meuzz.Persistence.Tests
 
             statement = statement.Joins<Member>(x => x.Players, (x, m) => (x.Id == m.TeamId));
 
-            Assert.Equal("x => (x.Id == 1)", statement.Condition.ToString());
+            Assert.Equal("_t0 => (_t0.Id == 1)", statement.Condition.ToString());
         }
 
         [Fact]
@@ -125,7 +125,7 @@ namespace Meuzz.Persistence.Tests
             var statement2 = statement.Where(x => x.Id == 1);
             Assert.NotNull(statement2.Condition);
 
-            Assert.Equal("x => (x.Id == 1)", statement2.Condition.ToString());
+            Assert.Equal("_t0 => (_t0.Id == 1)", statement2.Condition.ToString());
 
             var statement3 = statement2.Select(x => x.Id);
 
@@ -153,7 +153,7 @@ namespace Meuzz.Persistence.Tests
             Assert.NotNull(statement2.Condition);
             Assert.Null(statement.Condition);
 
-            Assert.Equal("x => (x.Id == 1)", statement2.Condition.ToString());
+            Assert.Equal("_t0 => (_t0.Id == 1)", statement2.Condition.ToString());
 
             var statement3 = statement2.Select(x => new { Code = x.Id, Title = x.Name });
 
@@ -180,7 +180,7 @@ namespace Meuzz.Persistence.Tests
             var statement2 = statement.Where(x => x.Id == 1);
             Assert.NotNull(statement2.Condition);
 
-            Assert.Equal("x => (x.Id == 1)", statement2.Condition.ToString());
+            Assert.Equal("_t0 => (_t0.Id == 1)", statement2.Condition.ToString());
 
             Assert.Throws<NotImplementedException>(() =>
             {

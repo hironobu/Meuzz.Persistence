@@ -46,13 +46,13 @@ namespace Meuzz.Persistence.Sql
             var ppi = k != null && t != null ? t.GetPropertyInfoFromColumnName(k) : null;
             if (ppi != null)
             {
-                px = Expression.Parameter(t, "x");
+                px = Expression.Parameter(t, "_t0");
                 memberAccessor = Expression.MakeMemberAccess(px, ppi);
             }
             else
             {
                 var t1 = typeof(Dictionary<string, object?>);
-                px = Expression.Parameter(t1, "x");
+                px = Expression.Parameter(t1, "_t0");
                 memberAccessor = ExpressionHelpers.MakeDictionaryAccessorExpression(px.Name, key, new[] { px });
             }
 

@@ -50,7 +50,7 @@ namespace Meuzz.Persistence.Tests
             //var statement = new SelectStatement<Player>();
             //var objs = formatter.Format(statement);
 
-            //Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x", objs.Sql);
+            //Assert.Equal("SELECT _t0.id AS _c0, _t0.name AS _c1, _t0.age AS _c2, _t0.play_time AS _c3 FROM Players x", objs.Sql);
             //Assert.Null(objs.Parameters);
 
             var statement1 = new SelectStatement<Player>();
@@ -61,21 +61,21 @@ namespace Meuzz.Persistence.Tests
             Assert.Empty(statement1.ColumnSpecs);
             Assert.Empty(statement1.RelationSpecs);
 
-            Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.id) = (1)", objs1.Sql);
+            Assert.Equal("SELECT _t0.id AS _c0, _t0.name AS _c1, _t0.age AS _c2, _t0.play_time AS _c3 FROM Players _t0 WHERE (_t0.id) = (1)", objs1.Sql);
             Assert.Null(objs1.Parameters);
 
             var statement2 = new SelectStatement<Player>();
             statement2 = statement2.Where("id", 2);
             var objs2 = formatter.Format(statement2);
 
-            Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.id) = (2)", objs2.Sql);
+            Assert.Equal("SELECT _t0.id AS _c0, _t0.name AS _c1, _t0.age AS _c2, _t0.play_time AS _c3 FROM Players _t0 WHERE (_t0.id) = (2)", objs2.Sql);
             Assert.Null(objs2.Parameters);
 
             var statement3 = new SelectStatement<Player>();
             statement3 = statement3.Where("id", 1, 2, 3);
             var objs3 = formatter.Format(statement3);
 
-            Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.id) IN (1, 2, 3)", objs3.Sql);
+            Assert.Equal("SELECT _t0.id AS _c0, _t0.name AS _c1, _t0.age AS _c2, _t0.play_time AS _c3 FROM Players _t0 WHERE (_t0.id) IN (1, 2, 3)", objs3.Sql);
             Assert.Null(objs3.Parameters);
         }
 
@@ -89,21 +89,21 @@ namespace Meuzz.Persistence.Tests
             var statement2 = statement.Select(x => new { Id = x.Id, HowLong = x.PlayTime });
             var objs2 = formatter.Format(statement2);
 
-            Assert.Equal("SELECT x.id AS _c0, x.name AS _c1, x.age AS _c2, x.play_time AS _c3 FROM Players x WHERE (x.id) IN (1, 2, 3)", objs.Sql);
+            Assert.Equal("SELECT _t0.id AS _c0, _t0.name AS _c1, _t0.age AS _c2, _t0.play_time AS _c3 FROM Players _t0 WHERE (_t0.id) IN (1, 2, 3)", objs.Sql);
             Assert.Null(objs.Parameters);
             Assert.Equal(4, objs.ColumnCollationInfo.GetAliases().Length);
-            Assert.Equal("x.id", objs.ColumnCollationInfo._GetOriginalColumnName("_c0"));
-            Assert.Equal("x.name", objs.ColumnCollationInfo._GetOriginalColumnName("_c1"));
-            Assert.Equal("x.age", objs.ColumnCollationInfo._GetOriginalColumnName("_c2"));
-            Assert.Equal("x.play_time", objs.ColumnCollationInfo._GetOriginalColumnName("_c3"));
-            Assert.Equal("x.play_time", objs.ColumnCollationInfo.GetOutputColumnName("_c3"));
+            Assert.Equal("_t0.id", objs.ColumnCollationInfo._GetOriginalColumnName("_c0"));
+            Assert.Equal("_t0.name", objs.ColumnCollationInfo._GetOriginalColumnName("_c1"));
+            Assert.Equal("_t0.age", objs.ColumnCollationInfo._GetOriginalColumnName("_c2"));
+            Assert.Equal("_t0.play_time", objs.ColumnCollationInfo._GetOriginalColumnName("_c3"));
+            Assert.Equal("_t0.play_time", objs.ColumnCollationInfo.GetOutputColumnName("_c3"));
 
-            Assert.Equal("SELECT x.id AS _c0, x.play_time AS _c1 FROM Players x WHERE (x.id) IN (1, 2, 3)", objs2.Sql);
+            Assert.Equal("SELECT _t0.id AS _c0, _t0.play_time AS _c1 FROM Players _t0 WHERE (_t0.id) IN (1, 2, 3)", objs2.Sql);
             Assert.Null(objs2.Parameters);
             Assert.Equal(2, objs2.ColumnCollationInfo.GetAliases().Length);
-            Assert.Equal("x.id", objs2.ColumnCollationInfo._GetOriginalColumnName("_c0"));
-            Assert.Equal("x.play_time", objs2.ColumnCollationInfo._GetOriginalColumnName("_c1"));
-            Assert.Equal("x.how_long", objs2.ColumnCollationInfo.GetOutputColumnName("_c1"));
+            Assert.Equal("_t0.id", objs2.ColumnCollationInfo._GetOriginalColumnName("_c0"));
+            Assert.Equal("_t0.play_time", objs2.ColumnCollationInfo._GetOriginalColumnName("_c1"));
+            Assert.Equal("_t0.how_long", objs2.ColumnCollationInfo.GetOutputColumnName("_c1"));
         }
 
         [Fact]
@@ -114,10 +114,10 @@ namespace Meuzz.Persistence.Tests
             var statement = new SelectStatement<Player>().Where("id", 1, 2, 3).Select(x => x.Age);
             var objs2 = formatter.Format(statement);
 
-            Assert.Equal("SELECT x.age AS _c0 FROM Players x WHERE (x.id) IN (1, 2, 3)", objs2.Sql);
+            Assert.Equal("SELECT _t0.age AS _c0 FROM Players _t0 WHERE (_t0.id) IN (1, 2, 3)", objs2.Sql);
             Assert.Null(objs2.Parameters);
-            Assert.Equal("x.age", objs2.ColumnCollationInfo._GetOriginalColumnName("_c0"));
-            Assert.Equal("x.age", objs2.ColumnCollationInfo.GetOutputColumnName("_c0"));
+            Assert.Equal("_t0.age", objs2.ColumnCollationInfo._GetOriginalColumnName("_c0"));
+            Assert.Equal("_t0.age", objs2.ColumnCollationInfo.GetOutputColumnName("_c0"));
         }
 
         [Fact]
@@ -128,9 +128,9 @@ namespace Meuzz.Persistence.Tests
             var statement = new SelectStatement<Player>().Where("id", 1, 2, 3);
             var statement2 = statement.Joins(p => p.Characters).Select(x => new { Id = x.Id, HowLong = x.PlayTime });
             var objs4 = formatter.Format(statement2);
-            Assert.Equal("SELECT x.id AS _c0, x.play_time AS _c1 FROM Players x LEFT JOIN Characters _t ON x.id = _t.player_id WHERE (x.id) IN (1, 2, 3)", objs4.Sql);
+            Assert.Equal("SELECT _t0.id AS _c0, _t0.play_time AS _c1 FROM Players _t0 LEFT JOIN Characters _t1 ON _t0.id = _t1.player_id WHERE (_t0.id) IN (1, 2, 3)", objs4.Sql);
             Assert.Null(objs4.Parameters);
-            Assert.Equal("x.id", objs4.ColumnCollationInfo._GetOriginalColumnName("_c0"));
+            Assert.Equal("_t0.id", objs4.ColumnCollationInfo._GetOriginalColumnName("_c0"));
         }
 
         [Fact]
@@ -163,9 +163,9 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestLoadByLambda()
         {
-            var objs = _repository.Load((x) => x.Name == "aaa");
+            var objs = _repository.Load((x) => _t0.Name == "aaa");
             Assert.Single(objs);
-            var objs2 = _repository.Load((x) => x.Age == 10);
+            var objs2 = _repository.Load((x) => _t0.Age == 10);
             Assert.Equal(2, objs2.Count());
             Assert.Equal(1, objs2.ElementAt(0).Id);
             Assert.Equal(3, objs2.ElementAt(1).Id);
@@ -175,12 +175,12 @@ namespace Meuzz.Persistence.Tests
         public void TestLoadByLambdaAndVariables()
         {
             var c = "aaa";
-            var objs = _repository.Load(x => x.Name == c);
+            var objs = _repository.Load(x => _t0.Name == c);
             Assert.Single(objs);
             Assert.Equal(1, objs.ElementAt(0).Id);
 
             var age = 10;
-            var objs2 = _repository.Load(x => x.Age == age);
+            var objs2 = _repository.Load(x => _t0.Age == age);
             Assert.Equal(2, objs2.Count());
             Assert.Equal(1, objs2.ElementAt(0).Id);
             Assert.Equal(3, objs2.ElementAt(1).Id);
@@ -193,12 +193,12 @@ namespace Meuzz.Persistence.Tests
         public void TestLoadByClosure()
         {
             var c = "aaa";
-            var objs = _repository.Load(x => x.Name == c);
+            var objs = _repository.Load(x => _t0.Name == c);
             Assert.Single(objs);
             Assert.Equal(1, objs.ElementAt(0).Id);
 
             var age = 10;
-            var objs2 = _repository.Load(x => x.Age == age);
+            var objs2 = _repository.Load(x => _t0.Age == age);
             Assert.Equal(2, objs2.Count());
             Assert.Equal(1, objs2.ElementAt(0).Id);
             Assert.Equal(3, objs2.ElementAt(1).Id);
@@ -211,23 +211,23 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestLoadByLambdaNotEquals()
         {
-            var objs = _repository.Load(x => x.Name != "aaa");
+            var objs = _repository.Load(x => _t0.Name != "aaa");
             Assert.Equal(2, objs.Count());
         }
 
         [Fact]
         public void TestLoadbyLambdaAnd()
         {
-            var objs = _repository.Load(x => x.Name == "aaa" && x.Age != 10);
+            var objs = _repository.Load(x => _t0.Name == "aaa" && _t0.Age != 10);
             Assert.Empty(objs);
         }
 
         [Fact]
         public void TestLoadByLambdaWithJoins()
         {
-            var objs = _repository.Load(st => st.Where(x => x.Age == 10)
-                .Joins(x => x.Characters, (x, r) => x.Id == r.Player.Id)
-                .Joins(x => x.LastCharacters, (x, r) => x.Id == r.LastPlayer.Id));
+            var objs = _repository.Load(st => st.Where(x => _t0.Age == 10)
+                .Joins(x => _t0.Characters, (x, r) => _t0.Id == r.Player.Id)
+                .Joins(x => _t0.LastCharacters, (x, r) => _t0.Id == r.LastPlayer.Id));
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
@@ -240,9 +240,9 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestLoadByLambdaWithJoinsWithoutId()
         {
-            var objs = _repository.Load(st => st.Where(x => x.Age == 10)
-                .Joins(x => x.Characters, (x, r) => x == r.Player)
-                .Joins(x => x.LastCharacters, (x, r) => x == r.LastPlayer));
+            var objs = _repository.Load(st => st.Where(x => _t0.Age == 10)
+                .Joins(x => _t0.Characters, (x, r) => x == r.Player)
+                .Joins(x => _t0.LastCharacters, (x, r) => x == r.LastPlayer));
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
@@ -255,8 +255,8 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestLoadByLambdaWithJoinsAndHasMany()
         {
-            var objs = _repository.Load(st => st.Where(x => x.Age == 10)
-                .Joins(x => x.Characters));
+            var objs = _repository.Load(st => st.Where(x => _t0.Age == 10)
+                .Joins(x => _t0.Characters));
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
@@ -265,9 +265,9 @@ namespace Meuzz.Persistence.Tests
         [Fact]
         public void TestLoadByLambdaWithJoinsAndHasManyOnPlayer2()
         {
-            var objs = _repository.Load(st => st.Where(x => x.Age == 10)
-                .Joins(x => x.Characters)
-                .Joins(x => x.LastCharacters));
+            var objs = _repository.Load(st => st.Where(x => _t0.Age == 10)
+                .Joins(x => _t0.Characters)
+                .Joins(x => _t0.LastCharacters));
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
@@ -360,7 +360,7 @@ namespace Meuzz.Persistence.Tests
             var rset2 = _connection.Execute("SELECT * FROM Players");
             Assert.Equal(4, rset2.Results.Count());
 
-            _repository.Delete((x) => x.Id == 4);
+            _repository.Delete((x) => _t0.Id == 4);
             // _repository.Delete(4);
 
             var rset3 = _connection.Execute("SELECT * FROM Players");
@@ -400,7 +400,7 @@ namespace Meuzz.Persistence.Tests
             var rset2 = _connection.Execute("SELECT * FROM Players");
             Assert.Equal(6, rset2.Results.Count());
 
-            _repository.Delete(x => x.Name == "yyy");
+            _repository.Delete(x => _t0.Name == "yyy");
 
             var rset3 = _connection.Execute("SELECT * FROM Players");
             Assert.Equal(5, rset3.Results.Count());
@@ -425,7 +425,7 @@ namespace Meuzz.Persistence.Tests
             Assert.Equal(6, rset2.Results.Count());
 
             var names = new[] { "xxx", "yyy", "zzz" };
-            _repository.Delete(x => names.Contains(x.Name));
+            _repository.Delete(x => names.Contains(_t0.Name));
 
             var rset3 = _connection.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
@@ -471,7 +471,7 @@ namespace Meuzz.Persistence.Tests
             Assert.Equal(6, rset2.Results.Count());
 
             var ids = new int[] { 4, 5, 6 };
-            _repository.Delete(x => ids.Contains(x.Id));
+            _repository.Delete(x => ids.Contains(_t0.Id));
 
             var rset3 = _connection.Execute("SELECT * FROM Players");
             Assert.Equal(3, rset3.Results.Count());
