@@ -31,11 +31,23 @@ namespace Meuzz.Persistence
     }
 
     [AttributeUsage(AttributeTargets.Property)]
+    public class BelongsToAttribute : ColumnAttribute
+    {
+        public BelongsToAttribute(Type Type, string Name = null) : base(Name)
+        {
+            this.Type = Type;
+        }
+
+        public Type Type = null;
+    }
+
+    [AttributeUsage(AttributeTargets.Property)]
     public class HasManyAttribute : Attribute
     {
         public string ForeignKey = null;
         public string PrimaryKey = null;
         public Type Through = null;
+        public string ThroughForeignKey = null;
 
         public HasManyAttribute()
         {

@@ -21,6 +21,9 @@ namespace Meuzz.Persistence.Tests.Sqlite
 
         [HasMany(ForeignKey = "from_id")]
         public IEnumerable<PrefectureEdge> Edges { get; }
+
+        [HasMany(Through = typeof(PrefectureEdge), ForeignKey = "from_id")]
+        public IEnumerable<Prefecture> Neighbours { get; } //st => st.Where(x => x.FromId == Id).Joins<Prefecture>((x, y) => x.ToId == y.Id));
 #if false
         {
             get
@@ -45,8 +48,10 @@ namespace Meuzz.Persistence.Tests.Sqlite
 
         public int Id { get; }
 
+        [BelongsTo(typeof(Prefecture))]
         public int FromId { get; }
 
+        [BelongsTo(typeof(Prefecture))]
         public int ToId { get; }
     }
 

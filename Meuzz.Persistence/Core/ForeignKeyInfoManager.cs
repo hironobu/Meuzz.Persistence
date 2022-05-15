@@ -92,21 +92,52 @@ namespace Meuzz.Persistence.Core
         /// <exception cref="NotImplementedException"></exception>
         public void Initialize()
         {
-            var typeToForeignKeysTable = new Dictionary<Type, string[]>();
+            var typeToForeignKeysTable = new Dictionary<Type, IDictionary<string, bool>>();
             var propertyInfoToForeignKeyTable = new Dictionary<PropertyInfo, string>();
 
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
                 foreach (var type in assembly.GetTypes().Where(t => t.IsDefined(typeof(PersistentAttribute), true)))
                 {
+                    foreach (var prop in type.GetProperties().Where(p => p.IsDefined(typeof(BelongsToAttribute), true)))
+                    {
+                        var belongsToAttribute = prop.GetCustomAttributes<BelongsToAttribute>().First();
+
+                        var fk = prop.Name.ToSnake();
+
+                        if (typeToForeignKeysTable.ContainsKey(type))
+                        {
+                            typeToForeignKeysTable[type][fk] = true;
+                        }
+                        else
+                        {
+                            typeToForeignKeysTable.Add(type, new Dictionary<string, bool>(){ { fk, true } });
+                        }
+                    }
+                }
+
+                foreach (var type in assembly.GetTypes().Where(t => t.IsDefined(typeof(PersistentAttribute), true)))
+                {
                     var hasManyProps = type.GetProperties().Where(p => p.IsDefined(typeof(HasManyAttribute), true));
                     foreach (var prop in hasManyProps)
                     {
-                        var targetType = typeof(IEnumerable).IsAssignableFrom(prop.PropertyType) ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
                         var hasmany = prop.GetCustomAttribute<HasManyAttribute>();
                         if (hasmany == null) { throw new NotImplementedException(); }
 
-                        var fk = hasmany.ForeignKey;
+                        Type targetType;
+                        string fk;
+
+                        if (hasmany.Through != null)
+                        {
+                            continue;
+                        }
+                        else
+                        {
+                            targetType = typeof(IEnumerable).IsAssignableFrom(prop.PropertyType) ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
+
+                            fk = hasmany.ForeignKey;
+                        }
+
                         if (fk == null)
                         {
                             if (hasManyProps.Where(p => p.PropertyType == prop.PropertyType).Count() > 1)
@@ -122,11 +153,11 @@ namespace Meuzz.Persistence.Core
 
                         if (typeToForeignKeysTable.ContainsKey(targetType))
                         {
-                            typeToForeignKeysTable[targetType] = typeToForeignKeysTable[targetType].Concat(new string[] { fk }).ToArray();
+                            typeToForeignKeysTable[targetType][fk] = true;
                         }
                         else
                         {
-                            typeToForeignKeysTable.Add(targetType, new string[] { fk });
+                            typeToForeignKeysTable.Add(targetType, new Dictionary<string, bool>() { { fk, true } });
                         }
                     }
                 }
@@ -138,7 +169,7 @@ namespace Meuzz.Persistence.Core
 
         public string[] GetForeignKeysByTargetType(Type targetType)
         {
-            return _typeToForeignKeysTable?.ContainsKey(targetType) == true ? _typeToForeignKeysTable[targetType] : new string[] { };
+            return _typeToForeignKeysTable?.ContainsKey(targetType) == true ? _typeToForeignKeysTable[targetType].Keys.ToArray() : Array.Empty<string>();
         }
 
         private string? GetForeignKeyByPropertyInfo(PropertyInfo pi)
@@ -221,7 +252,7 @@ namespace Meuzz.Persistence.Core
             return new ForeignKeyInfo(null, null, string.Empty, string.Empty);
         }
 
-        private IDictionary<Type, string[]> _typeToForeignKeysTable = default!;
+        private IDictionary<Type, IDictionary<string, bool>> _typeToForeignKeysTable = default!;
         private IDictionary<PropertyInfo, string> _propertyInfoToForeignKeyTable = default!;
 
         public static ForeignKeyInfoManager Instance()
