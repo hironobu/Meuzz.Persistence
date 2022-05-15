@@ -233,62 +233,70 @@ namespace Meuzz.Persistence
                 return Enumerable.Empty<object>();
             }
 
-            var resultDicts = new Dictionary<string, IList<(string?, object?, IDictionary<string, object?>)>>();
+            var resultRows = new List<IDictionary<string, IDictionary<string, object?>>>();
+            var resultDicts = new Dictionary<string, IList<(object?, IDictionary<string, object?>)>>();
+            var indexedResultDicts = new Dictionary<string, IDictionary<object, IDictionary<string, object?>>>();
 
             foreach (var row in rows)
             {
+                var rrow = new Dictionary<string, IDictionary<string, object?>>();
+
                 foreach (var (k, v) in row)
                 {
-                    var d = (Dictionary<string, object?>)v!;
+                    var d = (IDictionary<string, object?>)v!;
                     var tt = statement.ParameterSetInfo.GetTypeByName(k) ?? statement.OutputType;
                     var pk = tt.GetPrimaryKey();
 
                     if (!resultDicts.TryGetValue(k, out var dd) || dd == null)
                     {
-                        dd = new List<(string?, object?, IDictionary<string, object?>)>();
+                        dd = new List<(object?, IDictionary<string, object?>)>();
                         resultDicts[k] = dd;
                     }
+                    if (!indexedResultDicts.TryGetValue(k, out var idd) || idd == null)
+                    {
+                        idd = new Dictionary<object, IDictionary<string, object?>>();
+                        indexedResultDicts[k] = idd;
+                    }
+
+                    IDictionary<string, object?>? d1 = null;
 
                     var pkval = pk != null && d.ContainsKey(pk) ? d[pk] : null;
-                    dd.Add((pk, pkval, d));
-                }
-            }
-
-            var resultObjects = new Dictionary<string, IDictionary<object, IDictionary<string, object?>>>();
-            var resultDefaultObjects = new Dictionary<string, IEnumerable<IDictionary<string, object?>>>();
-
-            foreach (var (k, v) in resultDicts)
-            {
-                if (!resultObjects.ContainsKey(k))
-                {
-                    var tt = statement.ParameterSetInfo.GetTypeByName(k);
-                    var objs = v.Select(x =>
+                    if (pkval != null)
                     {
-                        var xv = x.Item3;
-                        if (tt != null || statement.OutputSpec == null)
+                        if (!idd.TryGetValue(pkval, out d1))
                         {
-                            xv["__object"] = x.Item2 != null ? PopulateObject(context, tt ?? statement.Type, xv) : null;
+                            if (tt != null || statement.OutputSpec == null)
+                            {
+                                d["__object"] = PopulateObject(context, tt ?? statement.Type, d);
+                            }
+                            else
+                            {
+                                Func<IDictionary<string, object?>, object?> f = (Func<IDictionary<string, object?>, object?>)statement.OutputSpec.OutputExpression.Compile();
+                                d["__object"] = f(d);
+                            }
+                            idd.Add(pkval, d);
                         }
-                        else
-                        {
-                            Func<IDictionary<string, object?>, object?> f = (Func<IDictionary<string, object?>, object?>)statement.OutputSpec.OutputExpression.Compile();
-                            xv["__object"] = f(xv);
-                        }
-                        return (x.Item2, xv);
-                    });
-                    resultObjects[k] = objs.Where(x => x.Item1 != null).GroupBy(x => x.Item1, x => x.Item2).ToDictionary(x => x.Key!, x => x.First());
-                    resultDefaultObjects[k] = objs.Where(x => x.Item1 == null).Select(x => x.Item2);
+                    }
+                    else
+                    {
+                        d["__object"] = null;
+                    }
+
+                    dd.Add((pkval, d));
+                    rrow[k] = d;
                 }
+
+                resultRows.Add(rrow);
             }
 
-            BuildBindings(statement, resultObjects);
+            BuildBindings(statement, indexedResultDicts);
 
             if (!t.IsTuple())
             {
-                var objects = resultObjects[statement.ParameterSetInfo.GetDefaultParamName()].Values;
+                var objects = indexedResultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Values;
                 if (!objects.Any())
                 {
-                    objects = resultDefaultObjects[statement.ParameterSetInfo.GetDefaultParamName()].ToArray();
+                    objects = resultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Select(x => x.Item2).ToArray();
                 }
                 var rets = EnumerableCast(t, objects.Select(x => x["__object"]));
                 return (IEnumerable<object>)rets;
@@ -300,7 +308,7 @@ namespace Meuzz.Persistence
                     throw new NotImplementedException();
                 }
 
-                var rets = rows.Select(x => statement.PackerFunc(x)).ToArray();
+                var rets = resultRows.Select(x => statement.PackerFunc(x));
                 return rets;
             }
         }

@@ -177,14 +177,20 @@ namespace Meuzz.Persistence.Sql
             var oldf = _packerFunc;
             _packerFunc = (row) =>
             {
-                var d = (IDictionary<string, object?>)row;
+                var d = (IDictionary<string, IDictionary<string, object?>>)row;
+
+                var left = d[leftParamName]["__object"];
+                var right = d[rightParamName]["__object"];
+
+                var tupleType = typeof(ValueTuple<,>).MakeGenericType(left!.GetType(), right!.GetType());
+
                 if (oldf != null)
                 {
-                    return (oldf(row), d[rightParamName]);
+                    return Activator.CreateInstance(tupleType, oldf(row), right)!;
                 }
                 else
                 {
-                    return (d[leftParamName], d[rightParamName]);
+                    return Activator.CreateInstance(tupleType, left, right)!;
                 }
             };
         }
