@@ -40,6 +40,8 @@ namespace Meuzz.Persistence.Sql
 
         public ParameterSetInfo ParameterSetInfo { get; }
 
+        public Func<object, object>? PackerFunc => _packerFunc;
+
         #region Source
         protected void BuildSource(SqlSelectStatement statement)
         {
@@ -171,6 +173,20 @@ namespace Meuzz.Persistence.Sql
 
             var relationSpec = RelationSpec.Build(leftParamName, leftParamType, rightParamName, rightParamType, null, condexp);
             AddRelationSpec(relationSpec);
+
+            var oldf = _packerFunc;
+            _packerFunc = (row) =>
+            {
+                var d = (IDictionary<string, object?>)row;
+                if (oldf != null)
+                {
+                    return (oldf(row), d[rightParamName]);
+                }
+                else
+                {
+                    return (d[leftParamName], d[rightParamName]);
+                }
+            };
         }
 
         #endregion
@@ -188,6 +204,7 @@ namespace Meuzz.Persistence.Sql
         private ColumnSpec[] _columnSpecs = new ColumnSpec[] { };
         private RelationSpec[] _relationSpecs = new RelationSpec[] { };
         private OutputSpec? _outputSpec = null;
+        private Func<object, object>? _packerFunc = null;
     }
 
     public class ColumnSpec

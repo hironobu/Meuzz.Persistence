@@ -85,6 +85,11 @@ namespace Meuzz.Persistence
             });
         }
 
+        protected object PopulateObject(IDatabaseContext context, Type t, IDictionary<string, object?> dict)
+        {
+            return PopulateObject(context, t, dict.Keys, dict.Values);
+        }
+
         protected object PopulateObject(IDatabaseContext context, Type t, IEnumerable<string> columns, IEnumerable<object?> values)
         {
             Func<PropertyInfo, object?, MemberAssignment> mapper = (k, v) => Expression.Bind(k, Expression.Constant(Convert.ChangeType(v, k.PropertyType)));
@@ -223,10 +228,12 @@ namespace Meuzz.Persistence
         protected IEnumerable<object> PopulateObjects(IDatabaseContext context, Type t, ResultSet rset, SqlSelectStatement statement)
         {
             var rows = RearrangeResultSet(rset);
+            if (!rows.Any())
+            {
+                return Enumerable.Empty<object>();
+            }
 
             var resultDicts = new Dictionary<string, IList<(string?, object?, IDictionary<string, object?>)>>();
-            var resultObjects = new Dictionary<string, IDictionary<object, IDictionary<string, object?>>>();
-            var resultDefaultObjects = new Dictionary<string, IEnumerable<IDictionary<string, object?>>>();
 
             foreach (var row in rows)
             {
@@ -247,14 +254,12 @@ namespace Meuzz.Persistence
                 }
             }
 
-            if (!resultDicts.Any())
-            {
-                return Enumerable.Empty<object>();
-            }
+            var resultObjects = new Dictionary<string, IDictionary<object, IDictionary<string, object?>>>();
+            var resultDefaultObjects = new Dictionary<string, IEnumerable<IDictionary<string, object?>>>();
 
             foreach (var (k, v) in resultDicts)
             {
-                if (!resultObjects.ContainsKey(k!))
+                if (!resultObjects.ContainsKey(k))
                 {
                     var tt = statement.ParameterSetInfo.GetTypeByName(k);
                     var objs = v.Select(x =>
@@ -262,17 +267,17 @@ namespace Meuzz.Persistence
                         var xv = x.Item3;
                         if (tt != null || statement.OutputSpec == null)
                         {
-                            xv["__object"] = x.Item2 != null ? PopulateObject(context, tt ?? statement.Type, xv.Keys, xv.Values) : null;
+                            xv["__object"] = x.Item2 != null ? PopulateObject(context, tt ?? statement.Type, xv) : null;
                         }
                         else
                         {
                             Func<IDictionary<string, object?>, object?> f = (Func<IDictionary<string, object?>, object?>)statement.OutputSpec.OutputExpression.Compile();
-                            xv["__object"] = f(x.Item3);
+                            xv["__object"] = f(xv);
                         }
                         return (x.Item2, xv);
                     });
-                    resultObjects[k!] = objs.Where(x => x.Item1 != null).GroupBy(x => x.Item1, x => x.Item2).ToDictionary(x => x.Key!, x => x.First());
-                    resultDefaultObjects[k!] = objs.Where(x => x.Item1 == null).Select(x => x.Item2);
+                    resultObjects[k] = objs.Where(x => x.Item1 != null).GroupBy(x => x.Item1, x => x.Item2).ToDictionary(x => x.Key!, x => x.First());
+                    resultDefaultObjects[k] = objs.Where(x => x.Item1 == null).Select(x => x.Item2);
                 }
             }
 
@@ -280,17 +285,23 @@ namespace Meuzz.Persistence
 
             if (!t.IsTuple())
             {
-                var objects = resultObjects[statement.ParameterSetInfo.GetDefaultParamName()!].Values;
+                var objects = resultObjects[statement.ParameterSetInfo.GetDefaultParamName()].Values;
                 if (!objects.Any())
                 {
-                    objects = resultDefaultObjects[statement.ParameterSetInfo.GetDefaultParamName()!].ToArray();
+                    objects = resultDefaultObjects[statement.ParameterSetInfo.GetDefaultParamName()].ToArray();
                 }
                 var rets = EnumerableCast(t, objects.Select(x => x["__object"]));
                 return (IEnumerable<object>)rets;
             }
             else
             {
-                throw new NotImplementedException();
+                if (statement.PackerFunc == null)
+                {
+                    throw new NotImplementedException();
+                }
+
+                var rets = rows.Select(x => statement.PackerFunc(x)).ToArray();
+                return rets;
             }
         }
 
