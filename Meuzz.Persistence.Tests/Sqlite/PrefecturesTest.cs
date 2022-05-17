@@ -22,7 +22,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
         [HasMany(ForeignKey = "from_id")]
         public IEnumerable<PrefectureEdge> Edges { get; }
 
-        [HasMany(Through = typeof(PrefectureEdge), ForeignKey = "from_id")]
+        [HasMany(Through = typeof(PrefectureEdge), ForeignKey = "from_id", ThroughForeignKey = "to_id")]
         public IEnumerable<Prefecture> Neighbours { get; } //st => st.Where(x => x.FromId == Id).Joins<Prefecture>((x, y) => x.ToId == y.Id));
 #if false
         {
@@ -146,6 +146,17 @@ namespace Meuzz.Persistence.Tests.Sqlite
             var pref2 = edges.Last().Item2;
             Assert.Equal("•Ÿ“‡", pref2.Name);
         }
+
+        [Fact]
+        public void TestLoadByIdAndNeighbours()
+        {
+            var pref = _repository.Load<Prefecture>(_context, 4).First();
+            Assert.NotNull(pref);
+
+            var neighbours = pref.Neighbours.ToArray();
+            Assert.NotNull(neighbours);
+        }
+
 
 #if false
         [Fact]

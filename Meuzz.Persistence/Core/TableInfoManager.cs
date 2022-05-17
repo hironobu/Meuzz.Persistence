@@ -54,13 +54,15 @@ namespace Meuzz.Persistence.Core
         /// <param name="inversePropertyInfo">リレーションを示す逆参照側のプロパティ情報。</param>
         /// <param name="foreignKey">外部キー。</param>
         /// <param name="primaryKey">親テーブルのプライマリキー。</param>
-        public RelationInfo(PropertyInfo propertyInfo, Type targetType, PropertyInfo? inversePropertyInfo, string foreignKey, string? primaryKey = null)
+        public RelationInfo(PropertyInfo propertyInfo, Type targetType, PropertyInfo? inversePropertyInfo, string foreignKey, string? primaryKey = null, Type? throughType = null, string? throughForeignKey = null)
         {
             PropertyInfo = propertyInfo;
             TargetType = targetType;
             InversePropertyInfo = inversePropertyInfo;
             ForeignKey = foreignKey;
             PrimaryKey = primaryKey;
+            ThroughType = throughType;
+            ThroughForeignKey = throughForeignKey;
         }
 
         /// <summary>
@@ -90,6 +92,10 @@ namespace Meuzz.Persistence.Core
         ///   親テーブルのプライマリキー。
         /// </summary>
         public string? PrimaryKey { get; }
+
+        public Type? ThroughType { get; }
+
+        public string? ThroughForeignKey { get; }
     }
 
     /// <summary>
@@ -205,7 +211,7 @@ namespace Meuzz.Persistence.Core
 
             foreach (var prop in type.GetProperties().Where(condition))
             {
-                var fki = ForeignKeyInfoManager.Instance().GetForeignKeyInfoByPropertyInfo(prop);
+                var fki = ForeignKeyInfoManager.Instance().GetRelatedForeignKeyInfoByReferencingPropertyInfo(prop);
 
                 if (fki != null)
                 {
@@ -213,7 +219,10 @@ namespace Meuzz.Persistence.Core
                     {
                         var targetType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : prop.PropertyType;
                         var targetInversePropertyInfo = targetType.GetPropertyInfoFromColumnName(fki.ForeignKey, true);
-                        relinfos.Add(new RelationInfo(prop, targetType, targetInversePropertyInfo, fki.ForeignKey));
+
+                        var hasmany = prop.GetCustomAttribute<HasManyAttribute>();
+
+                        relinfos.Add(new RelationInfo(prop, targetType, targetInversePropertyInfo, fki.ForeignKey, null, hasmany?.Through, hasmany?.ThroughForeignKey));
                     }
                 }
                 else

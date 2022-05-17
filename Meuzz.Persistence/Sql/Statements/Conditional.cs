@@ -140,7 +140,7 @@ namespace Meuzz.Persistence.Sql
             _relationSpecs = specs;
         }
 
-        protected void BuildRelationSpec(LambdaExpression propexp, LambdaExpression? condexp)
+        public void BuildRelationSpec(LambdaExpression propexp, LambdaExpression? condexp)
         {
             var propbodyexp = propexp.Body;
             var leftparamexp = propexp.Parameters.Single();
@@ -163,7 +163,23 @@ namespace Meuzz.Persistence.Sql
             AddRelationSpec(relationSpec);
         }
 
-        protected void BuildRelationSpec(LambdaExpression condexp)
+        public void BuildRightJoinRelationSpec(Type rightParamType, string foreignKey)
+        {
+            var foreignKeyProperty = Type.GetPropertyInfoFromColumnName(foreignKey);
+            var primaryKeyProperty = rightParamType.GetPropertyInfoFromColumnName(rightParamType.GetPrimaryKey()!);
+
+            var px = Expression.Parameter(Type, "x");
+            var py = Expression.Parameter(rightParamType, "y");
+
+            var lambda = Expression.Lambda(
+                Expression.MakeBinary(ExpressionType.Equal,
+                Expression.MakeMemberAccess(px, foreignKeyProperty),
+                Expression.MakeMemberAccess(py, primaryKeyProperty)),
+                px, py);
+            BuildRelationSpec(lambda);
+        }
+
+        public void BuildRelationSpec(LambdaExpression condexp, Func<object, Func<object, object>?, object>? packerFunc = null)
         {
             var leftParamType = condexp.Parameters.First().Type;
             var rightParamType = condexp.Parameters.Last().Type;
@@ -175,30 +191,28 @@ namespace Meuzz.Persistence.Sql
             AddRelationSpec(relationSpec);
 
             var oldf = _packerFunc;
-            _packerFunc = (row) =>
+            if (packerFunc != null)
             {
-                var d = (IDictionary<string, IDictionary<string, object?>>)row;
-
-                var left = d[leftParamName]["__object"];
-                var right = d[rightParamName]["__object"];
-
-                var tupleType = typeof(ValueTuple<,>).MakeGenericType(left!.GetType(), right!.GetType());
-
-                if (oldf != null)
+                _packerFunc = o => packerFunc(o, oldf);
+            }
+            else
+            {
+                _packerFunc = o =>
                 {
-                    return Activator.CreateInstance(tupleType, oldf(row), right)!;
-                }
-                else
-                {
-                    return Activator.CreateInstance(tupleType, left, right)!;
-                }
-            };
+                    var d = (IDictionary<string, IDictionary<string, object?>>)o;
+
+                    var left = d[leftParamName]["__object"];
+                    var right = d[rightParamName]["__object"];
+
+                    return (oldf(left!), right);
+                };
+            }
         }
 
         #endregion
 
         #region Output
-        protected virtual void BuildOutputSpec(LambdaExpression outputexp)
+        public void BuildOutputSpec(LambdaExpression outputexp)
         {
             _outputSpec = new OutputSpec(outputexp);
 
@@ -210,7 +224,7 @@ namespace Meuzz.Persistence.Sql
         private ColumnSpec[] _columnSpecs = new ColumnSpec[] { };
         private RelationSpec[] _relationSpecs = new RelationSpec[] { };
         private OutputSpec? _outputSpec = null;
-        private Func<object, object>? _packerFunc = null;
+        private Func<object, object> _packerFunc = o => o;
     }
 
     public class ColumnSpec

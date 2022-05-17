@@ -65,10 +65,15 @@ namespace Meuzz.Persistence
 
         protected IEnumerable<object> MakeDefaultLoader(IDatabaseContext context, object obj, RelationInfo reli)
         {
-            var statement = new SqlSelectStatement(reli.TargetType);
+            var statement = new SqlSelectStatement(reli.ThroughType ?? reli.TargetType);
             var pkval = obj.GetType().GetPrimaryValue(obj);
             if (pkval == null) { throw new NotImplementedException(); }
             statement.BuildCondition(reli.ForeignKey, pkval);
+
+            if (reli.ThroughType != null)
+            {
+                statement.BuildRightJoinRelationSpec(reli.TargetType, reli.ThroughForeignKey!);
+            }
 
             return LoadObjects(context, reli.TargetType, statement, results =>
             {
@@ -308,9 +313,59 @@ namespace Meuzz.Persistence
                     throw new NotImplementedException();
                 }
 
-                var rets = resultRows.Select(x => statement.PackerFunc(x));
+                var rets = resultRows.Select(x => MakeTypedTuple(statement.PackerFunc(x)));
                 return rets;
             }
+        }
+
+        private object MakeTypedTuple(object source)
+        {
+            var t = source.GetType();
+            if (!t.IsTuple())
+            {
+                return source;
+            }
+
+            var fields = t.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var fieldValues = fields.Select(x => x.GetValue(source)).ToArray();
+            var fts = fieldValues.Select(v => v!.GetType()).ToArray();
+
+            Type tupleType;
+
+            switch (fts.Length)
+            {
+                case 1:
+                    tupleType = typeof(ValueTuple<>);
+                    break;
+                case 2:
+                    tupleType = typeof(ValueTuple<,>);
+                    break;
+                case 3:
+                    tupleType = typeof(ValueTuple<,,>);
+                    break;
+                case 4:
+                    tupleType = typeof(ValueTuple<,,,>);
+                    break;
+                case 5:
+                    tupleType = typeof(ValueTuple<,,,,>);
+                    break;
+                case 6:
+                    tupleType = typeof(ValueTuple<,,,,,>);
+                    break;
+                case 7:
+                    tupleType = typeof(ValueTuple<,,,,,,>);
+                    break;
+                case 8:
+                    tupleType = typeof(ValueTuple<,,,,,,,>);
+                    break;
+                default:
+                    throw new NotImplementedException();
+            }
+
+            tupleType = tupleType.MakeGenericType(fts);
+
+            // var tupleType = typeof(ValueTuple<,>).MakeGenericType(left!.GetType(), right!.GetType());
+            return Activator.CreateInstance(tupleType, fieldValues)!;
         }
 
         private IEnumerable<IDictionary<string, object?>> RearrangeResultSet(ResultSet resultSet)

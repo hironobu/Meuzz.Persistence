@@ -213,7 +213,7 @@ namespace Meuzz.Persistence.Core
         /// <param name="propertyInfo">対象となるプロパティ情報。</param>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
-        public ForeignKeyInfo? GetForeignKeyInfoByPropertyInfo(PropertyInfo propertyInfo)
+        public ForeignKeyInfo? GetRelatedForeignKeyInfoByReferencingPropertyInfo(PropertyInfo propertyInfo)
         {
             var pt = propertyInfo.PropertyType;
 
