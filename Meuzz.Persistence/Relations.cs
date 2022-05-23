@@ -76,7 +76,7 @@ namespace Meuzz.Persistence
             return joiningConditionMaker(eq, memberAccessor(primaryKey), memberAccessor(foreignKey));
         }
 
-        public static RelationSpec Build(string leftName, Type leftType, string rightName, Type rightType, PropertyInfo? relationPropertyInfo, LambdaExpression? condexp)
+        public static RelationSpec Build(string leftName, Type leftType, string rightName, Type rightType, PropertyInfo? relationPropertyInfo, string? foreignKey_, LambdaExpression? condexp)
         {
             if (rightType.IsGenericType)
             {
@@ -129,7 +129,18 @@ namespace Meuzz.Persistence
             }
             else
             {
-                throw new ArgumentException("eigher relationPropertyInfo or condexp is should be non-null");
+                var primaryTable = leftType.GetTableName();
+                var foreignTableInfo = rightType.GetTableInfo();
+                if (foreignTableInfo == null)
+                {
+                    throw new NotImplementedException();
+                }
+                var matchedColumnInfo = foreignTableInfo.Columns.Where(x => x.BindingTo == primaryTable).First();
+                if (matchedColumnInfo.BindingToPrimaryKey == null)
+                {
+                    throw new NotImplementedException();
+                }
+                relationSpec = new RelationSpec(matchedColumnInfo.Name.ToLower(), matchedColumnInfo.BindingToPrimaryKey.ToLower());
             }
 
             relationSpec.Left = new Parameter() { Type = leftType, Name = leftName };

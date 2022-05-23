@@ -208,7 +208,6 @@ namespace Meuzz.Persistence.Core
             var relinfos = new List<RelationInfo>();
 
             Func<PropertyInfo, bool> condition = x => !x.Name.StartsWith("_");
-
             foreach (var prop in type.GetProperties().Where(condition))
             {
                 var fki = ForeignKeyInfoManager.Instance().GetRelatedForeignKeyInfoByReferencingPropertyInfo(prop);
@@ -232,9 +231,9 @@ namespace Meuzz.Persistence.Core
             }
 
             var fkeys = ForeignKeyInfoManager.Instance().GetForeignKeysByTargetType(type);
-            foreach (var fk in fkeys.Where(x => !colinfos.Select(x => x.Name).Contains(x)))
+            foreach (var fk in fkeys.Where(x => !colinfos.Select(c => c.Name).Contains(x.ForeignKey)))
             {
-                colinfos.Add(new ColumnInfo(fk.ToSnake()));
+                colinfos.Add(new ColumnInfo(fk.ForeignKey.ToSnake()));
             }
 
             var ti = new TableInfo(type, colinfos.ToArray(), relinfos.ToArray());

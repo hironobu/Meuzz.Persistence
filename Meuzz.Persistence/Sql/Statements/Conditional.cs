@@ -159,7 +159,24 @@ namespace Meuzz.Persistence.Sql
             var leftParamName = ParameterSetInfo.GetDefaultParamName();
             var rightParamName = ParameterSetInfo.RegisterParameter(condexp != null ? condexp.Parameters.Skip(1).First().Name : null, rightParamType, false);
 
-            var relationSpec = RelationSpec.Build(leftParamName, leftparamexp.Type, rightParamName, rightParamType, propertyInfo, condexp);
+            var relationSpec = RelationSpec.Build(leftParamName, leftparamexp.Type, rightParamName, rightParamType, propertyInfo, null, condexp);
+            AddRelationSpec(relationSpec);
+        }
+
+        public void BuildRelationSpec(LambdaExpression? condexp, Type rightParamType, string foreignKey)
+        {
+            var leftParamType = Type;
+
+            // var rightParamType = propertyInfo.PropertyType;
+            if (rightParamType.IsGenericType)
+            {
+                rightParamType = rightParamType.GetGenericArguments().First();
+            }
+
+            var leftParamName = ParameterSetInfo.GetDefaultParamName();
+            var rightParamName = ParameterSetInfo.RegisterParameter(condexp != null ? condexp.Parameters.Skip(1).First().Name : null, rightParamType, false);
+
+            var relationSpec = RelationSpec.Build(leftParamName, leftParamType, rightParamName, rightParamType, null, foreignKey, condexp);
             AddRelationSpec(relationSpec);
         }
 
@@ -187,7 +204,7 @@ namespace Meuzz.Persistence.Sql
             var leftParamName = ParameterSetInfo.GetDefaultParamName();
             var rightParamName = ParameterSetInfo.RegisterParameter(condexp.Parameters.Skip(1).First().Name, rightParamType, false);
 
-            var relationSpec = RelationSpec.Build(leftParamName, leftParamType, rightParamName, rightParamType, null, condexp);
+            var relationSpec = RelationSpec.Build(leftParamName, leftParamType, rightParamName, rightParamType, null, null, condexp);
             AddRelationSpec(relationSpec);
 
             var oldf = _packerFunc;
@@ -501,6 +518,13 @@ namespace Meuzz.Persistence.Sql
         {
             var statement2 = new SelectStatement<T>(this);
             statement2.BuildRelationSpec(propexp, cond);
+            return statement2;
+        }
+
+        public SelectStatement<T> JoinBy<T1>(string foreignKey)
+        {
+            var statement2 = new SelectStatement<T>(this);
+            statement2.BuildRelationSpec(null, typeof(T1), foreignKey);
             return statement2;
         }
 

@@ -163,8 +163,8 @@ namespace Meuzz.Persistence.Tests.Mssql
         public void TestLoadByLambdaWithJoinsAndHasManyOnPlayer2()
         {
             var objs = _repository.Load<Models.NoForeignKeyProperty.Player>(_context, st => st.Where(x => x.Age == 10)
-                .Joins(x => x.Characters)
-                .Joins(x => x.LastCharacters));
+                .JoinBy<Models.NoForeignKeyProperty.Character>("player_id")
+                .JoinBy<Models.NoForeignKeyProperty.Character>("last_player_id"));
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);

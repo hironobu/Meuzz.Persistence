@@ -92,7 +92,7 @@ namespace Meuzz.Persistence.Core
         /// <exception cref="NotImplementedException"></exception>
         public void Initialize()
         {
-            var typeToForeignKeysTable = new Dictionary<Type, IDictionary<string, bool>>();
+            var typeToForeignKeysTable = new Dictionary<Type, IDictionary<string, (string ForeignKey, Type BindingTo, string? BindingToPrimaryKey)>>();
             var propertyInfoToForeignKeyTable = new Dictionary<PropertyInfo, string>();
 
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
@@ -107,11 +107,11 @@ namespace Meuzz.Persistence.Core
 
                         if (typeToForeignKeysTable.ContainsKey(type))
                         {
-                            typeToForeignKeysTable[type][fk] = true;
+                            typeToForeignKeysTable[type][fk] = (fk, belongsToAttribute.Type, null);
                         }
                         else
                         {
-                            typeToForeignKeysTable.Add(type, new Dictionary<string, bool>(){ { fk, true } });
+                            typeToForeignKeysTable.Add(type, new Dictionary<string, (string, Type, string?)>(){ { fk, (fk, belongsToAttribute.Type, null) } });
                         }
                     }
                 }
@@ -153,11 +153,11 @@ namespace Meuzz.Persistence.Core
 
                         if (typeToForeignKeysTable.ContainsKey(targetType))
                         {
-                            typeToForeignKeysTable[targetType][fk] = true;
+                            typeToForeignKeysTable[targetType][fk] = (fk, prop.DeclaringType!, null);
                         }
                         else
                         {
-                            typeToForeignKeysTable.Add(targetType, new Dictionary<string, bool>() { { fk, true } });
+                            typeToForeignKeysTable.Add(targetType, new Dictionary<string, (string, Type, string?)>() { { fk, (fk, prop.DeclaringType!, null) } });
                         }
                     }
                 }
@@ -167,9 +167,9 @@ namespace Meuzz.Persistence.Core
             _propertyInfoToForeignKeyTable = propertyInfoToForeignKeyTable;
         }
 
-        public string[] GetForeignKeysByTargetType(Type targetType)
+        public (string ForeignKey, Type BindingTo, string? BindingToPrimaryKey)[] GetForeignKeysByTargetType(Type targetType)
         {
-            return _typeToForeignKeysTable?.ContainsKey(targetType) == true ? _typeToForeignKeysTable[targetType].Keys.ToArray() : Array.Empty<string>();
+            return _typeToForeignKeysTable?.ContainsKey(targetType) == true ? _typeToForeignKeysTable[targetType].Values.ToArray() : Array.Empty<(string ForeignKey, Type BindingTo, string? BindingToPrimaryKey)>();
         }
 
         private string? GetForeignKeyByPropertyInfo(PropertyInfo pi)
@@ -252,7 +252,7 @@ namespace Meuzz.Persistence.Core
             return new ForeignKeyInfo(null, null, string.Empty, string.Empty);
         }
 
-        private IDictionary<Type, IDictionary<string, bool>> _typeToForeignKeysTable = default!;
+        private IDictionary<Type, IDictionary<string, (string ForeignKey, Type BindingTo, string? BindingToPrimaryKey)>> _typeToForeignKeysTable = default!;
         private IDictionary<PropertyInfo, string> _propertyInfoToForeignKeyTable = default!;
 
         public static ForeignKeyInfoManager Instance()
