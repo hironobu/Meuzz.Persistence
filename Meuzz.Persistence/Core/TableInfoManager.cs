@@ -109,12 +109,12 @@ namespace Meuzz.Persistence.Core
         /// <param name="name">カラム名。</param>
         /// <param name="memberInfo"><paramref name="name"/>に紐づけられたメンバー情報。省略可。</param>
         /// <param name="foreignKeyInfo">外部キー情報。省略可。</param>
-        public ColumnInfo(string name, MemberInfo? memberInfo = null, ForeignKeyInfo? foreignKeyInfo = null)
+        public ColumnInfo(string name, MemberInfo? memberInfo = null, string? bindingTo = null, string? bindingToPrimaryKey = null) // ForeignKeyInfo? foreignKeyInfo = null)
         {
             Name = name;
             MemberInfo = memberInfo;
-            BindingTo = foreignKeyInfo?.PrimaryTableName;
-            BindingToPrimaryKey = foreignKeyInfo?.PrimaryKey;
+            BindingTo = bindingTo;
+            BindingToPrimaryKey = bindingToPrimaryKey;
         }
 
         /// <summary>
@@ -226,14 +226,15 @@ namespace Meuzz.Persistence.Core
                 }
                 else
                 {
-                    colinfos.Add(new ColumnInfo(prop.Name.ToSnake(), prop, fki));
+                    colinfos.Add(new ColumnInfo(prop.Name.ToSnake(), prop, fki?.ForeignTableName, fki?.ForeignKey));
                 }
             }
 
             var fkeys = ForeignKeyInfoManager.Instance().GetForeignKeysByTargetType(type);
             foreach (var fk in fkeys.Where(x => !colinfos.Select(c => c.Name).Contains(x.ForeignKey)))
             {
-                colinfos.Add(new ColumnInfo(fk.ForeignKey.ToSnake()));
+                var bindingToPrimaryKey = fk.BindingToPrimaryKey?.ToSnake() ?? fk.BindingTo.GetPrimaryKey();
+                colinfos.Add(new ColumnInfo(fk.ForeignKey.ToSnake(), null, fk.BindingTo.GetTableName(), bindingToPrimaryKey));
             }
 
             var ti = new TableInfo(type, colinfos.ToArray(), relinfos.ToArray());
