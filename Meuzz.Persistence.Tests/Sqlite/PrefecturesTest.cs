@@ -132,7 +132,6 @@ namespace Meuzz.Persistence.Tests.Sqlite
             Assert.Equal(3, edges.Count());
         }
 
-
         [Fact]
         public void TestLoadByIdAndEdgesWithJoins()
         {
@@ -145,6 +144,16 @@ namespace Meuzz.Persistence.Tests.Sqlite
             Assert.Equal("山形", pref1.Name);
             var pref2 = edges.Last().Item2;
             Assert.Equal("福島", pref2.Name);
+        }
+
+        [Fact]
+        public void TestLoadByIdAndEdgesWithJoinsAndSelect()
+        {
+            var prefs = _edgeRepository.Load(_context, st => st.Where(x => x.FromId == 4).Joins<Prefecture>((x, y) => x.ToId == y.Id)).Select(x => x.Item2);
+            Assert.Equal(3, prefs.Count());
+            Assert.Equal("秋田", prefs.First().Name);
+            Assert.Equal("山形", prefs.Skip(1).First().Name);
+            Assert.Equal("福島", prefs.Last().Name);
         }
 
         [Fact]

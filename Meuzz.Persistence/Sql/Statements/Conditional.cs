@@ -307,6 +307,9 @@ namespace Meuzz.Persistence.Sql
                     var px = parameters.First(x => x.Name == px0.Name);
                     return ExpressionHelpers.MakeDictionaryAccessorExpression(px.Name, memberInfo.GetColumnName(), parameters);
 
+                case ParameterExpression pe:
+                    return pe;
+
                 default:
                     throw new NotImplementedException();
             }
@@ -319,49 +322,86 @@ namespace Meuzz.Persistence.Sql
 
             var bodyexp = _GetOutputExpression(outputexp.Body, parameters);
 
-            return Expression.Lambda<Func<IDictionary<string, object?>, object?>>(bodyexp, parameters);
+            // return Expression.Lambda<Func<IDictionary<string, object?>, object?>>(bodyexp, parameters);
+            return Expression.Lambda(bodyexp, parameters);
         }
 
         private IDictionary<ExpressionComparer, MemberExpression[]> GetSourceMemberExpressions(LambdaExpression outputexp)
         {
-            Expression[] paramexps = outputexp.Parameters.ToArray();
-            Expression bodyexp = outputexp.Body;
+            var paramexps = outputexp.Parameters.ToArray();
+            var bodyexp = outputexp.Body;
             var exprdict = new Dictionary<ExpressionComparer, List<MemberExpression>>();
-            IEnumerable<Expression> args;
+            var args = Enumerable.Empty<Expression>(); ;
 
-            switch (bodyexp)
+            if (!outputexp.Parameters.First().Type.IsGenericTuple())
             {
-                case NewExpression newe:
-                    args = newe.Arguments;
-                    break;
-
-                case MemberExpression me:
-                    args = new Expression[] { me };
-                    break;
-
-                default:
-                    throw new InvalidOperationException();
-            }
-
-            foreach (var a in args)
-            {
-                if (!(a is MemberExpression me))
+                switch (bodyexp)
                 {
-                    throw new NotImplementedException($"unavailable expression: {a}");
+                    case NewExpression newe:
+                        args = newe.Arguments;
+                        break;
+
+                    case MemberExpression me:
+                        args = new Expression[] { me };
+                        break;
                 }
 
-                var k = new ExpressionComparer(me.Expression);
-                if (!exprdict.TryGetValue(k, out var vals))
+                foreach (var a in args)
                 {
-                    vals = new List<MemberExpression>();
-                    exprdict.Add(k, vals);
-                }
+                    if ((a is MemberExpression me))
+                    {
+                        var k = new ExpressionComparer(me.Expression);
+                        if (!exprdict.TryGetValue(k, out var vals))
+                        {
+                            vals = new List<MemberExpression>();
+                            exprdict.Add(k, vals);
+                        }
 
-                vals.Add(me);
+                        vals.Add(me);
+                    }
+                }
             }
 
             return exprdict.ToDictionary(x => x.Key, x => x.Value.ToArray());
         }
+    }
+
+    public static class TupleTypeExtensions
+    {
+        public static bool IsGenericTuple(this Type type, bool checkBaseTypes = false)
+        {
+            if (type == null)
+                throw new ArgumentNullException(nameof(type));
+
+            if (type == typeof(Tuple))
+                return true;
+
+            while (type != null)
+            {
+                if (type.IsGenericType)
+                {
+                    var genType = type.GetGenericTypeDefinition();
+                    if (genType == typeof(Tuple<>)
+                        || genType == typeof(Tuple<,>)
+                        || genType == typeof(Tuple<,,>)
+                        || genType == typeof(Tuple<,,,>)
+                        || genType == typeof(Tuple<,,,,>)
+                        || genType == typeof(Tuple<,,,,,>)
+                        || genType == typeof(Tuple<,,,,,,>)
+                        || genType == typeof(Tuple<,,,,,,,>)
+                        || genType == typeof(Tuple<,,,,,,,>))
+                        return true;
+                }
+
+                if (!checkBaseTypes)
+                    break;
+
+                type = type.BaseType;
+            }
+
+            return false;
+        }
+    
     }
 
     public class ExpressionComparer

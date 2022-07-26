@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -65,14 +66,41 @@ namespace Meuzz.Persistence
 
         protected IEnumerable<object> MakeDefaultLoader(IDatabaseContext context, object obj, RelationInfo reli)
         {
-            var statement = new SqlSelectStatement(reli.ThroughType ?? reli.TargetType);
-            var pkval = obj.GetType().GetPrimaryValue(obj);
-            if (pkval == null) { throw new NotImplementedException(); }
-            statement.BuildCondition(reli.ForeignKey, pkval);
+            SqlSelectStatement statement;
 
             if (reli.ThroughType != null)
             {
-                statement.BuildRightJoinRelationSpec(reli.TargetType, reli.ThroughForeignKey!);
+                // statement.BuildRightJoinRelationSpec(reli.TargetType, reli.ThroughForeignKey!);
+                statement = new SqlSelectStatement(reli.ThroughType);
+                var pkval = obj.GetType().GetPrimaryValue(obj);
+                if (pkval == null) { throw new NotImplementedException(); }
+                statement.BuildCondition(reli.ThroughForeignKey!, pkval);
+                // statement.BuildRightJoinRelationSpec(reli.TargetType, reli.ForeignKey);
+
+                var tupleType = typeof(Tuple<,>).MakeGenericType(reli.ThroughType, reli.TargetType);
+                var statementType = typeof(SelectStatement<>).MakeGenericType(tupleType);
+
+                statement = (SqlSelectStatement)Activator.CreateInstance(statementType, statement)!;
+                var px = Expression.Parameter(reli.ThroughType);
+                var py = Expression.Parameter(reli.TargetType);
+                var cond = Expression.Lambda(
+                    Expression.Equal(
+                        Expression.MakeMemberAccess(px, reli.ThroughType.GetPropertyInfoFromColumnName(reli.ThroughForeignKey!)),
+                        Expression.MakeMemberAccess(py, reli.TargetType.GetPropertyInfoFromColumnName(reli.TargetType.GetPrimaryKey()!))),
+                    px, py);
+                statement.BuildRelationSpec(cond);
+                var pt = Expression.Parameter(tupleType);
+                var outputfunc = Expression.Lambda(
+                    Expression.MakeMemberAccess(pt, tupleType.GetMembers().Last()),
+                    pt);
+                statement.BuildOutputSpec(outputfunc);
+            }
+            else
+            {
+                statement = new SqlSelectStatement(reli.TargetType);
+                var pkval = obj.GetType().GetPrimaryValue(obj);
+                if (pkval == null) { throw new NotImplementedException(); }
+                statement.BuildCondition(reli.ForeignKey, pkval);
             }
 
             return LoadObjects(context, reli.TargetType, statement, results =>
