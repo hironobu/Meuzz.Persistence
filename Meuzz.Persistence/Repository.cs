@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -14,24 +13,6 @@ using Meuzz.Persistence.Sql;
 
 namespace Meuzz.Persistence
 {
-    public static class TupleHelperExtensions
-    {
-        public static bool IsTuple(this Type tuple)
-        {
-            if (!tuple.IsGenericType)
-                return false;
-            var openType = tuple.GetGenericTypeDefinition();
-            return openType == typeof(ValueTuple<>)
-                || openType == typeof(ValueTuple<,>)
-                || openType == typeof(ValueTuple<,,>)
-                || openType == typeof(ValueTuple<,,,>)
-                || openType == typeof(ValueTuple<,,,,>)
-                || openType == typeof(ValueTuple<,,,,,>)
-                || openType == typeof(ValueTuple<,,,,,,>)
-                || (openType == typeof(ValueTuple<,,,,,,,>) && IsTuple(tuple.GetGenericArguments()[7]));
-        }
-    }
-
     public class ObjectRepositoryBase
     {
         protected IEnumerable<object> LoadObjects(IDatabaseContext context, Type t, SqlSelectStatement statement, Action<IEnumerable<object>>? propertySetter = null)
@@ -341,59 +322,9 @@ namespace Meuzz.Persistence
                     throw new NotImplementedException();
                 }
 
-                var rets = resultRows.Select(x => MakeTypedTuple(statement.PackerFunc(x)));
+                var rets = resultRows.Select(x => TypedTuple.Make(statement.PackerFunc(x)));
                 return rets;
             }
-        }
-
-        private object MakeTypedTuple(object source)
-        {
-            var t = source.GetType();
-            if (!t.IsTuple())
-            {
-                return source;
-            }
-
-            var fields = t.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            var fieldValues = fields.Select(x => x.GetValue(source)).ToArray();
-            var fts = fieldValues.Select(v => v!.GetType()).ToArray();
-
-            Type tupleType;
-
-            switch (fts.Length)
-            {
-                case 1:
-                    tupleType = typeof(ValueTuple<>);
-                    break;
-                case 2:
-                    tupleType = typeof(ValueTuple<,>);
-                    break;
-                case 3:
-                    tupleType = typeof(ValueTuple<,,>);
-                    break;
-                case 4:
-                    tupleType = typeof(ValueTuple<,,,>);
-                    break;
-                case 5:
-                    tupleType = typeof(ValueTuple<,,,,>);
-                    break;
-                case 6:
-                    tupleType = typeof(ValueTuple<,,,,,>);
-                    break;
-                case 7:
-                    tupleType = typeof(ValueTuple<,,,,,,>);
-                    break;
-                case 8:
-                    tupleType = typeof(ValueTuple<,,,,,,,>);
-                    break;
-                default:
-                    throw new NotImplementedException();
-            }
-
-            tupleType = tupleType.MakeGenericType(fts);
-
-            // var tupleType = typeof(ValueTuple<,>).MakeGenericType(left!.GetType(), right!.GetType());
-            return Activator.CreateInstance(tupleType, fieldValues)!;
         }
 
         private IEnumerable<IDictionary<string, object?>> RearrangeResultSet(ResultSet resultSet)
