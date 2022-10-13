@@ -293,10 +293,16 @@ namespace Meuzz.Persistence
 
             public class Entry
             {
-                public Func<object, Element> f { get; set; } = default!;
-                public ParameterExpression e { get; set; } = default!;
+                private Entry(Func<object, Element> f, ParameterExpression e, string[] pathComponents)
+                {
+                    this.f = f;
+                    this.e = e;
+                    PathComponents = pathComponents;
+                }
 
-                public string[] PathComponents { get; set; } = default!;
+                public Func<object, Element> f { get; }
+                public ParameterExpression e { get; }
+                public string[] PathComponents { get; }
 
                 public static Entry New(Expression exp)
                 {
@@ -309,11 +315,11 @@ namespace Meuzz.Persistence
                             {
                                 throw new NotImplementedException();
                             }
-                            var newPath = entry.PathComponents.Concat(new string[] { propertyInfo.Name });
-                            return new Entry() { f = x => new Element(entry.f(x), propertyInfo), e = entry.e, PathComponents = newPath.ToArray() };
+                            var newPathComponents = entry.PathComponents.Concat(new[] { propertyInfo.Name });
+                            return new Entry(x => new Element(entry.f(x), propertyInfo), entry.e, newPathComponents.ToArray());
 
                         case ParameterExpression pe:
-                            return new Entry() { f = x => new Element(x, null), e = pe, PathComponents = new string[] { } };
+                            return new Entry(x => new Element(x, null), pe, Array.Empty<string>());
                     }
 
                     throw new NotImplementedException();
@@ -322,14 +328,14 @@ namespace Meuzz.Persistence
 
             public class Element
             {
-                public object? Left;
-                public object? Right;
-
                 public Element(object? l, object? r)
                 {
-                    this.Left = l;
-                    this.Right = r;
+                    Left = l;
+                    Right = r;
                 }
+
+                public object? Left { get; }
+                public object? Right { get;}
 
                 public object[] Evaluate()
                 {
