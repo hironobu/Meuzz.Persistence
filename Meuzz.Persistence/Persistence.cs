@@ -83,11 +83,11 @@ namespace Meuzz.Persistence
         public static string? GetPrimaryKey(this Type t)
         {
             var attr = t.GetCustomAttribute<PersistentAttribute>();
-            if (attr != null && attr.PrimaryKey != null)
+            if (attr == null || attr.PrimaryKey == null)
             {
-                return attr.PrimaryKey;
+                return null;
             }
-            return null;
+            return attr.PrimaryKey;
         }
 
         /// <summary>

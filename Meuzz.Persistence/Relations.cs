@@ -10,34 +10,7 @@ namespace Meuzz.Persistence
 {
     public class RelationSpec
     {
-        public string PrimaryKey { get; set; } = default!;
-        public string ForeignKey { get; set; } = default!;
-
-        public Parameter Left { get; set; } = default!;
-
-        public Parameter Right { get; set; } = default!;
-
-        public string ConditionSql { get => GetConditionSql(); }
-
-        public Func<IDictionary<string, object?>, IDictionary<string, object?>, bool> ConditionFunc
-        {
-            get 
-            {
-                if (ConditionEvaluatorSpec == null)
-                {
-                    return _defaultConditionFunc;
-                }
-
-                return ConditionEvaluatorSpec.GetEvaluateFunc();
-            }
-        }
-        private Func<object, object, bool> _defaultConditionFunc = default!;
-
-        public EvaluatorSpec? ConditionEvaluatorSpec { get; } = null;
-
-        public MemberInfo? MemberInfo { get; set; } = null;
-
-        public RelationSpec(string fk, string pk, EvaluatorSpec? conditionEvaluatorSpec = null)
+        private RelationSpec(string fk, string pk, EvaluatorSpec? conditionEvaluatorSpec = null)
         {
             ForeignKey = fk;
             PrimaryKey = pk ?? "id";
@@ -51,10 +24,23 @@ namespace Meuzz.Persistence
             }
         }
 
-        private string GetConditionSql()
-        {
-            return $"{Left.Name}.{PrimaryKey ?? Left.Type.GetPrimaryKey()} = {Right.Name}.{ForeignKey}";
-        }
+        public string PrimaryKey { get; } = default!;
+        public string ForeignKey { get; } = default!;
+
+        public Parameter Left { get; private set; } = default!;
+
+        public Parameter Right { get; private set; } = default!;
+
+        public string ConditionSql => GetConditionSql();
+
+        public Func<IDictionary<string, object?>, IDictionary<string, object?>, bool> ConditionFunc => ConditionEvaluatorSpec?.GetEvaluateFunc() ?? _defaultConditionFunc;
+        private Func<object, object, bool> _defaultConditionFunc = default!;
+
+        public EvaluatorSpec? ConditionEvaluatorSpec { get; } = null;
+
+        public MemberInfo? MemberInfo { get; private set; } = null;
+
+        private string GetConditionSql() => $"{Left.Name}.{PrimaryKey ?? Left.Type.GetPrimaryKey()} = {Right.Name}.{ForeignKey}";
 
         private static Func<object, object, bool> MakeDefaultConditionFunc(string foreignKey, string primaryKey)
         {
@@ -143,8 +129,8 @@ namespace Meuzz.Persistence
                 relationSpec = new RelationSpec(matchedColumnInfo.Name.ToLower(), matchedColumnInfo.BindingToPrimaryKey.ToLower());
             }
 
-            relationSpec.Left = new Parameter() { Type = leftType, Name = leftName };
-            relationSpec.Right = new Parameter() { Type = rightType, Name = rightName };
+            relationSpec.Left = new Parameter(leftType, leftName);
+            relationSpec.Right = new Parameter(rightType, rightName);
             relationSpec.MemberInfo = relationPropertyInfo;
 
             return relationSpec;
@@ -152,22 +138,39 @@ namespace Meuzz.Persistence
 
         public class Parameter
         {
-            public Type Type { get; set; } = default!;
+            public Parameter(Type type, string name)
+            {
+                Type = type;
+                Name = name;
+            }
 
-            public string Name { get; set; } = default!;
+            public Type Type { get; }
+
+            public string Name { get; }
         }
 
         public class EvaluatorSpec
         {
-            public Func<object?, object?, bool> Comparator { get; set; } = default!;
-            public Func<object, object?> Left { get; set; } = default!;
-            public Func<object, object?> Right { get; set; } = default!;
-
             public EvaluatorSpec(Func<object?, object?, bool> comparator, Func<object, object?> left, Func<object, object?> right)
             {
                 Comparator = comparator;
                 Left = left;
                 Right = right;
+            }
+
+            public Func<object?, object?, bool> Comparator { get; }
+            public Func<object, object?> Left { get; }
+            public Func<object, object?> Right { get; }
+
+
+            public Func<object?, object?, bool> GetEvaluateFunc()
+            {
+                Func<Func<object?, object?, bool>, object?, object?, bool> evaluator = (f, xx, yy) =>
+                {
+                    return f(Evaluate(xx), Evaluate(yy));
+                };
+
+                return (x, y) => evaluator(Comparator, x != null ? Left(x) : null, y != null ? Right(y) : null);
             }
 
             private static object? Evaluate(object? o)
@@ -189,15 +192,6 @@ namespace Meuzz.Persistence
                 return MemberGet(obj, prop);
             }
 
-            public Func<object?, object?, bool> GetEvaluateFunc()
-            {
-                Func<Func<object?, object?, bool>, object?, object?, bool> evaluator = (f, xx, yy) =>
-                {
-                    return f(Evaluate(xx), Evaluate(yy));
-                };
-
-                return (x, y) => evaluator(Comparator, x != null ? Left(x) : null, y != null ? Right(y) : null);
-            }
 
             private static object? MemberGet(object? x, string memb)
             {
@@ -223,16 +217,17 @@ namespace Meuzz.Persistence
 
         public class Condition
         {
-            public Func<object?, object?, bool> Comparator { get; set; } = default!;
-            public Entry Left { get; set; } = default!;
-            public Entry Right { get; set; } = default!;
-
             public Condition(Func<object?, object?, bool> comparator, Entry left, Entry right)
             {
                 Comparator = comparator;
                 Left = left;
                 Right = right;
             }
+
+            public Func<object?, object?, bool> Comparator { get; }
+
+            public Entry Left { get; }
+            public Entry Right { get; }
 
             public static Condition New(Type t, Expression exp)
             {
