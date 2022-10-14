@@ -253,8 +253,8 @@ namespace Meuzz.Persistence
                             right = x;
                         }
 
-                        ParameterExpression px = Expression.Parameter(typeof(object), "x");
-                        ParameterExpression py = Expression.Parameter(typeof(object), "y");
+                        var px = Expression.Parameter(typeof(object), "x");
+                        var py = Expression.Parameter(typeof(object), "y");
 
                         BinaryExpression? bine2;
 
@@ -288,7 +288,8 @@ namespace Meuzz.Persistence
                                 throw new NotImplementedException();
                         }
 
-                        return new Condition((Func<object?, object?, bool>)Expression.Lambda(bine2, px, py).Compile(), left, right);
+                        Func<object?, object?, bool> comparator = (Func<object?, object?, bool>)Expression.Lambda(bine2, px, py).Compile();
+                        return new Condition(comparator, left, right);
                         // break;
                 }
 
