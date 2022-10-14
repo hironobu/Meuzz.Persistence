@@ -37,5 +37,22 @@ namespace Meuzz.Persistence
 
             return null;
         }
+
+        public static object? DictionaryOrPropertyGet(object? x, string memb)
+        {
+            var dx = x as IDictionary<string, object?>;
+            if (dx == null)
+            {
+                return null;
+            }
+
+            var value = DictionaryGet(dx, memb);
+            if (value != null)
+            {
+                return value;
+            }
+            var obj = dx["__object"];
+            return obj != null ? PropertyGet(obj, memb) : null;
+        }
     }
 }

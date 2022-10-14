@@ -37,26 +37,6 @@ namespace Meuzz.Persistence
         public string ConditionSql => $"{Left.Name}.{PrimaryKey ?? Left.Type.GetPrimaryKey()} = {Right.Name}.{ForeignKey}";
         public Func<IDictionary<string, object?>, IDictionary<string, object?>, bool> ConditionFunc => _condition != null ? _conditionEvaluator.GetEvaluateFunc(_condition) : _defaultConditionFunc;
 
-        private static Func<object, object, bool> MakeDefaultConditionFunc(string foreignKey, string primaryKey)
-        {
-            Func<Func<object?, object?, bool>, Func<object, object?>, Func<object, object?>, Func<object, object, bool>> joiningConditionMaker
-                = (Func<object?, object?, bool> eval, Func<object, object?> f, Func<object, object?> g) => (object x, object y) => eval(f(x), g(y));
-            Func<object?, object?, bool> eq = (x, y) => x == y;
-            Func<string, Func<object, object?>> memberAccessor = (string memb) => (object x) =>
-            {
-                if (x is IDictionary<string, object?> dx)
-                {
-                    return dx[memb];
-                }
-                else
-                {
-                    return ReflectionHelpers.PropertyGet(x, memb);
-                }
-            };
-
-            return joiningConditionMaker(eq, memberAccessor(primaryKey), memberAccessor(foreignKey));
-        }
-
         private Condition? _condition = null;
 
         private Func<object, object, bool> _defaultConditionFunc;
@@ -146,6 +126,15 @@ namespace Meuzz.Persistence
             return new RelationSpec(foreignKey, primaryKey, condition, leftParameter, rightParameter, relationPropertyInfo);
         }
 
+        private static Func<object, object, bool> MakeDefaultConditionFunc(string foreignKey, string primaryKey)
+        {
+            Func<Func<object?, object?, bool>, Func<object, object?>, Func<object, object?>, Func<object, object, bool>> joiningConditionMaker
+                = (Func<object?, object?, bool> eval, Func<object, object?> f, Func<object, object?> g) => (object x, object y) => eval(f(x), g(y));
+            Func<string, Func<object, object?>> memberAccessor = (string memb) => (object x) => x is IDictionary<string, object?> dx ? dx[memb] : ReflectionHelpers.PropertyGet(x, memb);
+
+            return joiningConditionMaker((x, y) => x == y, memberAccessor(primaryKey), memberAccessor(foreignKey));
+        }
+
         public class Parameter
         {
             public Parameter(Type type, string name)
@@ -187,24 +176,7 @@ namespace Meuzz.Persistence
                 }
                 var prop = string.Join("_", propkeys);
 
-                return DictOrPropertyGet(obj, prop);
-            }
-
-            private static object? DictOrPropertyGet(object? x, string memb)
-            {
-                var dx = x as IDictionary<string, object?>;
-                if (dx == null)
-                {
-                    return null;
-                }
-
-                var value = ReflectionHelpers.DictionaryGet(dx, memb);
-                if (value != null)
-                {
-                    return value;
-                }
-                var obj = dx["__object"];
-                return obj != null ? ReflectionHelpers.PropertyGet(obj, memb) : null;
+                return ReflectionHelpers.DictionaryOrPropertyGet(obj, prop);
             }
         }
 
