@@ -10,7 +10,7 @@ namespace Meuzz.Persistence
 {
     public class RelationSpec
     {
-        private RelationSpec(string fk, string pk, EvaluatorSpec? conditionEvaluatorSpec = null)
+        private RelationSpec(string fk, string pk, EvaluatorSpec? conditionEvaluatorSpec, Parameter left, Parameter right, MemberInfo? memberInfo)
         {
             ForeignKey = fk;
             PrimaryKey = pk ?? "id";
@@ -22,14 +22,18 @@ namespace Meuzz.Persistence
             {
                 _defaultConditionFunc = MakeDefaultConditionFunc(ForeignKey, PrimaryKey);
             }
+
+            Left = left;
+            Right = right;
+            MemberInfo = memberInfo;
         }
 
         public string PrimaryKey { get; }
         public string ForeignKey { get; }
 
-        public Parameter Left { get; private set; } = default!;
+        public Parameter Left { get; }
 
-        public Parameter Right { get; private set; } = default!;
+        public Parameter Right { get; }
 
         public string ConditionSql => GetConditionSql();
 
@@ -38,7 +42,7 @@ namespace Meuzz.Persistence
 
         public EvaluatorSpec? ConditionEvaluatorSpec { get; }
 
-        public MemberInfo? MemberInfo { get; private set; } = null;
+        public MemberInfo? MemberInfo { get; }
 
         private string GetConditionSql() => $"{Left.Name}.{PrimaryKey ?? Left.Type.GetPrimaryKey()} = {Right.Name}.{ForeignKey}";
 
@@ -64,27 +68,33 @@ namespace Meuzz.Persistence
 
         public static RelationSpec Build(string leftName, Type leftType, string rightName, Type rightType, PropertyInfo? relationPropertyInfo, string? foreignKey_, LambdaExpression? condexp)
         {
+            string primaryKey, foreignKey;
+            EvaluatorSpec? evaluatorSpec = null;
+
             if (rightType.IsGenericType)
             {
                 rightType = rightType.GetGenericArguments()[0];
             }
 
-            RelationSpec? relationSpec = null;
             if (condexp != null)
             {
                 var relationCond = Condition.New(leftType, condexp.Body);
 
-                var primaryKey = string.Join("_", relationCond.Left.PathComponents).ToSnake();
-                var foreignKey = string.Join("_", relationCond.Right.PathComponents).ToSnake();
+                primaryKey = string.Join("_", relationCond.Left.PathComponents).ToSnake();
+                foreignKey = string.Join("_", relationCond.Right.PathComponents).ToSnake();
 
-                primaryKey = string.IsNullOrEmpty(primaryKey) ? leftType.GetPrimaryKey() : primaryKey;
-                if (primaryKey == null)
+                if (string.IsNullOrEmpty(primaryKey))
                 {
-                    throw new NotImplementedException();
+                    var leftpk = leftType.GetPrimaryKey();
+                    if (leftpk == null)
+                    {
+                        throw new NotImplementedException();
+                    }
+                    primaryKey = leftpk;
                 }
                 foreignKey = rightType.GetForeignKey(foreignKey, leftType, primaryKey);
 
-                relationSpec = new RelationSpec(foreignKey, primaryKey, new EvaluatorSpec(relationCond.Comparator, relationCond.Left.f, relationCond.Right.f));
+                evaluatorSpec = new EvaluatorSpec(relationCond.Comparator, relationCond.Left.Func, relationCond.Right.Func);
             }
             else if (relationPropertyInfo != null)
             {
@@ -95,7 +105,8 @@ namespace Meuzz.Persistence
                     {
                         throw new NotImplementedException();
                     }
-                    relationSpec = new RelationSpec(fki.ForeignKey, fki.PrimaryKey ?? "id");
+                    foreignKey = fki.ForeignKey;
+                    primaryKey = fki.PrimaryKey ?? "id";
                 }
                 else
                 {
@@ -110,7 +121,9 @@ namespace Meuzz.Persistence
                     {
                         throw new NotImplementedException();
                     }
-                    relationSpec = new RelationSpec(matchedColumnInfo.Name.ToLower(), matchedColumnInfo.BindingToPrimaryKey.ToLower());
+
+                    foreignKey = matchedColumnInfo.Name.ToLower();
+                    primaryKey = matchedColumnInfo.BindingToPrimaryKey.ToLower();
                 }
             }
             else
@@ -126,14 +139,15 @@ namespace Meuzz.Persistence
                 {
                     throw new NotImplementedException();
                 }
-                relationSpec = new RelationSpec(matchedColumnInfo.Name.ToLower(), matchedColumnInfo.BindingToPrimaryKey.ToLower());
+
+                foreignKey = matchedColumnInfo.Name.ToLower();
+                primaryKey = matchedColumnInfo.BindingToPrimaryKey.ToLower();
             }
 
-            relationSpec.Left = new Parameter(leftType, leftName);
-            relationSpec.Right = new Parameter(rightType, rightName);
-            relationSpec.MemberInfo = relationPropertyInfo;
+            var leftParameter = new Parameter(leftType, leftName);
+            var rightParameter = new Parameter(rightType, rightName);
 
-            return relationSpec;
+            return new RelationSpec(foreignKey, primaryKey, evaluatorSpec, leftParameter, rightParameter, relationPropertyInfo);
         }
 
         public class Parameter
@@ -175,12 +189,12 @@ namespace Meuzz.Persistence
 
             private static object? Evaluate(object? o)
             {
-                if (!(o is Condition.Element el))
+                if (!(o is Condition.Node.Element el))
                 {
                     throw new NotImplementedException();
                 }
 
-                var arr = EvaluateElement(el);
+                var arr = el.Extend();
                 var obj = arr.First();
                 var propkeys = arr.Skip(1).Select(x => ((MemberInfo)x).Name);
                 if (!propkeys.Any())
@@ -190,31 +204,6 @@ namespace Meuzz.Persistence
                 var prop = string.Join("_", propkeys);
 
                 return DictOrPropertyGet(obj, prop);
-            }
-
-            public static object[] EvaluateElement(Condition.Element el)
-            {
-                var ret = new List<object>();
-
-                if (el.Left is Condition.Element le)
-                {
-                    ret.AddRange(EvaluateElement(le));
-                }
-                else if (el.Left != null)
-                {
-                    ret.Add(el.Left);
-                }
-
-                if (el.Right is Condition.Element re)
-                {
-                    ret.AddRange(EvaluateElement(re));
-                }
-                else if (el.Right != null)
-                {
-                    ret.Add(el.Right);
-                }
-
-                return ret.ToArray();
             }
 
             private static object? DictOrPropertyGet(object? x, string memb)
@@ -237,7 +226,7 @@ namespace Meuzz.Persistence
 
         public class Condition
         {
-            public Condition(Func<object?, object?, bool> comparator, Entry left, Entry right)
+            public Condition(Func<object?, object?, bool> comparator, Node left, Node right)
             {
                 Comparator = comparator;
                 Left = left;
@@ -246,23 +235,18 @@ namespace Meuzz.Persistence
 
             public Func<object?, object?, bool> Comparator { get; }
 
-            public Entry Left { get; }
-            public Entry Right { get; }
+            public Node Left { get; }
+            public Node Right { get; }
 
             public static Condition New(Type t, Expression exp)
             {
-                if (exp == null)
-                {
-                    throw new NotImplementedException();
-                }
-
                 switch (exp)
                 {
                     case BinaryExpression bine:
-                        var left = Entry.New(bine.Left);
-                        var right = Entry.New(bine.Right);
+                        var left = Node.New(bine.Left);
+                        var right = Node.New(bine.Right);
 
-                        if (left.e.Type != t)
+                        if (left.Parameter.Type != t)
                         {
                             var x = left;
                             left = right;
@@ -311,20 +295,20 @@ namespace Meuzz.Persistence
                 throw new NotImplementedException();
             }
 
-            public class Entry
+            public class Node
             {
-                private Entry(Func<object, Element> f, ParameterExpression e, string[] pathComponents)
+                private Node(Func<object, Element> f, ParameterExpression pe, string[] comps)
                 {
-                    this.f = f;
-                    this.e = e;
-                    PathComponents = pathComponents;
+                    Func = f;
+                    Parameter = pe;
+                    PathComponents = comps;
                 }
 
-                public Func<object, Element> f { get; }
-                public ParameterExpression e { get; }
+                public Func<object, Element> Func { get; }
+                public ParameterExpression Parameter { get; }
                 public string[] PathComponents { get; }
 
-                public static Entry New(Expression exp)
+                public static Node New(Expression exp)
                 {
                     switch (exp)
                     {
@@ -336,26 +320,51 @@ namespace Meuzz.Persistence
                                 throw new NotImplementedException();
                             }
                             var newPathComponents = entry.PathComponents.Concat(new[] { propertyInfo.Name });
-                            return new Entry(x => new Element(entry.f(x), propertyInfo), entry.e, newPathComponents.ToArray());
+                            return new Node(x => new Element(entry.Func(x), propertyInfo), entry.Parameter, newPathComponents.ToArray());
 
                         case ParameterExpression pe:
-                            return new Entry(x => new Element(x, null), pe, Array.Empty<string>());
+                            return new Node(x => new Element(x, null), pe, Array.Empty<string>());
                     }
 
                     throw new NotImplementedException();
                 }
-            }
 
-            public class Element
-            {
-                public Element(object? l, object? r)
+                public class Element
                 {
-                    Left = l;
-                    Right = r;
-                }
+                    public Element(object? l, object? r)
+                    {
+                        Left = l;
+                        Right = r;
+                    }
 
-                public object? Left { get; }
-                public object? Right { get;}
+                    public object? Left { get; }
+                    public object? Right { get; }
+
+                    public object[] Extend()
+                    {
+                        var ret = new List<object>();
+
+                        if (Left is Element le)
+                        {
+                            ret.AddRange(le.Extend());
+                        }
+                        else if (Left != null)
+                        {
+                            ret.Add(Left);
+                        }
+
+                        if (Right is Element re)
+                        {
+                            ret.AddRange(re.Extend());
+                        }
+                        else if (Right != null)
+                        {
+                            ret.Add(Right);
+                        }
+
+                        return ret.ToArray();
+                    }
+                }
             }
         }
     }
