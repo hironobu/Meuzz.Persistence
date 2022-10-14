@@ -94,7 +94,7 @@ namespace Meuzz.Persistence
             }
             else if (relationPropertyInfo != null)
             {
-                var fki = ForeignKeyInfoManager.Instance().GetRelatedForeignKeyInfoByReferencingPropertyInfo(relationPropertyInfo);
+                var fki = relationPropertyInfo.GetForeignKeyInfo();
                 if (fki != null)
                 {
                     if (fki.ForeignKey == null)

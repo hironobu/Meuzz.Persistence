@@ -277,4 +277,12 @@ namespace Meuzz.Persistence.Core
         private static ForeignKeyInfoManager? _instance = null;
         private static readonly object _instanceLocker = new object();
     }
+
+    public static class PropertyInfoForeignKeyExtensions
+    {
+        public static ForeignKeyInfo? GetForeignKeyInfo(this PropertyInfo propertyInfo)
+        {
+            return ForeignKeyInfoManager.Instance().GetRelatedForeignKeyInfoByReferencingPropertyInfo(propertyInfo);
+        }
+    }
 }
