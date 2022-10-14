@@ -10,13 +10,13 @@ namespace Meuzz.Persistence
 {
     public class RelationSpec
     {
-        private RelationSpec(string fk, string pk, EvaluatorSpec? conditionEvaluatorSpec, Parameter left, Parameter right, MemberInfo? memberInfo)
+        private RelationSpec(string fk, string pk, Condition? condition, Parameter left, Parameter right, MemberInfo? memberInfo)
         {
             ForeignKey = fk;
             PrimaryKey = pk ?? "id";
-            if (conditionEvaluatorSpec != null)
+            if (condition != null)
             {
-                ConditionEvaluatorSpec = conditionEvaluatorSpec;
+                _condition = condition;
             }
             else
             {
@@ -30,21 +30,12 @@ namespace Meuzz.Persistence
 
         public string PrimaryKey { get; }
         public string ForeignKey { get; }
-
         public Parameter Left { get; }
-
         public Parameter Right { get; }
-
-        public string ConditionSql => GetConditionSql();
-
-        public Func<IDictionary<string, object?>, IDictionary<string, object?>, bool> ConditionFunc => ConditionEvaluatorSpec?.GetEvaluateFunc() ?? _defaultConditionFunc;
-        private Func<object, object, bool> _defaultConditionFunc = default!;
-
-        public EvaluatorSpec? ConditionEvaluatorSpec { get; }
-
         public MemberInfo? MemberInfo { get; }
 
-        private string GetConditionSql() => $"{Left.Name}.{PrimaryKey ?? Left.Type.GetPrimaryKey()} = {Right.Name}.{ForeignKey}";
+        public string ConditionSql => $"{Left.Name}.{PrimaryKey ?? Left.Type.GetPrimaryKey()} = {Right.Name}.{ForeignKey}";
+        public Func<IDictionary<string, object?>, IDictionary<string, object?>, bool> ConditionFunc => _condition != null ? _conditionEvaluator.GetEvaluateFunc(_condition) : _defaultConditionFunc;
 
         private static Func<object, object, bool> MakeDefaultConditionFunc(string foreignKey, string primaryKey)
         {
@@ -66,10 +57,17 @@ namespace Meuzz.Persistence
             return joiningConditionMaker(eq, memberAccessor(primaryKey), memberAccessor(foreignKey));
         }
 
+        private Condition? _condition = null;
+
+        private Func<object, object, bool> _defaultConditionFunc;
+
+        [Obsolete]
+        private ConditionEvaluator _conditionEvaluator = new ConditionEvaluator();
+
         public static RelationSpec Build(string leftName, Type leftType, string rightName, Type rightType, PropertyInfo? relationPropertyInfo, string? foreignKey_, LambdaExpression? condexp)
         {
             string primaryKey, foreignKey;
-            EvaluatorSpec? evaluatorSpec = null;
+            Condition? condition = null;
 
             if (rightType.IsGenericType)
             {
@@ -78,10 +76,10 @@ namespace Meuzz.Persistence
 
             if (condexp != null)
             {
-                var relationCond = Condition.New(leftType, condexp.Body);
+                condition = Condition.New(leftType, condexp.Body);
 
-                primaryKey = string.Join("_", relationCond.Left.PathComponents).ToSnake();
-                foreignKey = string.Join("_", relationCond.Right.PathComponents).ToSnake();
+                primaryKey = string.Join("_", condition.Left.PathComponents).ToSnake();
+                foreignKey = string.Join("_", condition.Right.PathComponents).ToSnake();
 
                 if (string.IsNullOrEmpty(primaryKey))
                 {
@@ -93,8 +91,6 @@ namespace Meuzz.Persistence
                     primaryKey = leftpk;
                 }
                 foreignKey = rightType.GetForeignKey(foreignKey, leftType, primaryKey);
-
-                evaluatorSpec = new EvaluatorSpec(relationCond.Comparator, relationCond.Left, relationCond.Right);
             }
             else if (relationPropertyInfo != null)
             {
@@ -147,7 +143,7 @@ namespace Meuzz.Persistence
             var leftParameter = new Parameter(leftType, leftName);
             var rightParameter = new Parameter(rightType, rightName);
 
-            return new RelationSpec(foreignKey, primaryKey, evaluatorSpec, leftParameter, rightParameter, relationPropertyInfo);
+            return new RelationSpec(foreignKey, primaryKey, condition, leftParameter, rightParameter, relationPropertyInfo);
         }
 
         public class Parameter
@@ -163,28 +159,16 @@ namespace Meuzz.Persistence
             public string Name { get; }
         }
 
-        public class EvaluatorSpec
+        public class ConditionEvaluator
         {
-            public EvaluatorSpec(Func<object?, object?, bool> comparator, Condition.Node left, Condition.Node right)
-            {
-                Comparator = comparator;
-                Left = left;
-                Right = right;
-            }
-
-            public Func<object?, object?, bool> Comparator { get; }
-            public Condition.Node Left { get; }
-            public Condition.Node Right { get; }
-
-
-            public Func<object?, object?, bool> GetEvaluateFunc()
+            public Func<object?, object?, bool> GetEvaluateFunc(Condition cond)
             {
                 Func<Func<object?, object?, bool>, object?, object?, bool> evaluator = (f, xx, yy) =>
                 {
                     return f(Evaluate(xx), Evaluate(yy));
                 };
 
-                return (x, y) => evaluator(Comparator, x != null ? Left.Func(x) : null, y != null ? Right.Func(y) : null);
+                return (x, y) => evaluator(cond.Comparator, x != null ? cond.Left.Func(x) : null, y != null ? cond.Right.Func(y) : null);
             }
 
             private static object? Evaluate(object? o)
