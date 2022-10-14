@@ -94,7 +94,7 @@ namespace Meuzz.Persistence
                 }
                 foreignKey = rightType.GetForeignKey(foreignKey, leftType, primaryKey);
 
-                evaluatorSpec = new EvaluatorSpec(relationCond.Comparator, relationCond.Left.Func, relationCond.Right.Func);
+                evaluatorSpec = new EvaluatorSpec(relationCond.Comparator, relationCond.Left, relationCond.Right);
             }
             else if (relationPropertyInfo != null)
             {
@@ -165,7 +165,7 @@ namespace Meuzz.Persistence
 
         public class EvaluatorSpec
         {
-            public EvaluatorSpec(Func<object?, object?, bool> comparator, Func<object, object?> left, Func<object, object?> right)
+            public EvaluatorSpec(Func<object?, object?, bool> comparator, Condition.Node left, Condition.Node right)
             {
                 Comparator = comparator;
                 Left = left;
@@ -173,8 +173,8 @@ namespace Meuzz.Persistence
             }
 
             public Func<object?, object?, bool> Comparator { get; }
-            public Func<object, object?> Left { get; }
-            public Func<object, object?> Right { get; }
+            public Condition.Node Left { get; }
+            public Condition.Node Right { get; }
 
 
             public Func<object?, object?, bool> GetEvaluateFunc()
@@ -184,7 +184,7 @@ namespace Meuzz.Persistence
                     return f(Evaluate(xx), Evaluate(yy));
                 };
 
-                return (x, y) => evaluator(Comparator, x != null ? Left(x) : null, y != null ? Right(y) : null);
+                return (x, y) => evaluator(Comparator, x != null ? Left.Func(x) : null, y != null ? Right.Func(y) : null);
             }
 
             private static object? Evaluate(object? o)
