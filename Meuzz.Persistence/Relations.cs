@@ -24,8 +24,8 @@ namespace Meuzz.Persistence
             }
         }
 
-        public string PrimaryKey { get; } = default!;
-        public string ForeignKey { get; } = default!;
+        public string PrimaryKey { get; }
+        public string ForeignKey { get; }
 
         public Parameter Left { get; private set; } = default!;
 
@@ -36,7 +36,7 @@ namespace Meuzz.Persistence
         public Func<IDictionary<string, object?>, IDictionary<string, object?>, bool> ConditionFunc => ConditionEvaluatorSpec?.GetEvaluateFunc() ?? _defaultConditionFunc;
         private Func<object, object, bool> _defaultConditionFunc = default!;
 
-        public EvaluatorSpec? ConditionEvaluatorSpec { get; } = null;
+        public EvaluatorSpec? ConditionEvaluatorSpec { get; }
 
         public MemberInfo? MemberInfo { get; private set; } = null;
 
@@ -180,20 +180,44 @@ namespace Meuzz.Persistence
                     throw new NotImplementedException();
                 }
 
-                var arr = el.Evaluate().ToArray();
+                var arr = EvaluateElement(el);
                 var obj = arr.First();
                 var propkeys = arr.Skip(1).Select(x => ((MemberInfo)x).Name);
                 if (!propkeys.Any())
                 {
-                    propkeys = new string[] { "id" };
+                    propkeys = new[] { "id" };
                 }
                 var prop = string.Join("_", propkeys);
 
-                return MemberGet(obj, prop);
+                return DictOrPropertyGet(obj, prop);
             }
 
+            public static object[] EvaluateElement(Condition.Element el)
+            {
+                var ret = new List<object>();
 
-            private static object? MemberGet(object? x, string memb)
+                if (el.Left is Condition.Element le)
+                {
+                    ret.AddRange(EvaluateElement(le));
+                }
+                else if (el.Left != null)
+                {
+                    ret.Add(el.Left);
+                }
+
+                if (el.Right is Condition.Element re)
+                {
+                    ret.AddRange(EvaluateElement(re));
+                }
+                else if (el.Right != null)
+                {
+                    ret.Add(el.Right);
+                }
+
+                return ret.ToArray();
+            }
+
+            private static object? DictOrPropertyGet(object? x, string memb)
             {
                 var dx = x as IDictionary<string, object?>;
                 if (dx == null)
@@ -201,14 +225,10 @@ namespace Meuzz.Persistence
                     return null;
                 }
 
-                var col = memb.ToSnake();
-                if (dx.ContainsKey(col))
+                var value = ReflectionHelpers.DictionaryGet(dx, memb);
+                if (value != null)
                 {
-                    return dx[col];
-                }
-                if (col != "id" && dx.ContainsKey(col + "_id"))
-                {
-                    return dx[col + "_id"];
+                    return value;
                 }
                 var obj = dx["__object"];
                 return obj != null ? ReflectionHelpers.PropertyGet(obj, memb) : null;
@@ -336,31 +356,6 @@ namespace Meuzz.Persistence
 
                 public object? Left { get; }
                 public object? Right { get;}
-
-                public object[] Evaluate()
-                {
-                    var ret = new List<object>();
-
-                    if (Left is Element le)
-                    {
-                        ret.AddRange(le.Evaluate());
-                    }
-                    else if (Left != null)
-                    {
-                        ret.Add(Left);
-                    }
-
-                    if (Right is Element re)
-                    {
-                        ret.AddRange(re.Evaluate());
-                    }
-                    else if (Right != null)
-                    {
-                        ret.Add(Right);
-                    }
-
-                    return ret.ToArray();
-                }
             }
         }
     }

@@ -16,5 +16,26 @@ namespace Meuzz.Persistence
             if (obj == null) { return; }
             obj.GetType().GetProperty(propertyName.ToCamel(true), BindingFlags.InvokeMethod)?.SetValue(obj, value);
         }
+
+        public static object? DictionaryGet(object? obj, string memberName)
+        {
+            var dx = obj as IDictionary<string, object?>;
+            if (dx == null)
+            {
+                return null;
+            }
+
+            var col = memberName.ToSnake();
+            if (dx.ContainsKey(col))
+            {
+                return dx[col];
+            }
+            if (col != "id" && dx.ContainsKey(col + "_id"))
+            {
+                return dx[col + "_id"];
+            }
+
+            return null;
+        }
     }
 }
