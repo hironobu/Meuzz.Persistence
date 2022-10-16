@@ -271,6 +271,16 @@ namespace Meuzz.Persistence.Sql
 
         public LambdaExpression OutputExpression { get; }
 
+        public Func<IDictionary<string, object?>, object?> CompiledOutputFunc { get
+            {
+                if (_compiledOutputFunc == null)
+                {
+                    _compiledOutputFunc = (Func<IDictionary<string, object?>, object?>)OutputExpression.Compile();
+                }
+                return _compiledOutputFunc;
+            }
+        }
+
         public IDictionary<ExpressionComparer, MemberExpression[]> SourceMemberExpressions { get; }
 
         private Expression _GetOutputExpression(Expression expr, ParameterExpression[] parameters)
@@ -364,6 +374,8 @@ namespace Meuzz.Persistence.Sql
 
             return exprdict.ToDictionary(x => x.Key, x => x.Value.ToArray());
         }
+
+        private Func<IDictionary<string, object?>, object?>? _compiledOutputFunc;
     }
 
     public static class TupleTypeExtensions

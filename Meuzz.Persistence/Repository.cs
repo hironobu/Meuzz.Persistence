@@ -51,12 +51,10 @@ namespace Meuzz.Persistence
 
             if (reli.ThroughType != null)
             {
-                // statement.BuildRightJoinRelationSpec(reli.TargetType, reli.ThroughForeignKey!);
                 statement = new SqlSelectStatement(reli.ThroughType);
                 var pkval = obj.GetType().GetPrimaryValue(obj);
                 if (pkval == null) { throw new NotImplementedException(); }
                 statement.BuildCondition(reli.ThroughForeignKey!, pkval);
-                // statement.BuildRightJoinRelationSpec(reli.TargetType, reli.ForeignKey);
 
                 var tupleType = typeof(Tuple<,>).MakeGenericType(reli.ThroughType, reli.TargetType);
                 var statementType = typeof(SelectStatement<>).MakeGenericType(tupleType);
@@ -90,12 +88,10 @@ namespace Meuzz.Persistence
                 {
                     foreach (var x in results)
                     {
-                        var iprop = reli.InversePropertyInfo;
-                        PropertySetValue(x, iprop, obj);
+                        PropertySetValue(x, reli.InversePropertyInfo, obj);
                     }
                 }
-                var prop = reli.PropertyInfo;
-                PropertySetValue(obj, prop, results.EnumerableUncast(reli.TargetType));
+                PropertySetValue(obj, reli.PropertyInfo, results.EnumerableUncast(reli.TargetType));
             });
         }
 
@@ -244,7 +240,7 @@ namespace Meuzz.Persistence
             var rows = RearrangeResultSet(rset);
             if (!rows.Any())
             {
-                return Enumerable.Empty<object>();
+                return Array.Empty<object>();
             }
 
             var resultRows = new List<IDictionary<string, IDictionary<string, object?>>>();
@@ -285,7 +281,7 @@ namespace Meuzz.Persistence
                             }
                             else
                             {
-                                Func<IDictionary<string, object?>, object?> f = (Func<IDictionary<string, object?>, object?>)statement.OutputSpec.OutputExpression.Compile();
+                                Func<IDictionary<string, object?>, object?> f = statement.OutputSpec.CompiledOutputFunc;
                                 d["__object"] = f(d);
                             }
                             idd.Add(pkval, d);
@@ -312,8 +308,7 @@ namespace Meuzz.Persistence
                 {
                     objects = resultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Select(x => x.Item2).ToArray();
                 }
-                var rets = objects.Select(x => x["__object"]).EnumerableUncast(t);
-                return (IEnumerable<object>)rets;
+                return (IEnumerable<object>)objects.Select(x => x["__object"]).EnumerableUncast(t);
             }
             else
             {
@@ -322,8 +317,7 @@ namespace Meuzz.Persistence
                     throw new NotImplementedException();
                 }
 
-                var rets = resultRows.Select(x => TypedTuple.Make(statement.PackerFunc(x)));
-                return rets;
+                return resultRows.Select(x => TypedTuple.Make(statement.PackerFunc(x)));
             }
         }
 
