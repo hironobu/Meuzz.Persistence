@@ -95,7 +95,7 @@ namespace Meuzz.Persistence
                     }
                 }
                 var prop = reli.PropertyInfo;
-                PropertySetValue(obj, prop, EnumerableCast(reli.TargetType, results));
+                PropertySetValue(obj, prop, results.EnumerableUncast(reli.TargetType));
             });
         }
 
@@ -172,7 +172,7 @@ namespace Meuzz.Persistence
                 var prop = reli.PropertyInfo;
                 if (prop != null)
                 {
-                    PropertySetValue(obj, prop, EnumerableCast(prop.PropertyType, MakeDefaultLoader(context, obj, reli)));
+                    PropertySetValue(obj, prop, MakeDefaultLoader(context, obj, reli).EnumerableUncast(prop.PropertyType));
                 }
             }
 
@@ -181,7 +181,7 @@ namespace Meuzz.Persistence
                 var loaderField = obj.GetType().GetField($"__load_{prop.Name}", BindingFlags.NonPublic | BindingFlags.Instance);
                 if (loaderField != null)
                 {
-                    loaderField.SetValue(obj, EnumerableCast(prop.PropertyType, proploader));
+                    loaderField.SetValue(obj, proploader.EnumerableUncast(prop.PropertyType));
                 }
             }
 
@@ -312,7 +312,7 @@ namespace Meuzz.Persistence
                 {
                     objects = resultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Select(x => x.Item2).ToArray();
                 }
-                var rets = EnumerableCast(t, objects.Select(x => x["__object"]));
+                var rets = objects.Select(x => x["__object"]).EnumerableUncast(t);
                 return (IEnumerable<object>)rets;
             }
             else
@@ -357,24 +357,6 @@ namespace Meuzz.Persistence
 
         private void BuildBindings(SqlSelectStatement statement, IDictionary<string, IDictionary<object, IDictionary<string, object?>>> resultObjects)
         {
-            Func<string, Action<object?, object?>> propertySetter = (string prop) => (object? x, object? value) =>
-            {
-                ReflectionHelpers.PropertySet(x, prop, value);
-            };
-            Action<IDictionary<string, object?>, string, object?> memberUpdater = (x, memberName, value) =>
-            {
-                ReflectionHelpers.PropertySet(x != null ? x["__object"] : null, memberName, value);
-            };
-
-            Func<string, Func<IDictionary<string, object?>, object?>> memberAccessor = (string memberName) => (IDictionary<string, object?> x) =>
-            {
-                if (x.ContainsKey(memberName))
-                {
-                    return x[memberName];
-                }
-                return ReflectionHelpers.PropertyGet(x["__object"], memberName);
-            };
-
             foreach (var relationSpec in statement.RelationSpecs)
             {
                 if (relationSpec.MemberInfo == null)
@@ -382,33 +364,25 @@ namespace Meuzz.Persistence
                     continue;
                 }
 
-                var fromObjs = resultObjects[relationSpec.Left.Name].Values;
                 var proptype = ((PropertyInfo)relationSpec.MemberInfo).PropertyType;
 
-                Func<IDictionary<string, object?>, Func<IDictionary<string, object?>, bool>> filteringConditionsFunc = (x) => (y) => relationSpec.ConditionFunc(x, y);
-                Func<IDictionary<string, object?>, object> mapperFunc = dx =>
+                foreach (var dx in resultObjects[relationSpec.Left.Name].Values)
                 {
-                    var pkv = memberAccessor(relationSpec.PrimaryKey)(dx);
-                    var objs = resultObjects[relationSpec.Right.Name].Values;
-                    var targetToObjs = resultObjects[relationSpec.Right.Name].Values.Where(filteringConditionsFunc(dx));
+                    var targetToObjs = resultObjects[relationSpec.Right.Name].Values.Where(y => relationSpec.ConditionFunc(dx, y));
                     if (targetToObjs.Any())
                     {
                         var inversePropertyName = relationSpec.ForeignKey.Replace("_id", "").ToCamel(true);
                         foreach (var o in targetToObjs)
                         {
-                            memberUpdater(o, inversePropertyName, dx["__object"]);
+                            ReflectionHelpers.PropertySet(o, inversePropertyName, dx["__object"]);
                         }
-                        memberUpdater(dx, relationSpec.MemberInfo.Name, EnumerableCast(proptype, targetToObjs.Select(y => y["__object"])));
+                        ReflectionHelpers.PropertySet(dx, relationSpec.MemberInfo.Name, targetToObjs.Select(y => y["__object"]).EnumerableUncast(proptype));
                     }
                     else
                     {
-                        memberUpdater(dx, relationSpec.MemberInfo.Name, EnumerableCast(proptype, MakeGenerator(relationSpec, dx["__object"])));
+                        ReflectionHelpers.PropertySet(dx, relationSpec.MemberInfo.Name, MakeGenerator(relationSpec, dx["__object"]).EnumerableUncast(proptype));
                     }
-                    return dx;
                 };
-
-                var _ = fromObjs.Select(mapperFunc).ToList(); // just do it
-                // Console.WriteLine(r);
             }
         }
 
@@ -434,25 +408,6 @@ namespace Meuzz.Persistence
             // yield return null;
             Console.WriteLine(self);
             yield break;
-        }
-
-        private IEnumerable<object?> EnumerableCast(Type t, IEnumerable<object?> args)
-        {
-            // TODO: array or list以外は避けるように(ex. IDictionary<>)
-            var t1 = t.IsGenericType && t.GetGenericArguments().Length == 1 ? t.GetGenericArguments()[0] : t;
-
-            switch (t1)
-            {
-                case Type inttype when inttype == typeof(int):
-                    return args.Select(x => (object)Convert.ToInt32(x));
-
-                case Type longtype when longtype == typeof(long):
-                    return args.Select(x => (object)Convert.ToInt64(x));
-
-                default:
-                    var conv = typeof(Enumerable).GetMethod("Cast")!.MakeGenericMethod(t1);
-                    return (IEnumerable<object?>)conv.Invoke(null, new[] { args })!;
-            }
         }
     }
 

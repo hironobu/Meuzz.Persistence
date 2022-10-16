@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Reflection;
 using Meuzz.Foundation;
 
@@ -25,6 +26,11 @@ namespace Meuzz.Persistence
                 return null;
             }
 
+            return DictionaryGet(dx, memberName);
+        }
+
+        public static object? DictionaryGet(IDictionary<string, object?> dx, string memberName)
+        {
             var col = memberName.ToSnake();
             if (dx.ContainsKey(col))
             {
@@ -38,21 +44,13 @@ namespace Meuzz.Persistence
             return null;
         }
 
-        public static object? DictionaryOrPropertyGet(object? x, string memb)
+        public static object? MemberGet(IDictionary<string, object?> x, string memberName)
         {
-            var dx = x as IDictionary<string, object?>;
-            if (dx == null)
+            if (x.ContainsKey(memberName))
             {
-                return null;
+                return x[memberName];
             }
-
-            var value = DictionaryGet(dx, memb);
-            if (value != null)
-            {
-                return value;
-            }
-            var obj = dx["__object"];
-            return obj != null ? PropertyGet(obj, memb) : null;
+            return ReflectionHelpers.PropertyGet(x["__object"], memberName);
         }
     }
 }

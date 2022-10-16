@@ -58,8 +58,8 @@ namespace Meuzz.Persistence
             {
                 condition = Condition.New(leftType, condexp.Body);
 
-                primaryKey = string.Join("_", condition.Left.PathComponents).ToSnake();
-                foreignKey = string.Join("_", condition.Right.PathComponents).ToSnake();
+                primaryKey = string.Join("_", condition.Left.KeyPath).ToSnake();
+                foreignKey = string.Join("_", condition.Right.KeyPath).ToSnake();
 
                 if (string.IsNullOrEmpty(primaryKey))
                 {
@@ -152,7 +152,7 @@ namespace Meuzz.Persistence
         {
             public Func<object?, object?, bool> GetEvaluateFunc(Condition cond)
             {
-                Func<Func<object?, object?, bool>, object?, object?, bool> evaluator = (f, xx, yy) =>
+                Func<Func<object?, object?, bool>, Condition.Node.Element?, Condition.Node.Element?, bool> evaluator = (f, xx, yy) =>
                 {
                     return f(Evaluate(xx), Evaluate(yy));
                 };
@@ -160,11 +160,11 @@ namespace Meuzz.Persistence
                 return (x, y) => evaluator(cond.Comparator, x != null ? cond.Left.Func(x) : null, y != null ? cond.Right.Func(y) : null);
             }
 
-            private static object? Evaluate(object? o)
+            private static object? Evaluate(Condition.Node.Element? el)
             {
-                if (!(o is Condition.Node.Element el))
+                if (el == null)
                 {
-                    throw new NotImplementedException();
+                    return null;
                 }
 
                 var arr = el.Extend();
@@ -174,9 +174,26 @@ namespace Meuzz.Persistence
                 {
                     propkeys = new[] { "id" };
                 }
-                var prop = string.Join("_", propkeys);
+                var prokeyp = string.Join("_", propkeys);
 
-                return ReflectionHelpers.DictionaryOrPropertyGet(obj, prop);
+                return KeyPathGet(obj, prokeyp);
+            }
+
+            private static object? KeyPathGet(object? obj, string memb)
+            {
+                var dx = obj as IDictionary<string, object?>;
+                if (dx == null)
+                {
+                    return null;
+                }
+
+                var value = ReflectionHelpers.DictionaryGet(dx, memb);
+                if (value != null)
+                {
+                    return value;
+                }
+                var _obj = dx["__object"];
+                return _obj != null ? ReflectionHelpers.PropertyGet(obj, memb) : null;
             }
         }
 
@@ -258,12 +275,12 @@ namespace Meuzz.Persistence
                 {
                     Func = f;
                     Parameter = pe;
-                    PathComponents = comps;
+                    KeyPath = comps;
                 }
 
                 public Func<object, Element> Func { get; }
                 public ParameterExpression Parameter { get; }
-                public string[] PathComponents { get; }
+                public string[] KeyPath { get; }
 
                 public static Node New(Expression exp)
                 {
@@ -271,13 +288,8 @@ namespace Meuzz.Persistence
                     {
                         case MemberExpression me:
                             var entry = New(me.Expression);
-                            var propertyInfo = me.Member as PropertyInfo;
-                            if (propertyInfo == null)
-                            {
-                                throw new NotImplementedException();
-                            }
-                            var newPathComponents = entry.PathComponents.Concat(new[] { propertyInfo.Name });
-                            return new Node(x => new Element(entry.Func(x), propertyInfo), entry.Parameter, newPathComponents.ToArray());
+                            var newPathComponents = entry.KeyPath.Concat(new[] { me.Member.Name });
+                            return new Node(x => new Element(entry.Func(x), me.Member), entry.Parameter, newPathComponents.ToArray());
 
                         case ParameterExpression pe:
                             return new Node(x => new Element(x, null), pe, Array.Empty<string>());
