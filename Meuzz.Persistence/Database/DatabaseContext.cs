@@ -124,8 +124,6 @@ namespace Meuzz.Persistence.Database
 
     public class ResultSet
     {
-        public IEnumerable<IDictionary<string, object?>> Results { get; }
-
         public ResultSet(IEnumerable<IDictionary<string, object?>> results)
         {
             Results = results;
@@ -149,6 +147,37 @@ namespace Meuzz.Persistence.Database
             }
 
             Results = results;
+        }
+
+        public IEnumerable<IDictionary<string, object?>> Results { get; }
+
+        public IEnumerable<IDictionary<string, object?>> Rearrange()
+        {
+            return Results.Select(x =>
+            {
+                var kvs = x.Select(c => (c.Key.Split('.'), c.Value));
+                var d = new Dictionary<string, object?>();
+                foreach (var (kk, v) in kvs)
+                {
+                    var dx = d;
+                    var k = string.Join('.', kk.Take(kk.Length - 1));
+                    var dx0 = dx;
+
+                    if (dx0.TryGetValue(k, out var value) && value != null)
+                    {
+                        dx = (Dictionary<string, object?>)value;
+                    }
+                    else
+                    {
+                        dx = new Dictionary<string, object?>();
+                        dx0[k] = dx;
+                    }
+
+                    dx[kk.Last().ToLower()] = v;
+                }
+
+                return d;
+            });
         }
     }
 }

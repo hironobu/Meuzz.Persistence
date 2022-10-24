@@ -235,17 +235,30 @@ namespace Meuzz.Persistence
             return true;
         }
 
+        private object? __PopulateObject(IDatabaseContext context, Type tt, IDictionary<string, object?> d, SqlSelectStatement statement)
+        {
+            if (tt != null || statement.OutputSpec == null)
+            {
+                return PopulateObject(context, tt ?? statement.Type, d);
+            }
+            else
+            {
+                Func<IDictionary<string, object?>, object?> f = statement.OutputSpec.CompiledOutputFunc;
+                return f(d);
+            }
+        }
+
         protected IEnumerable<object> PopulateObjects(IDatabaseContext context, Type t, ResultSet rset, SqlSelectStatement statement)
         {
-            var rows = RearrangeResultSet(rset);
+            var rows = rset.Rearrange();
             if (!rows.Any())
             {
                 return Array.Empty<object>();
             }
 
             var resultRows = new List<IDictionary<string, IDictionary<string, object?>>>();
-            var resultDicts = new Dictionary<string, IList<(object?, IDictionary<string, object?>)>>();
-            var indexedResultDicts = new Dictionary<string, IDictionary<object, IDictionary<string, object?>>>();
+            var resultDicts = new Dictionary<string, List<(object?, IDictionary<string, object?>)>>();
+            var indexedResultDicts = new Dictionary<string, Dictionary<object, IDictionary<string, object?>>>();
 
             foreach (var row in rows)
             {
@@ -257,33 +270,15 @@ namespace Meuzz.Persistence
                     var tt = statement.ParameterSetInfo.GetTypeByName(k) ?? statement.OutputType;
                     var pk = tt.GetPrimaryKey();
 
-                    if (!resultDicts.TryGetValue(k, out var dd) || dd == null)
-                    {
-                        dd = new List<(object?, IDictionary<string, object?>)>();
-                        resultDicts[k] = dd;
-                    }
-                    if (!indexedResultDicts.TryGetValue(k, out var idd) || idd == null)
-                    {
-                        idd = new Dictionary<object, IDictionary<string, object?>>();
-                        indexedResultDicts[k] = idd;
-                    }
-
-                    IDictionary<string, object?>? d1 = null;
+                    var dd = resultDicts.GetValueOrNew(k);
+                    var idd = indexedResultDicts.GetValueOrNew(k);
 
                     var pkval = pk != null && d.ContainsKey(pk) ? d[pk] : null;
                     if (pkval != null)
                     {
-                        if (!idd.TryGetValue(pkval, out d1))
+                        if (!idd.ContainsKey(pkval))
                         {
-                            if (tt != null || statement.OutputSpec == null)
-                            {
-                                d["__object"] = PopulateObject(context, tt ?? statement.Type, d);
-                            }
-                            else
-                            {
-                                Func<IDictionary<string, object?>, object?> f = statement.OutputSpec.CompiledOutputFunc;
-                                d["__object"] = f(d);
-                            }
+                            d["__object"] = __PopulateObject(context, tt, d, statement);
                             idd.Add(pkval, d);
                         }
                     }
@@ -303,7 +298,7 @@ namespace Meuzz.Persistence
 
             if (!t.IsTuple())
             {
-                var objects = indexedResultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Values;
+                IEnumerable<IDictionary<string, object?>> objects = indexedResultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Values;
                 if (!objects.Any())
                 {
                     objects = resultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Select(x => x.Item2).ToArray();
@@ -321,35 +316,7 @@ namespace Meuzz.Persistence
             }
         }
 
-        private IEnumerable<IDictionary<string, object?>> RearrangeResultSet(ResultSet resultSet)
-        {
-            return resultSet.Results.Select(x =>
-            {
-                var kvs = x.Select(c => (c.Key.Split('.'), c.Value));
-                var d = new Dictionary<string, object?>();
-                foreach (var (kk, v) in kvs)
-                {
-                    var dx = d;
-                    var k = string.Join('.', kk.Take(kk.Length - 1));
-                    var dx0 = dx;
-                    if (dx0.TryGetValue(k, out var value) && value != null)
-                    {
-                        dx = (Dictionary<string, object?>)value;
-                    }
-                    else
-                    {
-                        dx = new Dictionary<string, object?>();
-                        dx0[k] = dx;
-                    }
-
-                    dx[kk.Last().ToLower()] = v;
-                }
-
-                return d;
-            });
-        }
-
-        private void BuildBindings(SqlSelectStatement statement, IDictionary<string, IDictionary<object, IDictionary<string, object?>>> resultObjects)
+        private void BuildBindings(SqlSelectStatement statement, Dictionary<string, Dictionary<object, IDictionary<string, object?>>> resultObjects)
         {
             foreach (var relationSpec in statement.RelationSpecs)
             {
