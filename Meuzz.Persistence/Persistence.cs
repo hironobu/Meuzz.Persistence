@@ -234,5 +234,15 @@ namespace Meuzz.Persistence
 
             return attr.Name.ToLower();
         }
+
+        public static Type GetMemberType(this MemberInfo self)
+        {
+            return self.MemberType switch
+            {
+                MemberTypes.Property => ((PropertyInfo)self).PropertyType,
+                MemberTypes.Field => ((FieldInfo)self).FieldType,
+                _ => throw new NotImplementedException()
+            };
+        }
     }
 }

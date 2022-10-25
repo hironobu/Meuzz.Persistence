@@ -18,6 +18,23 @@ namespace Meuzz.Persistence
             obj.GetType().GetProperty(propertyName.ToCamel(true), BindingFlags.InvokeMethod)?.SetValue(obj, value);
         }
 
+        public static void PropertyOrFieldSet(object obj, PropertyInfo propInfo, object value)
+        {
+            if (propInfo.SetMethod != null)
+            {
+                propInfo.SetValue(obj, value);
+            }
+            else
+            {
+                var attr = propInfo.GetCustomAttribute<BackingFieldAttribute>();
+                if (attr != null)
+                {
+                    var field = propInfo.DeclaringType?.GetField(attr.BackingFieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                    field?.SetValue(obj, value);
+                }
+            }
+        }
+
         public static object? DictionaryGet(object? obj, string memberName)
         {
             var dx = obj as IDictionary<string, object?>;

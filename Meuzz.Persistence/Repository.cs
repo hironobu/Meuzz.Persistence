@@ -88,10 +88,10 @@ namespace Meuzz.Persistence
                 {
                     foreach (var x in results)
                     {
-                        PropertySetValue(x, reli.InversePropertyInfo, obj);
+                        ReflectionHelpers.PropertyOrFieldSet(x, reli.InversePropertyInfo, obj);
                     }
                 }
-                PropertySetValue(obj, reli.PropertyInfo, results.EnumerableUncast(reli.TargetType));
+                ReflectionHelpers.PropertyOrFieldSet(obj, reli.PropertyInfo, results.EnumerableUncast(reli.TargetType));
             });
         }
 
@@ -168,7 +168,7 @@ namespace Meuzz.Persistence
                 var prop = reli.PropertyInfo;
                 if (prop != null)
                 {
-                    PropertySetValue(obj, prop, MakeDefaultLoader(context, obj, reli).EnumerableUncast(prop.PropertyType));
+                    ReflectionHelpers.PropertyOrFieldSet(obj, prop, MakeDefaultLoader(context, obj, reli).EnumerableUncast(prop.PropertyType));
                 }
             }
 
@@ -325,7 +325,7 @@ namespace Meuzz.Persistence
                     continue;
                 }
 
-                var proptype = ((PropertyInfo)relationSpec.MemberInfo).PropertyType;
+                var memberType = relationSpec.MemberInfo.GetMemberType();
 
                 foreach (var dx in resultObjects[relationSpec.Left.Name].Values)
                 {
@@ -337,30 +337,13 @@ namespace Meuzz.Persistence
                         {
                             ReflectionHelpers.PropertySet(o, inversePropertyName, dx["__object"]);
                         }
-                        ReflectionHelpers.PropertySet(dx, relationSpec.MemberInfo.Name, targetToObjs.Select(y => y["__object"]).EnumerableUncast(proptype));
+                        ReflectionHelpers.PropertySet(dx, relationSpec.MemberInfo.Name, targetToObjs.Select(y => y["__object"]).EnumerableUncast(memberType));
                     }
                     else
                     {
-                        ReflectionHelpers.PropertySet(dx, relationSpec.MemberInfo.Name, MakeGenerator(relationSpec, dx["__object"]).EnumerableUncast(proptype));
+                        ReflectionHelpers.PropertySet(dx, relationSpec.MemberInfo.Name, MakeGenerator(relationSpec, dx["__object"]).EnumerableUncast(memberType));
                     }
                 };
-            }
-        }
-
-        private static void PropertySetValue(object obj, PropertyInfo propInfo, object value, bool setFieldIfSetterNone = true)
-        {
-            if (propInfo.SetMethod != null)
-            {
-                propInfo.SetValue(obj, value);
-            }
-            else if (setFieldIfSetterNone)
-            {
-                var attr = propInfo.GetCustomAttribute<BackingFieldAttribute>();
-                if (attr != null)
-                {
-                    var field = propInfo.DeclaringType?.GetField(attr.BackingFieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    field?.SetValue(obj, value);
-                }
             }
         }
 
