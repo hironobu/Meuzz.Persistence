@@ -15,17 +15,12 @@ namespace Meuzz.Persistence
 {
     public class ObjectRepositoryBase
     {
-        protected IEnumerable<object> LoadObjects(IDatabaseContext context, Type t, SqlSelectStatement statement, Action<IEnumerable<object>>? propertySetter = null)
+        protected IEnumerable<object> LoadObjects(IDatabaseContext context, Type t, SqlSelectStatement statement)
         {
             var rset = context.Execute(statement);
             if (rset != null)
             {
                 var results = PopulateObjects(context, t, rset, statement);
-                if (propertySetter != null)
-                {
-                    propertySetter(results);
-                }
-
                 foreach (var o in results)
                 {
                     yield return o;
@@ -79,7 +74,8 @@ namespace Meuzz.Persistence
                 statement.BuildCondition(reli.ForeignKey, pkval);
             }
 
-            return LoadObjects(context, reli.TargetType, statement, results =>
+            var results = LoadObjects(context, reli.TargetType, statement);
+            
             {
                 if (reli.InversePropertyInfo != null)
                 {
@@ -89,7 +85,9 @@ namespace Meuzz.Persistence
                     }
                 }
                 ReflectionHelpers.PropertyOrFieldSet(obj, reli.PropertyInfo, results.EnumerableUncast(reli.TargetType));
-            });
+            }
+
+            return results;
         }
 
         protected object PopulateObject(IDatabaseContext context, Type t, IDictionary<string, object?> dict)
