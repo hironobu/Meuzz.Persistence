@@ -34,7 +34,7 @@ namespace Meuzz.Persistence
             yield break;
         }
 
-        protected IEnumerable<object> MakeDefaultReverseLoader(IDatabaseContext context, object value, Type targetType)
+        protected IEnumerable<object> MakeDefaultLoader(IDatabaseContext context, Type targetType, object value)
         {
             var primaryKey = targetType.GetPrimaryKey();
             if (primaryKey == null) { throw new ArgumentException("Argument type should be persistent", "targetType"); }
@@ -49,29 +49,26 @@ namespace Meuzz.Persistence
         {
             SqlSelectStatement statement;
 
-            if (reli.ThroughType != null)
+            if (reli.ThroughType != null && reli.ThroughForeignKey != null)
             {
                 statement = new SqlSelectStatement(reli.ThroughType);
                 var pkval = obj.GetType().GetPrimaryValue(obj);
                 if (pkval == null) { throw new NotImplementedException(); }
-                statement.BuildCondition(reli.ThroughForeignKey!, pkval);
+                statement.BuildCondition(reli.ThroughForeignKey, pkval);
+
+                //var statementType = typeof(SelectStatement<>).MakeGenericType(tupleType);
+                //statement = (SqlSelectStatement)Activator.CreateInstance(statementType, statement)!;
+                statement = new SqlSelectStatement(statement.Type, statement);
+
+                var throughMemberInfo = reli.ThroughType.GetPropertyInfoFromColumnName(reli.ThroughForeignKey);
+                if (throughMemberInfo == null) { throw new NotImplementedException();  }
+                var targetPrimaryMemberInfo = reli.TargetType.GetPropertyInfoFromColumnName(reli.TargetType.GetPrimaryKey() ?? "id");
+                if (targetPrimaryMemberInfo == null) { throw new NotImplementedException(); }
+                var cond = ExpressionHelpers.MakeEqualityConditionFunc(throughMemberInfo, targetPrimaryMemberInfo);
+                statement.BuildRelationSpec(cond);
 
                 var tupleType = typeof(Tuple<,>).MakeGenericType(reli.ThroughType, reli.TargetType);
-                var statementType = typeof(SelectStatement<>).MakeGenericType(tupleType);
-
-                statement = (SqlSelectStatement)Activator.CreateInstance(statementType, statement)!;
-                var px = Expression.Parameter(reli.ThroughType);
-                var py = Expression.Parameter(reli.TargetType);
-                var cond = Expression.Lambda(
-                    Expression.Equal(
-                        Expression.MakeMemberAccess(px, reli.ThroughType.GetPropertyInfoFromColumnName(reli.ThroughForeignKey!)),
-                        Expression.MakeMemberAccess(py, reli.TargetType.GetPropertyInfoFromColumnName(reli.TargetType.GetPrimaryKey()!))),
-                    px, py);
-                statement.BuildRelationSpec(cond);
-                var pt = Expression.Parameter(tupleType);
-                var outputfunc = Expression.Lambda(
-                    Expression.MakeMemberAccess(pt, tupleType.GetMembers().Last()),
-                    pt);
+                var outputfunc = ExpressionHelpers.MakeUntupleByLastFunc(tupleType);
                 statement.BuildOutputSpec(outputfunc);
             }
             else
@@ -141,7 +138,7 @@ namespace Meuzz.Persistence
                 {
                     if (v != null)
                     {
-                        var loader = MakeDefaultReverseLoader(context, v, prop.PropertyType);
+                        var loader = MakeDefaultLoader(context, prop.PropertyType, v);
                         reverseLoaders.Add(prop, loader);
                     }
                 }
