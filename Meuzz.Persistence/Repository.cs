@@ -106,10 +106,9 @@ namespace Meuzz.Persistence
             var bindings = new List<MemberAssignment>();
             var arguments = new List<Expression>();
 
-            IDictionary<PropertyInfo, IEnumerable<object>> reverseLoaders = new Dictionary<PropertyInfo, IEnumerable<object>>();
+            var reverseLoaders = new Dictionary<PropertyInfo, IEnumerable<object>>();
 
-            var ctors = t.GetConstructors().OrderBy(x => x.GetParameters().Length);
-            var ctor = ctors.First();
+            var ctor = t.GetConstructors().OrderBy(x => x.GetParameters().Length).First();
             var ctorParamTypesAndNames = ctor.GetParameters().Select(x => (x.ParameterType, x.Name.ToSnake())).ToArray();
 
             var colsValsPairs = columns.Zip(values);
@@ -152,8 +151,8 @@ namespace Meuzz.Persistence
                 }
             };
 
-            NewExpression instance = Expression.New(ctor, arguments);
-            Expression expr = Expression.MemberInit(instance, bindings);
+            NewExpression exprNew = Expression.New(ctor, arguments);
+            Expression expr = Expression.MemberInit(exprNew, bindings);
 
             var ft = typeof(Func<>).MakeGenericType(t);
             LambdaExpression lambda = Expression.Lambda(ft, expr);
