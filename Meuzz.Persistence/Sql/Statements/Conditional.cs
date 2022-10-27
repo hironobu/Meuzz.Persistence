@@ -18,7 +18,7 @@ namespace Meuzz.Persistence.Sql
             ParameterSetInfo.RegisterParameter(null, t, true);
         }
 
-        public SqlSelectStatement(Type t, SqlSelectStatement statement) : base(t, statement.Condition)
+        public SqlSelectStatement(SqlSelectStatement statement) : base(statement.Type, statement.Condition)
         {
             _source = statement.Source;
             _columnSpecs = statement.ColumnSpecs;
@@ -527,11 +527,7 @@ namespace Meuzz.Persistence.Sql
         {
         }
 
-        public SelectStatement(Type t, SqlSelectStatement statement) : base(t, statement)
-        {
-        }
-
-        public SelectStatement(SqlSelectStatement statement) : base(statement.Type, statement)
+        public SelectStatement(SqlSelectStatement statement) : base(statement)
         {
         }
 

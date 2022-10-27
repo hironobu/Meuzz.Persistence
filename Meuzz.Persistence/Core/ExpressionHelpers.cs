@@ -16,7 +16,7 @@ namespace Meuzz.Persistence.Core
             return Expression.Call(px, methodInfo, Expression.Constant(key));
         }
 
-        public static LambdaExpression MakeUntupleByLastFunc(Type tupleType)
+        public static LambdaExpression MakeUntupleByLastMemberAccessFunc(Type tupleType)
         {
             var pt = Expression.Parameter(tupleType);
 

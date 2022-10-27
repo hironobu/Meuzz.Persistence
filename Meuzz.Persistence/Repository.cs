@@ -51,9 +51,7 @@ namespace Meuzz.Persistence
                 if (pkval == null) { throw new NotImplementedException(); }
                 statement.BuildCondition(reli.ThroughForeignKey, pkval);
 
-                //var statementType = typeof(SelectStatement<>).MakeGenericType(tupleType);
-                //statement = (SqlSelectStatement)Activator.CreateInstance(statementType, statement)!;
-                statement = new SqlSelectStatement(statement.Type, statement);
+                statement = new SqlSelectStatement(statement);
 
                 var throughMemberInfo = reli.ThroughType.GetPropertyInfoFromColumnName(reli.ThroughForeignKey);
                 if (throughMemberInfo == null) { throw new NotImplementedException();  }
@@ -63,7 +61,7 @@ namespace Meuzz.Persistence
                 statement.BuildRelationSpec(cond);
 
                 var tupleType = typeof(Tuple<,>).MakeGenericType(reli.ThroughType, reli.TargetType);
-                var outputfunc = ExpressionHelpers.MakeUntupleByLastFunc(tupleType);
+                var outputfunc = ExpressionHelpers.MakeUntupleByLastMemberAccessFunc(tupleType);
                 statement.BuildOutputSpec(outputfunc);
             }
             else
