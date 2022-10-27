@@ -333,17 +333,11 @@ namespace Meuzz.Persistence
                     }
                     else
                     {
-                        ReflectionHelpers.PropertySet(dx, relationSpec.MemberInfo.Name, MakeGenerator(relationSpec, dx["__object"]).EnumerableUncast(memberType));
+                        Func<IEnumerable<object>> dummyLoader = () => Enumerable.Empty<object>();
+                        ReflectionHelpers.PropertySet(dx, relationSpec.MemberInfo.Name, dummyLoader);
                     }
                 };
             }
-        }
-
-        private IEnumerable<object> MakeGenerator(RelationSpec relationSpec, object? self)
-        {
-            // yield return null;
-            Console.WriteLine(self);
-            yield break;
         }
     }
 
