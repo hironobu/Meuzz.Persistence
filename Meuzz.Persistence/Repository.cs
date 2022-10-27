@@ -15,7 +15,7 @@ namespace Meuzz.Persistence
 {
     public class ObjectRepositoryBase
     {
-        protected IEnumerable<object> LoadObjects(IDatabaseContext context, Type t, SqlSelectStatement statement)
+        protected IEnumerable<object> MakeLoader(IDatabaseContext context, Type t, SqlSelectStatement statement)
         {
             var rset = context.Execute(statement);
             if (rset != null)
@@ -37,7 +37,7 @@ namespace Meuzz.Persistence
             var statement = new SqlSelectStatement(targetType);
             statement.BuildCondition(primaryKey, value);
 
-            return LoadObjects(context, targetType, statement);
+            return MakeLoader(context, targetType, statement);
         }
 
         protected IEnumerable<object> MakeDefaultLoader(IDatabaseContext context, object obj, RelationInfo reli)
@@ -72,7 +72,7 @@ namespace Meuzz.Persistence
                 statement.BuildCondition(reli.ForeignKey, pkval);
             }
 
-            var results = LoadObjects(context, reli.TargetType, statement);
+            var results = MakeLoader(context, reli.TargetType, statement);
             
             {
                 if (reli.InversePropertyInfo != null)
@@ -381,7 +381,7 @@ namespace Meuzz.Persistence
         public IEnumerable<T2> Load<T, T2>(IDatabaseContext context, Func<SelectStatement<T>, SelectStatement<T2>> f)
         {
             var statement = f(new SelectStatement<T>());
-            return Enumerable.Cast<T2>(LoadObjects(context, typeof(T2), statement));
+            return Enumerable.Cast<T2>(MakeLoader(context, typeof(T2), statement));
         }
 
         public IEnumerable<T> Load<T>(IDatabaseContext context, Expression<Func<T, bool>> f)
@@ -392,7 +392,7 @@ namespace Meuzz.Persistence
                 statement = statement.Where(f);
             }
 
-            return Enumerable.Cast<T>(LoadObjects(context, typeof(T), statement));
+            return Enumerable.Cast<T>(MakeLoader(context, typeof(T), statement));
         }
 
         public IEnumerable<T> Load<T>(IDatabaseContext context, params object[] id)
@@ -403,7 +403,7 @@ namespace Meuzz.Persistence
             var statement = new SelectStatement<T>();
             statement = statement.Where(primaryKey, id);
 
-            return Enumerable.Cast<T>(LoadObjects(context, typeof(T), statement));
+            return Enumerable.Cast<T>(MakeLoader(context, typeof(T), statement));
         }
 
         public bool Store<T>(IDatabaseContext context, params T[] objs) where T : class
