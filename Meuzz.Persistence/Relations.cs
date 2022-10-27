@@ -16,11 +16,11 @@ namespace Meuzz.Persistence
             PrimaryKey = pk ?? "id";
             if (condition != null)
             {
-                _condition = condition;
+                _conditionFunc = _conditionEvaluator.GetEvaluateFunc(condition);
             }
             else
             {
-                _defaultConditionFunc = MakeDefaultConditionFunc(ForeignKey, PrimaryKey);
+                _conditionFunc = MakeDefaultConditionFunc(ForeignKey, PrimaryKey);
             }
 
             Left = left;
@@ -35,11 +35,9 @@ namespace Meuzz.Persistence
         public MemberInfo? MemberInfo { get; }
 
         public string ConditionSql => $"{Left.Name}.{PrimaryKey ?? Left.Type.GetPrimaryKey()} = {Right.Name}.{ForeignKey}";
-        public Func<IDictionary<string, object?>, IDictionary<string, object?>, bool> ConditionFunc => _condition != null ? _conditionEvaluator.GetEvaluateFunc(_condition) : _defaultConditionFunc;
+        public Func<IDictionary<string, object?>, IDictionary<string, object?>, bool> ConditionFunc => _conditionFunc;
 
-        private Condition? _condition = null;
-
-        private Func<object, object, bool> _defaultConditionFunc;
+        private Func<object, object, bool> _conditionFunc;
 
         [Obsolete]
         private ConditionEvaluator _conditionEvaluator = new ConditionEvaluator();

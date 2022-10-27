@@ -380,7 +380,7 @@ namespace Meuzz.Persistence.Sql
 
     public static class TupleTypeExtensions
     {
-        public static bool IsGenericTuple(this Type type, bool checkBaseTypes = false)
+        public static bool IsGenericTuple(this Type? type, bool checkBaseTypes = false)
         {
             if (type == null)
                 throw new ArgumentNullException(nameof(type));
