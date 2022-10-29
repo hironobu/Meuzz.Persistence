@@ -28,12 +28,12 @@ namespace Meuzz.Persistence.Sql
             {
                 throw new NotImplementedException();
             }
-#if false
+            #if false
             if (statement.RelationSpecs != null && statement.RelationSpecs.Any())
             {
                 throw new NotImplementedException();
             }
-#endif
+            #endif
             if (statement.OutputSpec != null)
             {
                 throw new NotImplementedException();
@@ -61,7 +61,7 @@ namespace Meuzz.Persistence.Sql
 
         public Func<object, object>? PackerFunc => _packerFunc;
 
-#region Source
+        #region Source
         protected void BuildSource(SqlSelectStatement statement)
         {
             _source = statement;
@@ -73,9 +73,9 @@ namespace Meuzz.Persistence.Sql
                 colspec.Parameter = paname;
             }*/
         }
-#endregion
+        #endregion
 
-#region Condition
+        #region Condition
         public override void BuildCondition(LambdaExpression cond, Type? t)
         {
             var px0 = cond.Parameters.First();
@@ -88,10 +88,9 @@ namespace Meuzz.Persistence.Sql
 
             base.BuildCondition(cond, t);
         }
+        #endregion
 
-#endregion
-
-#region Columns
+        #region Columns
         public void BuildColumnSpec(LambdaExpression columnListExpression)
         {
             Expression bodyexp = columnListExpression.Body;
@@ -137,17 +136,12 @@ namespace Meuzz.Persistence.Sql
 
             _columnSpecs = columnSpecs.ToArray();
         }
-#endregion
+        #endregion
 
-#region Relations
-        private RelationSpec GetRelationSpecByParamName(string left, string right)
-        {
-            return _relationSpecs.SingleOrDefault(spec => spec.Left.Name == left && spec.Right.Name == right);
-        }
-
+        #region Relations
         private void AddRelationSpec(RelationSpec spec)
         {
-            if (GetRelationSpecByParamName(spec.Left.Name, spec.Right.Name) != null)
+            if (_relationSpecs.SingleOrDefault(x => x.Left.Name == spec.Left.Name && x.Right.Name == spec.Right.Name) != null)
             {
                 throw new NotImplementedException();
             }
@@ -195,7 +189,7 @@ namespace Meuzz.Persistence.Sql
             AddRelationSpec(relationSpec);
         }
 
-#if false
+        #if false
         public void BuildRightJoinRelationSpec(Type rightParamType, string foreignKey)
         {
             var foreignKeyProperty = Type.GetPropertyInfoFromColumnName(foreignKey);
@@ -211,7 +205,7 @@ namespace Meuzz.Persistence.Sql
                 px, py);
             BuildRelationSpec(lambda);
         }
-#endif
+        #endif
 
         public void BuildRelationSpec(LambdaExpression condexp)
         {
@@ -236,16 +230,16 @@ namespace Meuzz.Persistence.Sql
             };
         }
 
-#endregion
+        #endregion
 
-#region Output
+        #region Output
         public void BuildOutputSpec(LambdaExpression outputexp)
         {
             _outputSpec = new OutputSpec(outputexp);
 
             ParameterSetInfo.SetParameterMemberExpressions(_outputSpec.SourceMemberExpressions);
         }
-#endregion
+        #endregion
 
         private SqlSelectStatement? _source;
         private ColumnSpec[] _columnSpecs = new ColumnSpec[] { };
