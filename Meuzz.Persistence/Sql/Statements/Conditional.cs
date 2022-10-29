@@ -151,41 +151,13 @@ namespace Meuzz.Persistence.Sql
 
         public void BuildRelationSpec(LambdaExpression propexp, LambdaExpression? condexp)
         {
-            var propbodyexp = propexp.Body;
-            var leftparamexp = propexp.Parameters.Single();
-            var propertyInfo = ((MemberExpression)propbodyexp).Member as PropertyInfo;
-            if (propertyInfo == null)
-            {
-                throw new NotImplementedException();
-            }
-
-            var rightParamType = propertyInfo.PropertyType;
-            if (rightParamType.IsGenericType)
-            {
-                rightParamType = rightParamType.GetGenericArguments().First();
-            }
-
-            var leftParamName = ParameterSetInfo.GetDefaultParamName();
-            var rightParamName = ParameterSetInfo.RegisterParameter(condexp != null ? condexp.Parameters.Skip(1).First().Name : null, rightParamType, false);
-
-            var relationSpec = RelationSpec.Build(leftParamName, leftparamexp.Type, rightParamName, rightParamType, propertyInfo, null, condexp);
+            var relationSpec = RelationSpec.BuildByPropertyAndCondition(ParameterSetInfo, propexp, condexp);
             AddRelationSpec(relationSpec);
         }
 
         public void BuildRelationSpec(LambdaExpression? condexp, Type rightParamType, string foreignKey)
         {
-            var leftParamType = Type;
-
-            // var rightParamType = propertyInfo.PropertyType;
-            if (rightParamType.IsGenericType)
-            {
-                rightParamType = rightParamType.GetGenericArguments().First();
-            }
-
-            var leftParamName = ParameterSetInfo.GetDefaultParamName();
-            var rightParamName = ParameterSetInfo.RegisterParameter(condexp != null ? condexp.Parameters.Skip(1).First().Name : null, rightParamType, false);
-
-            var relationSpec = RelationSpec.Build(leftParamName, leftParamType, rightParamName, rightParamType, null, foreignKey, condexp);
+            var relationSpec = RelationSpec.BuildByPropertyAndForeignKey(ParameterSetInfo, condexp, Type, rightParamType, foreignKey);
             AddRelationSpec(relationSpec);
         }
 
@@ -226,7 +198,12 @@ namespace Meuzz.Persistence.Sql
                 var left = d[leftParamName]["__object"];
                 var right = d[rightParamName]["__object"];
 
-                return (oldf(left!), right);
+                if (left == null)
+                {
+                    throw new NotImplementedException();
+                }
+
+                return (oldf(left), right);
             };
         }
 
