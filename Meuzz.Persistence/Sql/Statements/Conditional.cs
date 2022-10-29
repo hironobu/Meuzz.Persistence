@@ -41,7 +41,7 @@ namespace Meuzz.Persistence.Sql
 
             _source = statement.Source;
             _columnSpecs = statement.ColumnSpecs;
-            _relationSpecs = statement.RelationSpecs;
+            _relationSpecs = statement.RelationSpecs.ToList();
             _outputSpec = statement.OutputSpec;
 
             ParameterSetInfo = new ParameterSetInfo(statement.ParameterSetInfo);
@@ -51,8 +51,8 @@ namespace Meuzz.Persistence.Sql
 
         public ColumnSpec[] ColumnSpecs { get => _columnSpecs; }
 
-        public RelationSpec[] RelationSpecs { get => _relationSpecs; }
-        
+        public IEnumerable<RelationSpec> RelationSpecs => _relationSpecs;
+
         public OutputSpec? OutputSpec { get => _outputSpec; }
 
         public Type OutputType { get => _outputSpec?.OutputExpression.ReturnType ?? Type; }
@@ -152,11 +152,7 @@ namespace Meuzz.Persistence.Sql
                 throw new NotImplementedException();
             }
 
-            var specs = new RelationSpec[_relationSpecs.Length + 1];
-            _relationSpecs.CopyTo(specs, 0);
-            specs[_relationSpecs.Length] = spec;
-
-            _relationSpecs = specs;
+            _relationSpecs.Add(spec);
         }
 
         public void BuildRelationSpec(LambdaExpression propexp, LambdaExpression? condexp)
@@ -217,7 +213,7 @@ namespace Meuzz.Persistence.Sql
         }
 #endif
 
-        public void BuildRelationSpec(LambdaExpression condexp, Func<object, Func<object, object>?, object>? packerFunc = null)
+        public void BuildRelationSpec(LambdaExpression condexp)
         {
             var leftParamType = condexp.Parameters.First().Type;
             var rightParamType = condexp.Parameters.Last().Type;
@@ -229,22 +225,15 @@ namespace Meuzz.Persistence.Sql
             AddRelationSpec(relationSpec);
 
             var oldf = _packerFunc;
-            if (packerFunc != null)
+            _packerFunc = o =>
             {
-                _packerFunc = o => packerFunc(o, oldf);
-            }
-            else
-            {
-                _packerFunc = o =>
-                {
-                    var d = (IDictionary<string, IDictionary<string, object?>>)o;
+                var d = (IDictionary<string, IDictionary<string, object?>>)o;
 
-                    var left = d[leftParamName]["__object"];
-                    var right = d[rightParamName]["__object"];
+                var left = d[leftParamName]["__object"];
+                var right = d[rightParamName]["__object"];
 
-                    return (oldf(left!), right);
-                };
-            }
+                return (oldf(left!), right);
+            };
         }
 
 #endregion
@@ -260,7 +249,7 @@ namespace Meuzz.Persistence.Sql
 
         private SqlSelectStatement? _source;
         private ColumnSpec[] _columnSpecs = new ColumnSpec[] { };
-        private RelationSpec[] _relationSpecs = new RelationSpec[] { };
+        private IList<RelationSpec> _relationSpecs = new List<RelationSpec>();
         private OutputSpec? _outputSpec = null;
         private Func<object, object> _packerFunc = o => o;
     }
