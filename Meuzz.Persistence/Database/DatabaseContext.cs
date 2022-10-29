@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Linq;
+using Meuzz.Foundation;
 using Meuzz.Persistence.Sql;
 
 namespace Meuzz.Persistence.Database
@@ -151,29 +152,19 @@ namespace Meuzz.Persistence.Database
 
         public IEnumerable<IDictionary<string, object?>> Results { get; }
 
-        public IEnumerable<IDictionary<string, object?>> Rearrange()
+        public IEnumerable<IDictionary<string, object?>> Grouped()
         {
             return Results.Select(x =>
             {
-                var kvs = x.Select(c => (c.Key.Split('.'), c.Value));
+                var kvs = x.Select(c => (c.Key.Split('.', 2), c.Value));
                 var d = new Dictionary<string, object?>();
+
                 foreach (var (kk, v) in kvs)
                 {
-                    var dx = d;
-                    var k = string.Join('.', kk.Take(kk.Length - 1));
-                    var dx0 = dx;
+                    var dx0 = d;
+                    var dx = (Dictionary<string, object?>)dx0.GetValueOrFunc(kk[0], () => new Dictionary<string, object?>())!; // TODO: to be reviewed
 
-                    if (dx0.TryGetValue(k, out var value) && value != null)
-                    {
-                        dx = (Dictionary<string, object?>)value;
-                    }
-                    else
-                    {
-                        dx = new Dictionary<string, object?>();
-                        dx0[k] = dx;
-                    }
-
-                    dx[kk.Last().ToLower()] = v;
+                    dx[kk[1].ToLower()] = v;
                 }
 
                 return d;

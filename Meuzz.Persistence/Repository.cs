@@ -242,7 +242,7 @@ namespace Meuzz.Persistence
 
         protected IEnumerable<object> PopulateObjects(IDatabaseContext context, Type t, ResultSet rset, SqlSelectStatement statement)
         {
-            var rows = rset.Rearrange();
+            var rows = rset.Grouped();
             if (!rows.Any())
             {
                 return Array.Empty<object>();
