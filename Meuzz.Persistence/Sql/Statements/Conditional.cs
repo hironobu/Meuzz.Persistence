@@ -57,6 +57,7 @@ namespace Meuzz.Persistence.Sql
 
         public Type OutputType { get => _outputSpec?.OutputExpression.ReturnType ?? Type; }
 
+        [Obsolete]
         public ParameterSetInfo ParameterSetInfo { get; }
 
         public Func<object, object>? PackerFunc => _packerFunc;
@@ -213,8 +214,6 @@ namespace Meuzz.Persistence.Sql
         public void BuildOutputSpec(LambdaExpression outputexp)
         {
             _outputSpec = new OutputSpec(outputexp);
-
-            ParameterSetInfo.SetParameterMemberExpressions(_outputSpec.SourceMemberExpressions);
         }
         #endregion
 

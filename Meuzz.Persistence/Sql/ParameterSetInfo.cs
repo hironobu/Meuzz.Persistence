@@ -11,7 +11,6 @@ namespace Meuzz.Persistence.Sql
     {
         public ParameterSetInfo()
         {
-            _parameterMemberExpressions = new Dictionary<ExpressionComparer, MemberExpression[]>();
             _parameters = new Dictionary<string, Type>();
             _parameterKeys = new List<string>();
             _defaultParamKey = null;
@@ -19,7 +18,6 @@ namespace Meuzz.Persistence.Sql
 
         public ParameterSetInfo(ParameterSetInfo parameterSetInfo)
         {
-            _parameterMemberExpressions = new Dictionary<ExpressionComparer, MemberExpression[]>(parameterSetInfo._parameterMemberExpressions);
             _parameters = new Dictionary<string, Type>(parameterSetInfo._parameters);
             _parameterKeys = new List<string>(parameterSetInfo._parameterKeys);
             _defaultParamKey = parameterSetInfo._defaultParamKey;
@@ -62,11 +60,6 @@ namespace Meuzz.Persistence.Sql
             }
 
             return k;
-        }
-
-        public void SetParameterMemberExpressions(IDictionary<ExpressionComparer, MemberExpression[]> memberExpressions)
-        {
-            _parameterMemberExpressions = memberExpressions;
         }
 
         public Type? GetTypeByName(string name)
@@ -119,7 +112,7 @@ namespace Meuzz.Persistence.Sql
 
         private IDictionary<string, Type> _parameters;
         private IList<string> _parameterKeys;
-        private IDictionary<ExpressionComparer, MemberExpression[]> _parameterMemberExpressions;
+        // private IDictionary<ExpressionComparer, MemberExpression[]> _parameterMemberExpressions;
         private string? _defaultParamKey;
     }
 }
