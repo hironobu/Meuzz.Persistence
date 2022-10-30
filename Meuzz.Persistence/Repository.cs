@@ -133,7 +133,7 @@ namespace Meuzz.Persistence
             var reverseLoaders = new Dictionary<PropertyInfo, Expression>();
 
             var ctor = t.GetConstructors().OrderBy(x => x.GetParameters().Length).First();
-            var ctorParamTypesAndNames = ctor.GetParameters().Select(x => (x.ParameterType, x.Name.ToSnake())).ToArray();
+            var ctorParamTypesAndNames = ctor.GetParameters().Select(x => (x.ParameterType, x.Name?.ToSnake() ?? throw new NotImplementedException())).ToArray();
 
             foreach (var c in valueDictKeys.Except(ctorParamTypesAndNames.Select(x => x.Item2)))
             {

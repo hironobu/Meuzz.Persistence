@@ -295,7 +295,7 @@ namespace Meuzz.Persistence.Sql
                     var memberInfo = me.Member;
                     var px0 = (ParameterExpression)me.Expression;
                     var px = parameters.First(x => x.Name == px0.Name);
-                    return ExpressionHelpers.MakeDictionaryAccessorExpression(px.Name, memberInfo.GetColumnName(), parameters);
+                    return ExpressionHelpers.MakeDictionaryAccessorExpression(px, memberInfo.GetColumnName());
 
                 case ParameterExpression pe:
                     return pe;

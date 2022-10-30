@@ -53,7 +53,7 @@ namespace Meuzz.Persistence.Sql
             {
                 var t1 = typeof(Dictionary<string, object?>);
                 px = Expression.Parameter(t1, "_t0");
-                memberAccessor = ExpressionHelpers.MakeDictionaryAccessorExpression(px.Name, key, new[] { px });
+                memberAccessor = ExpressionHelpers.MakeDictionaryAccessorExpression(px, key);
             }
 
             Expression f;
