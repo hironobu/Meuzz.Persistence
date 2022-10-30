@@ -157,8 +157,11 @@ namespace Meuzz.Persistence
                 }
                 else
                 {
-                    Func<PropertyInfo, object?, MemberAssignment> mapper = (k, v) => Expression.Bind(k, Expression.Constant(Convert.ChangeType(v, k.PropertyType)));
-                    bindings.Add(mapper(prop, v));
+                    var dv = ExpressionHelpers.MakeDictionaryAccessorExpression(pe, c);
+
+                    //Func<PropertyInfo, object?, MemberAssignment> mapper = (k, v) => Expression.Bind(k, Expression.Constant(Convert.ChangeType(v, k.PropertyType)));
+                    Func<PropertyInfo, MemberAssignment> mapper = (pi) => Expression.Bind(pi, ExpressionHelpers.MakeUnboxExpression(dv, pi.PropertyType));
+                    bindings.Add(mapper(prop));
                 }
             };
 
