@@ -1,6 +1,7 @@
 ﻿#nullable enable
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -124,22 +125,17 @@ namespace Meuzz.Persistence
             return Expression.Invoke(Expression.Constant(loaderFieldSetter), exprObj, exprPropLoader);
         }
 
-        protected object PopulateObject(IDatabaseContext context, Type t, IDictionary<string, object?> valueDict)
+        private Func<IDictionary<string, object?>, object> MakePopulateObjectFunc(IDatabaseContext context, Type t, IEnumerable<string> valueDictKeys)
         {
             var pe = Expression.Parameter(typeof(IDictionary<string, object?>));
 
-            var bindings = new List<MemberAssignment>();
+            var members = new List<MemberAssignment>();
             var reverseLoaders = new Dictionary<PropertyInfo, Expression>();
 
             var ctor = t.GetConstructors().OrderBy(x => x.GetParameters().Length).First();
             var ctorParamTypesAndNames = ctor.GetParameters().Select(x => (x.ParameterType, x.Name.ToSnake())).ToArray();
 
-            var ctorParamDict = valueDict.Where(x => ctorParamTypesAndNames.Any(p => p.Item2 == x.Key)).ToDictionary(x => x.Key, x => x.Value);
-            var memberInitParamDict = valueDict.Where(x => !ctorParamTypesAndNames.Any(p => p.Item2 == x.Key)).ToDictionary(x => x.Key, x => x.Value);
-
-            var arguments = ctorParamTypesAndNames.Select(p => ExpressionHelpers.MakeUnboxExpression(ExpressionHelpers.MakeDictionaryAccessorExpression(pe, p.Item2), p.Item1));
-
-            foreach (var (c, _) in memberInitParamDict)
+            foreach (var c in valueDictKeys.Except(ctorParamTypesAndNames.Select(x => x.Item2)))
             {
                 var prop = t.GetPropertyInfoFromColumnName(c, true);
                 if (prop == null)
@@ -151,34 +147,29 @@ namespace Meuzz.Persistence
 
                 if (prop.PropertyType.IsPersistent())
                 {
-                    // if (v != null)
-                    {
-                        Func<object, IEnumerable<object>> loader = v => v != null ? MakeDefaultLoader(context, prop.PropertyType, v) : Enumerable.Empty<object>();
-                        reverseLoaders.Add(prop, Expression.Invoke(Expression.Constant(loader), dv));
-                    }
+                    Func<object, IEnumerable<object>> loader = v => v != null ? MakeDefaultLoader(context, prop.PropertyType, v) : Enumerable.Empty<object>();
+                    reverseLoaders.Add(prop, Expression.Invoke(Expression.Constant(loader), dv));
                 }
                 else
                 {
-                    //Func<PropertyInfo, object?, MemberAssignment> mapper = (k, v) => Expression.Bind(k, Expression.Constant(Convert.ChangeType(v, k.PropertyType)));
                     Func<PropertyInfo, MemberAssignment> mapper = (pi) => Expression.Bind(pi, ExpressionHelpers.MakeUnboxExpression(dv, pi.PropertyType));
-                    bindings.Add(mapper(prop));
+                    members.Add(mapper(prop));
                 }
             };
 
-            NewExpression exprNew = Expression.New(ctor, arguments);
-            Expression exprMemberInit = Expression.MemberInit(exprNew, bindings);
+            var arguments = ctorParamTypesAndNames.Select(p => ExpressionHelpers.MakeUnboxExpression(ExpressionHelpers.MakeDictionaryAccessorExpression(pe, p.Item2), p.ParameterType));
 
-            var ft = typeof(Func<,>).MakeGenericType(typeof(IDictionary<string, object?>), t);
-            // LambdaExpression lambda = Expression.Lambda(ft, exprMemberInit);
+            var exprInit = Expression.MemberInit(Expression.New(ctor, arguments), members);
+
             var exprObj = Expression.Variable(t);
-            var exprObjAssigned = Expression.Assign(exprObj, exprMemberInit);
+            var exprObjAssigned = Expression.Assign(exprObj, exprInit);
 
             var exprs = new List<Expression>();
 
+            exprs.Add(exprObjAssigned);
+
             var ci = t.GetTableInfo();
             if (ci == null) { throw new NotImplementedException(); }
-
-            exprs.Add(exprObjAssigned);
 
             foreach (var reli in ci.Relations)
             {
@@ -199,16 +190,24 @@ namespace Meuzz.Persistence
                 }
             }
 
+            exprs.Add(Expression.Call(typeof(PersistableState).GetMethod("Reset"), exprObj));
             exprs.Add(exprObj);
 
             var func0 = Expression.Lambda(Expression.Block(new[] { exprObj }, exprs), pe).Compile();
 
-            Func<IDictionary<string, object?>, object> func = (Func<IDictionary<string, object?>, object>)Convert.ChangeType(func0, ft);
-            object obj = func(valueDict);
-
-            PersistableState.Reset(obj);
-            return obj;
+            var ft = typeof(Func<,>).MakeGenericType(typeof(IDictionary<string, object?>), t);
+            return (Func<IDictionary<string, object?>, object>)Convert.ChangeType(func0, ft);
         }
+
+        protected object PopulateObject(IDatabaseContext context, Type t, IDictionary<string, object?> valueDict)
+        {
+            Func<IDictionary<string, object?>, object> func = _populatorFuncDict.GetOrAdd(t, MakePopulateObjectFunc(context, t, valueDict.Keys));
+            // Func<IDictionary<string, object?>, object> func = MakePopulateObjectFunc(context, t, valueDict.Keys);
+
+            return func(valueDict);
+        }
+
+        private ConcurrentDictionary<Type, Func<IDictionary<string, object?>, object>> _populatorFuncDict = new ConcurrentDictionary<Type, Func<IDictionary<string, object?>, object>>();
 
         protected bool StoreObjects(IDatabaseContext context, Type t, IEnumerable<object> objs, IDictionary<string, object?>? extraData)
         {
