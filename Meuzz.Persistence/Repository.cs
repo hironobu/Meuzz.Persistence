@@ -108,6 +108,43 @@ namespace Meuzz.Persistence
             }
         }
 
+
+        private static Expression MakePropertyOrFieldSetExpression(Expression exprObj, PropertyInfo propInfo, Func<object, object> valuefunc)
+        {
+            var exprValueFunc = Expression.Convert(Expression.Invoke(Expression.Constant(valuefunc), exprObj), propInfo.PropertyType);
+
+            if (propInfo.SetMethod != null)
+            {
+                var memberExpr = Expression.Property(exprObj, propInfo);
+
+                return Expression.Assign(memberExpr, Expression.Convert(Expression.Invoke(Expression.Constant(valuefunc), exprObj), propInfo.PropertyType));
+            }
+            else
+            {
+                var attr = propInfo.GetCustomAttribute<BackingFieldAttribute>();
+                if (attr == null)
+                {
+                    throw new NotImplementedException();
+                }
+
+                var field = propInfo.DeclaringType?.GetField(attr.BackingFieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                Action<object, object> fieldSetter = (obj, value) => field?.SetValue(obj, value);
+                return Expression.Invoke(Expression.Constant(fieldSetter), exprObj, exprValueFunc);
+            }
+        }
+
+        private static Expression? MakeLoaderFieldSetExpression(Expression exprObj, PropertyInfo prop, IEnumerable<object> proploader)
+        {
+            var loaderField = exprObj.Type.GetField($"__load_{prop.Name}", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (loaderField == null)
+            {
+                return null;
+            }
+
+            Action<object> loaderFieldSetter = (obj) => loaderField.SetValue(obj, proploader.EnumerableUncast(prop.PropertyType));
+            return Expression.Invoke(Expression.Constant(loaderFieldSetter), exprObj);
+        }
+
         protected object PopulateObject(IDatabaseContext context, Type t, IEnumerable<string> columns, IEnumerable<object?> values)
         {
             var bindings = new List<MemberAssignment>();
@@ -146,33 +183,45 @@ namespace Meuzz.Persistence
             };
 
             NewExpression exprNew = Expression.New(ctor, arguments);
-            Expression expr = Expression.MemberInit(exprNew, bindings);
+            Expression exprMemberInit = Expression.MemberInit(exprNew, bindings);
 
             var ft = typeof(Func<>).MakeGenericType(t);
-            LambdaExpression lambda = Expression.Lambda(ft, expr);
-            Func<object> func = (Func<object>)Convert.ChangeType(lambda.Compile(), ft);
-            object obj = func();
+            LambdaExpression lambda = Expression.Lambda(ft, exprMemberInit);
+            var exprObj = Expression.Variable(t);
+            var exprObjAssigned = Expression.Assign(exprObj, exprMemberInit);
+
+            var exprs = new List<Expression>();
 
             var ci = t.GetTableInfo();
             if (ci == null) { throw new NotImplementedException(); }
+
+            exprs.Add(exprObjAssigned);
 
             foreach (var reli in ci.Relations)
             {
                 var prop = reli.PropertyInfo;
                 if (prop != null)
                 {
-                    ReflectionHelpers.PropertyOrFieldSet(obj, prop, MakeDefaultLoader(context, obj, reli).EnumerableUncast(prop.PropertyType));
+                    var e = MakePropertyOrFieldSetExpression(exprObj, prop, (object obj) => MakeDefaultLoader(context, obj, reli).EnumerableUncast(prop.PropertyType));
+                    exprs.Add(e);
                 }
             }
 
             foreach (var (prop, proploader) in reverseLoaders)
             {
-                var loaderField = obj.GetType().GetField($"__load_{prop.Name}", BindingFlags.NonPublic | BindingFlags.Instance);
-                if (loaderField != null)
+                var e = MakeLoaderFieldSetExpression(exprObj, prop, proploader);
+                if (e != null)
                 {
-                    loaderField.SetValue(obj, proploader.EnumerableUncast(prop.PropertyType));
+                    exprs.Add(e);
                 }
             }
+
+            exprs.Add(exprObj);
+
+            var func0 = Expression.Lambda(Expression.Block(new[] { exprObj }, exprs)).Compile();
+
+            Func<object> func = (Func<object>)Convert.ChangeType(func0, ft);
+            object obj = func();
 
             PersistableState.Reset(obj);
             return obj;

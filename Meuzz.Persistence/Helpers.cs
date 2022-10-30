@@ -18,6 +18,7 @@ namespace Meuzz.Persistence
             obj.GetType().GetProperty(propertyName.ToCamel(true), BindingFlags.InvokeMethod)?.SetValue(obj, value);
         }
 
+        [Obsolete]
         public static void PropertyOrFieldSet(object obj, PropertyInfo propInfo, object value)
         {
             if (propInfo.SetMethod != null)
