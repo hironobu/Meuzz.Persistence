@@ -51,7 +51,7 @@ namespace Meuzz.Persistence
                 if (pkval == null) { throw new NotImplementedException(); }
                 statement.BuildCondition(reli.ThroughForeignKey, pkval);
 
-                statement = new SqlSelectStatement(statement);
+                // statement = new SqlSelectStatement(statement);
 
                 var throughMemberInfo = reli.ThroughType.GetPropertyInfoFromColumnName(reli.ThroughForeignKey);
                 if (throughMemberInfo == null) { throw new NotImplementedException();  }
@@ -93,12 +93,24 @@ namespace Meuzz.Persistence
             return PopulateObject(context, t, dict.Keys, dict.Values);
         }
 
+        private static Expression MakeConstantExpression(Type t, object? value)
+        {
+            switch (t)
+            {
+                case Type intType when intType == typeof(long):
+                    return Expression.Constant(Convert.ToInt64(value));
+
+                case Type intType when intType == typeof(int):
+                    return Expression.Constant(Convert.ToInt32(value));
+
+                default:
+                    return Expression.Constant(value);
+            }
+        }
+
         protected object PopulateObject(IDatabaseContext context, Type t, IEnumerable<string> columns, IEnumerable<object?> values)
         {
-            Func<PropertyInfo, object?, MemberAssignment> mapper = (k, v) => Expression.Bind(k, Expression.Constant(Convert.ChangeType(v, k.PropertyType)));
             var bindings = new List<MemberAssignment>();
-            var arguments = new List<Expression>();
-
             var reverseLoaders = new Dictionary<PropertyInfo, IEnumerable<object>>();
 
             var ctor = t.GetConstructors().OrderBy(x => x.GetParameters().Length).First();
@@ -108,19 +120,7 @@ namespace Meuzz.Persistence
             var ctorParamsDict = colsValsPairs.Where(x => ctorParamTypesAndNames.Any(p => p.Item2 == x.First)).ToDictionary(x => x.First, x => x.Second);
             var memberParamsDict = colsValsPairs.Where(x => !ctorParamTypesAndNames.Any(p => p.Item2 == x.First)).ToDictionary(x => x.First, x => x.Second);
 
-            foreach (var (pt, n) in ctorParamTypesAndNames)
-            {
-                switch (pt)
-                {
-                    case Type intType when intType == typeof(int):
-                        arguments.Add(Expression.Constant(Convert.ToInt32(ctorParamsDict[n])));
-                        break;
-
-                    default:
-                        arguments.Add(Expression.Constant(ctorParamsDict[n]));
-                        break;
-                }
-            }
+            var arguments = ctorParamTypesAndNames.Select(p => MakeConstantExpression(p.Item1, ctorParamsDict[p.Item2]));
 
             foreach (var (c, v) in memberParamsDict)
             {
@@ -140,6 +140,7 @@ namespace Meuzz.Persistence
                 }
                 else
                 {
+                    Func<PropertyInfo, object?, MemberAssignment> mapper = (k, v) => Expression.Bind(k, Expression.Constant(Convert.ChangeType(v, k.PropertyType)));
                     bindings.Add(mapper(prop, v));
                 }
             };
