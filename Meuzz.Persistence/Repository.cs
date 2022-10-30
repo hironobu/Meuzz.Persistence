@@ -112,7 +112,7 @@ namespace Meuzz.Persistence
             }
         }
 
-        private static Expression? MakeLoaderFieldSetExpression(Expression exprObj, PropertyInfo prop, IEnumerable<object> proploader)
+        private static Expression? MakeLoaderFieldSetExpression(Expression exprObj, PropertyInfo prop, Expression exprPropLoader)
         {
             var loaderField = exprObj.Type.GetField($"__load_{prop.Name}", BindingFlags.NonPublic | BindingFlags.Instance);
             if (loaderField == null)
@@ -120,8 +120,8 @@ namespace Meuzz.Persistence
                 return null;
             }
 
-            Action<object> loaderFieldSetter = (obj) => loaderField.SetValue(obj, proploader.EnumerableUncast(prop.PropertyType));
-            return Expression.Invoke(Expression.Constant(loaderFieldSetter), exprObj);
+            Action<object, IEnumerable<object>> loaderFieldSetter = (obj, proploader) => loaderField.SetValue(obj, proploader.EnumerableUncast(prop.PropertyType));
+            return Expression.Invoke(Expression.Constant(loaderFieldSetter), exprObj, exprPropLoader);
         }
 
         protected object PopulateObject(IDatabaseContext context, Type t, IDictionary<string, object?> valueDict)
@@ -129,7 +129,7 @@ namespace Meuzz.Persistence
             var pe = Expression.Parameter(typeof(IDictionary<string, object?>));
 
             var bindings = new List<MemberAssignment>();
-            var reverseLoaders = new Dictionary<PropertyInfo, IEnumerable<object>>();
+            var reverseLoaders = new Dictionary<PropertyInfo, Expression>();
 
             var ctor = t.GetConstructors().OrderBy(x => x.GetParameters().Length).First();
             var ctorParamTypesAndNames = ctor.GetParameters().Select(x => (x.ParameterType, x.Name.ToSnake())).ToArray();
@@ -139,7 +139,7 @@ namespace Meuzz.Persistence
 
             var arguments = ctorParamTypesAndNames.Select(p => ExpressionHelpers.MakeUnboxExpression(ExpressionHelpers.MakeDictionaryAccessorExpression(pe, p.Item2), p.Item1));
 
-            foreach (var (c, v) in memberInitParamDict)
+            foreach (var (c, _) in memberInitParamDict)
             {
                 var prop = t.GetPropertyInfoFromColumnName(c, true);
                 if (prop == null)
@@ -147,18 +147,18 @@ namespace Meuzz.Persistence
                     continue;
                 }
 
+                var dv = ExpressionHelpers.MakeDictionaryAccessorExpression(pe, c);
+
                 if (prop.PropertyType.IsPersistent())
                 {
-                    if (v != null)
+                    // if (v != null)
                     {
-                        var loader = MakeDefaultLoader(context, prop.PropertyType, v);
-                        reverseLoaders.Add(prop, loader);
+                        Func<object, IEnumerable<object>> loader = v => v != null ? MakeDefaultLoader(context, prop.PropertyType, v) : Enumerable.Empty<object>();
+                        reverseLoaders.Add(prop, Expression.Invoke(Expression.Constant(loader), dv));
                     }
                 }
                 else
                 {
-                    var dv = ExpressionHelpers.MakeDictionaryAccessorExpression(pe, c);
-
                     //Func<PropertyInfo, object?, MemberAssignment> mapper = (k, v) => Expression.Bind(k, Expression.Constant(Convert.ChangeType(v, k.PropertyType)));
                     Func<PropertyInfo, MemberAssignment> mapper = (pi) => Expression.Bind(pi, ExpressionHelpers.MakeUnboxExpression(dv, pi.PropertyType));
                     bindings.Add(mapper(prop));
@@ -190,9 +190,9 @@ namespace Meuzz.Persistence
                 }
             }
 
-            foreach (var (prop, proploader) in reverseLoaders)
+            foreach (var (prop, exprPropLoader) in reverseLoaders)
             {
-                var e = MakeLoaderFieldSetExpression(exprObj, prop, proploader);
+                var e = MakeLoaderFieldSetExpression(exprObj, prop, exprPropLoader);
                 if (e != null)
                 {
                     exprs.Add(e);
