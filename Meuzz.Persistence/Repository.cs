@@ -88,11 +88,6 @@ namespace Meuzz.Persistence
             return results;
         }
 
-        protected object PopulateObject(IDatabaseContext context, Type t, IDictionary<string, object?> dict)
-        {
-            return PopulateObject(context, t, dict.Keys, dict.Values);
-        }
-
         private static Expression MakeConstantExpression(Type t, object? value)
         {
             switch (t)
@@ -145,7 +140,7 @@ namespace Meuzz.Persistence
             return Expression.Invoke(Expression.Constant(loaderFieldSetter), exprObj);
         }
 
-        protected object PopulateObject(IDatabaseContext context, Type t, IEnumerable<string> columns, IEnumerable<object?> values)
+        protected object PopulateObject(IDatabaseContext context, Type t, IDictionary<string, object?> valueDict)
         {
             var bindings = new List<MemberAssignment>();
             var reverseLoaders = new Dictionary<PropertyInfo, IEnumerable<object>>();
@@ -153,13 +148,12 @@ namespace Meuzz.Persistence
             var ctor = t.GetConstructors().OrderBy(x => x.GetParameters().Length).First();
             var ctorParamTypesAndNames = ctor.GetParameters().Select(x => (x.ParameterType, x.Name.ToSnake())).ToArray();
 
-            var colsValsPairs = columns.Zip(values);
-            var ctorParamsDict = colsValsPairs.Where(x => ctorParamTypesAndNames.Any(p => p.Item2 == x.First)).ToDictionary(x => x.First, x => x.Second);
-            var memberParamsDict = colsValsPairs.Where(x => !ctorParamTypesAndNames.Any(p => p.Item2 == x.First)).ToDictionary(x => x.First, x => x.Second);
+            var ctorParamDict = valueDict.Where(x => ctorParamTypesAndNames.Any(p => p.Item2 == x.Key)).ToDictionary(x => x.Key, x => x.Value);
+            var memberInitParamDict = valueDict.Where(x => !ctorParamTypesAndNames.Any(p => p.Item2 == x.Key)).ToDictionary(x => x.Key, x => x.Value);
 
-            var arguments = ctorParamTypesAndNames.Select(p => MakeConstantExpression(p.Item1, ctorParamsDict[p.Item2]));
+            var arguments = ctorParamTypesAndNames.Select(p => MakeConstantExpression(p.Item1, ctorParamDict[p.Item2]));
 
-            foreach (var (c, v) in memberParamsDict)
+            foreach (var (c, v) in memberInitParamDict)
             {
                 var prop = t.GetPropertyInfoFromColumnName(c, true);
                 if (prop == null)
