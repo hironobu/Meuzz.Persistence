@@ -88,22 +88,6 @@ namespace Meuzz.Persistence
             return results;
         }
 
-        private static Expression MakeConstantExpression(Type t, object? value)
-        {
-            switch (t)
-            {
-                case Type intType when intType == typeof(long):
-                    return Expression.Constant(Convert.ToInt64(value));
-
-                case Type intType when intType == typeof(int):
-                    return Expression.Constant(Convert.ToInt32(value));
-
-                default:
-                    return Expression.Constant(value);
-            }
-        }
-
-
         private static Expression MakePropertyOrFieldSetExpression(Expression exprObj, PropertyInfo propInfo, Func<object, object> valuefunc)
         {
             var exprValueFunc = Expression.Convert(Expression.Invoke(Expression.Constant(valuefunc), exprObj), propInfo.PropertyType);
@@ -142,6 +126,8 @@ namespace Meuzz.Persistence
 
         protected object PopulateObject(IDatabaseContext context, Type t, IDictionary<string, object?> valueDict)
         {
+            var pe = Expression.Parameter(typeof(IDictionary<string, object?>));
+
             var bindings = new List<MemberAssignment>();
             var reverseLoaders = new Dictionary<PropertyInfo, IEnumerable<object>>();
 
@@ -151,7 +137,7 @@ namespace Meuzz.Persistence
             var ctorParamDict = valueDict.Where(x => ctorParamTypesAndNames.Any(p => p.Item2 == x.Key)).ToDictionary(x => x.Key, x => x.Value);
             var memberInitParamDict = valueDict.Where(x => !ctorParamTypesAndNames.Any(p => p.Item2 == x.Key)).ToDictionary(x => x.Key, x => x.Value);
 
-            var arguments = ctorParamTypesAndNames.Select(p => MakeConstantExpression(p.Item1, ctorParamDict[p.Item2]));
+            var arguments = ctorParamTypesAndNames.Select(p => ExpressionHelpers.MakeUnboxExpression(ExpressionHelpers.MakeDictionaryAccessorExpression(pe, p.Item2), p.Item1));
 
             foreach (var (c, v) in memberInitParamDict)
             {
@@ -179,8 +165,8 @@ namespace Meuzz.Persistence
             NewExpression exprNew = Expression.New(ctor, arguments);
             Expression exprMemberInit = Expression.MemberInit(exprNew, bindings);
 
-            var ft = typeof(Func<>).MakeGenericType(t);
-            LambdaExpression lambda = Expression.Lambda(ft, exprMemberInit);
+            var ft = typeof(Func<,>).MakeGenericType(typeof(IDictionary<string, object?>), t);
+            // LambdaExpression lambda = Expression.Lambda(ft, exprMemberInit);
             var exprObj = Expression.Variable(t);
             var exprObjAssigned = Expression.Assign(exprObj, exprMemberInit);
 
@@ -212,10 +198,10 @@ namespace Meuzz.Persistence
 
             exprs.Add(exprObj);
 
-            var func0 = Expression.Lambda(Expression.Block(new[] { exprObj }, exprs)).Compile();
+            var func0 = Expression.Lambda(Expression.Block(new[] { exprObj }, exprs), pe).Compile();
 
-            Func<object> func = (Func<object>)Convert.ChangeType(func0, ft);
-            object obj = func();
+            Func<IDictionary<string, object?>, object> func = (Func<IDictionary<string, object?>, object>)Convert.ChangeType(func0, ft);
+            object obj = func(valueDict);
 
             PersistableState.Reset(obj);
             return obj;
