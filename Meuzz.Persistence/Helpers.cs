@@ -62,6 +62,7 @@ namespace Meuzz.Persistence
             return null;
         }
 
+        [Obsolete("DO NOT USE", true)]
         public static object? MemberGet(IDictionary<string, object?> x, string memberName)
         {
             if (x.ContainsKey(memberName))

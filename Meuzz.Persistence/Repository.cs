@@ -14,6 +14,45 @@ using Meuzz.Persistence.Sql;
 
 namespace Meuzz.Persistence
 {
+    public static class ObjectRepositoryBaseExpressionTreeExtensions
+    {
+        public static Expression MakePropertyOrFieldSetExpression(Expression exprObj, PropertyInfo propInfo, Func<object, object> valuefunc)
+        {
+            var exprValueFunc = Expression.Convert(Expression.Invoke(Expression.Constant(valuefunc), exprObj), propInfo.PropertyType);
+
+            if (propInfo.SetMethod != null)
+            {
+                var memberExpr = Expression.Property(exprObj, propInfo);
+
+                return Expression.Assign(memberExpr, Expression.Convert(Expression.Invoke(Expression.Constant(valuefunc), exprObj), propInfo.PropertyType));
+            }
+            else
+            {
+                var attr = propInfo.GetCustomAttribute<BackingFieldAttribute>();
+                if (attr == null)
+                {
+                    throw new NotImplementedException();
+                }
+
+                var field = propInfo.DeclaringType?.GetField(attr.BackingFieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                Action<object, object> fieldSetter = (obj, value) => field?.SetValue(obj, value);
+                return Expression.Invoke(Expression.Constant(fieldSetter), exprObj, exprValueFunc);
+            }
+        }
+
+        public static Expression? MakeLoaderFieldSetExpression(Expression exprObj, PropertyInfo prop, Expression exprPropLoader)
+        {
+            var loaderField = exprObj.Type.GetField($"__load_{prop.Name}", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (loaderField == null)
+            {
+                return null;
+            }
+
+            Action<object, IEnumerable<object>> loaderFieldSetter = (obj, proploader) => loaderField.SetValue(obj, proploader.EnumerableUncast(prop.PropertyType));
+            return Expression.Invoke(Expression.Constant(loaderFieldSetter), exprObj, exprPropLoader);
+        }
+    }
+
     public class ObjectRepositoryBase
     {
         protected IEnumerable<object> MakeLoader(IDatabaseContext context, Type t, SqlSelectStatement statement)
@@ -74,55 +113,16 @@ namespace Meuzz.Persistence
             }
 
             var results = MakeLoader(context, reli.TargetType, statement);
-            
+            if (reli.InversePropertyInfo != null)
             {
-                if (reli.InversePropertyInfo != null)
+                foreach (var x in results)
                 {
-                    foreach (var x in results)
-                    {
-                        ReflectionHelpers.PropertyOrFieldSet(x, reli.InversePropertyInfo, obj);
-                    }
+                    ReflectionHelpers.PropertyOrFieldSet(x, reli.InversePropertyInfo, obj);
                 }
-                ReflectionHelpers.PropertyOrFieldSet(obj, reli.PropertyInfo, results.EnumerableUncast(reli.TargetType));
             }
+            ReflectionHelpers.PropertyOrFieldSet(obj, reli.PropertyInfo, results.EnumerableUncast(reli.TargetType));
 
             return results;
-        }
-
-        private static Expression MakePropertyOrFieldSetExpression(Expression exprObj, PropertyInfo propInfo, Func<object, object> valuefunc)
-        {
-            var exprValueFunc = Expression.Convert(Expression.Invoke(Expression.Constant(valuefunc), exprObj), propInfo.PropertyType);
-
-            if (propInfo.SetMethod != null)
-            {
-                var memberExpr = Expression.Property(exprObj, propInfo);
-
-                return Expression.Assign(memberExpr, Expression.Convert(Expression.Invoke(Expression.Constant(valuefunc), exprObj), propInfo.PropertyType));
-            }
-            else
-            {
-                var attr = propInfo.GetCustomAttribute<BackingFieldAttribute>();
-                if (attr == null)
-                {
-                    throw new NotImplementedException();
-                }
-
-                var field = propInfo.DeclaringType?.GetField(attr.BackingFieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                Action<object, object> fieldSetter = (obj, value) => field?.SetValue(obj, value);
-                return Expression.Invoke(Expression.Constant(fieldSetter), exprObj, exprValueFunc);
-            }
-        }
-
-        private static Expression? MakeLoaderFieldSetExpression(Expression exprObj, PropertyInfo prop, Expression exprPropLoader)
-        {
-            var loaderField = exprObj.Type.GetField($"__load_{prop.Name}", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (loaderField == null)
-            {
-                return null;
-            }
-
-            Action<object, IEnumerable<object>> loaderFieldSetter = (obj, proploader) => loaderField.SetValue(obj, proploader.EnumerableUncast(prop.PropertyType));
-            return Expression.Invoke(Expression.Constant(loaderFieldSetter), exprObj, exprPropLoader);
         }
 
         private Func<IDictionary<string, object?>, object> MakePopulateObjectFunc(IDatabaseContext context, Type t, IEnumerable<string> valueDictKeys)
@@ -176,14 +176,14 @@ namespace Meuzz.Persistence
                 var prop = reli.PropertyInfo;
                 if (prop != null)
                 {
-                    var e = MakePropertyOrFieldSetExpression(exprObj, prop, (object obj) => MakeDefaultLoader(context, obj, reli).EnumerableUncast(prop.PropertyType));
+                    var e = ObjectRepositoryBaseExpressionTreeExtensions.MakePropertyOrFieldSetExpression(exprObj, prop, (object obj) => MakeDefaultLoader(context, obj, reli).EnumerableUncast(prop.PropertyType));
                     exprs.Add(e);
                 }
             }
 
             foreach (var (prop, exprPropLoader) in reverseLoaders)
             {
-                var e = MakeLoaderFieldSetExpression(exprObj, prop, exprPropLoader);
+                var e = ObjectRepositoryBaseExpressionTreeExtensions.MakeLoaderFieldSetExpression(exprObj, prop, exprPropLoader);
                 if (e != null)
                 {
                     exprs.Add(e);
@@ -281,7 +281,7 @@ namespace Meuzz.Persistence
             }
 
             var resultRows = new List<IDictionary<string, IDictionary<string, object?>>>();
-            var resultDicts = new Dictionary<string, List<(object?, IDictionary<string, object?>)>>();
+            var resultDicts = new Dictionary<string, List<IDictionary<string, object?>>>();
             var indexedResultDicts = new Dictionary<string, Dictionary<object, IDictionary<string, object?>>>();
 
             foreach (var row in rows)
@@ -311,7 +311,7 @@ namespace Meuzz.Persistence
                         d["__object"] = null;
                     }
 
-                    dd.Add((pkval, d));
+                    dd.Add(d);
                     rrow[k] = d;
                 }
 
@@ -325,7 +325,11 @@ namespace Meuzz.Persistence
                 IEnumerable<IDictionary<string, object?>> objects = indexedResultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Values;
                 if (!objects.Any())
                 {
-                    objects = resultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Select(x => x.Item2).ToArray();
+                    objects = resultDicts[statement.ParameterSetInfo.GetDefaultParamName()];
+                }
+                else
+                {
+                    objects = indexedResultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Values;
                 }
                 return (IEnumerable<object>)objects.Select(x => x["__object"]).EnumerableUncast(t);
             }
@@ -336,7 +340,7 @@ namespace Meuzz.Persistence
                     throw new NotImplementedException();
                 }
 
-                return resultRows.Select(x => TypedTuple.Make(statement.PackerFunc(x)));
+                return resultRows.Select(row => TypedTuple.Make(statement.PackerFunc(row)));
             }
         }
 

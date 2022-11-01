@@ -181,6 +181,7 @@ namespace Meuzz.Persistence
             public string Name { get; }
         }
 
+        [Obsolete]
         public class ConditionEvaluator
         {
             public Func<object?, object?, bool> GetEvaluateFunc(Condition cond)
