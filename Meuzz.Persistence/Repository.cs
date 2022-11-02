@@ -340,7 +340,7 @@ namespace Meuzz.Persistence
                     throw new NotImplementedException();
                 }
 
-                return resultRows.Select(row => TypedTuple.Make(statement.PackerFunc(row)));
+                return resultRows.Select(row => TypedTuple.Make(statement.PackerFunc(row.ToDictionary(r => r.Key, r => r.Value["__object"]))));
             }
         }
 

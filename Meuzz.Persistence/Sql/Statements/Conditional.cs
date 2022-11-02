@@ -194,10 +194,10 @@ namespace Meuzz.Persistence.Sql
             var oldf = _packerFunc;
             _packerFunc = o =>
             {
-                var d = (IDictionary<string, IDictionary<string, object?>>)o;
+                var d = (IDictionary<string, object?>)o;
 
-                var left = d[leftParamName]["__object"];
-                var right = d[rightParamName]["__object"];
+                var left = d[leftParamName];
+                var right = d[rightParamName];
 
                 if (left == null)
                 {
