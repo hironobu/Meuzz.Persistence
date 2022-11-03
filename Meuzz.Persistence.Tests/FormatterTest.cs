@@ -126,7 +126,7 @@ namespace Meuzz.Persistence.Tests
             var formatter = new SqliteFormatter();
 
             var statement = new SelectStatement<Player>().Where("id", 1, 2, 3);
-            var statement2 = statement.Joins(p => p.Characters).Select(x => new { Id = x.Id, HowLong = x.PlayTime });
+            var statement2 = statement.Join(p => p.Characters).Select(x => new { Id = x.Id, HowLong = x.PlayTime });
             var objs4 = formatter.Format(statement2);
             Assert.Equal("SELECT _t0.id AS _c0, _t0.play_time AS _c1 FROM Players _t0 LEFT JOIN Characters _t1 ON _t0.id = _t1.player_id WHERE (_t0.id) IN (1, 2, 3)", objs4.Sql);
             Assert.Null(objs4.Parameters);

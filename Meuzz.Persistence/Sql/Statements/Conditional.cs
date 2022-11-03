@@ -409,7 +409,7 @@ namespace Meuzz.Persistence.Sql
             return statement2;
         }
 
-        public SelectStatement<T> Joins<T1>(Expression<Func<T, IEnumerable<T1>>> propexp, Expression<Func<T, T1, bool>>? cond = null)
+        public SelectStatement<T> Join<T1>(Expression<Func<T, IEnumerable<T1>>> propexp, Expression<Func<T, T1, bool>>? cond = null)
         {
             var statement2 = new SelectStatement<T>(this);
             statement2.BuildRelationSpec(propexp, cond);

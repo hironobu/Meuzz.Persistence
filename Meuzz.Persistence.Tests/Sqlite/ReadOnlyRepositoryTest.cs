@@ -120,8 +120,8 @@ namespace Meuzz.Persistence.Tests.Sqlite
         public void TestLoadByLambdaWithJoins()
         {
             var objs = _repository.Load<Player>(_context, st => st.Where(x => x.Age == 10)
-                .Joins(x => x.Characters, (x, r) => x.Id == r.Player.Id)
-                .Joins(x => x.LastCharacters, (x, r) => x.Id == r.LastPlayer.Id));
+                .Join(x => x.Characters, (x, r) => x.Id == r.Player.Id)
+                .Join(x => x.LastCharacters, (x, r) => x.Id == r.LastPlayer.Id));
             Assert.NotNull(objs);
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
@@ -136,8 +136,8 @@ namespace Meuzz.Persistence.Tests.Sqlite
         public void TestLoadByLambdaWithJoinsWithoutId()
         {
             var objs = _repository.Load<Player>(_context, st => st.Where(x => x.Age == 10)
-                .Joins(x => x.Characters, (x, r) => x == r.Player)
-                .Joins(x => x.LastCharacters, (x, r) => x == r.LastPlayer));
+                .Join(x => x.Characters, (x, r) => x == r.Player)
+                .Join(x => x.LastCharacters, (x, r) => x == r.LastPlayer));
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
@@ -151,7 +151,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
         public void TestLoadByLambdaWithJoinsAndHasMany()
         {
             var objs = _repository.Load<Player>(_context, st => st.Where(x => x.Age == 10)
-                .Joins(x => x.Characters));
+                .Join(x => x.Characters));
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
@@ -161,8 +161,8 @@ namespace Meuzz.Persistence.Tests.Sqlite
         public void TestLoadByLambdaWithJoinsAndHasManyOnPlayer2()
         {
             var objs = _repository.Load<Models.NoForeignKeyProperty.Player>(_context, st => st.Where(x => x.Age == 10)
-                .Joins(x => x.Characters)
-                .Joins(x => x.LastCharacters));
+                .Join(x => x.Characters)
+                .Join(x => x.LastCharacters));
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
@@ -176,7 +176,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
         public void TestLoadByLambdaWithJoinsAndHasManyOnPlayer3()
         {
             var objs = _repository.Load<Models.AutoForeignKey.Player>(_context, st => st.Where(x => x.Age == 10)
-                .Joins(x => x.Characters));
+                .Join(x => x.Characters));
             Assert.Equal(2, objs.Count());
             Assert.Equal(2, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
