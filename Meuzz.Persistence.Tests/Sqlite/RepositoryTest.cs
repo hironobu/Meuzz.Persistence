@@ -30,6 +30,9 @@ namespace Meuzz.Persistence.Tests.Sqlite
                 INSERT INTO Characters VALUES (1, 'M1 Abrams', 1, 3);
                 INSERT INTO Characters VALUES (2, 'F/A-18 Hornet', 1, NULL);
                 INSERT INTO Characters VALUES (3, 'AH-64 Apache', 2, 3);
+                INSERT INTO Characters VALUES (4, 'F-35 Ligntning II', NULL, 1);
+                INSERT INTO Characters VALUES (5, 'M3 Bradley', 1, 2);
+                INSERT INTO Characters VALUES (6, 'M113', 2, 1);
             ");
 
             _repository = new ObjectRepository();
@@ -124,9 +127,9 @@ namespace Meuzz.Persistence.Tests.Sqlite
                 .Joins(x => x.Characters, (x, r) => x.Id == r.Player.Id)
                 .Joins(x => x.LastCharacters, (x, r) => x.Id == r.LastPlayer.Id));
             Assert.Equal(2, objs.Count());
-            Assert.Equal(2, objs.ElementAt(0).Characters.Count());
+            Assert.Equal(3, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
-            Assert.Empty(objs.ElementAt(0).LastCharacters);
+            Assert.Equal(2, objs.ElementAt(0).LastCharacters.Count());
             Assert.Equal(2, objs.ElementAt(1).LastCharacters.Count());
             Assert.Equal(1, objs.ElementAt(1).LastCharacters.ElementAt(0).Id);
             Assert.Equal(3, objs.ElementAt(1).LastCharacters.ElementAt(1).Id);
@@ -139,9 +142,9 @@ namespace Meuzz.Persistence.Tests.Sqlite
                 .Joins(x => x.Characters, (x, r) => x == r.Player)
                 .Joins(x => x.LastCharacters, (x, r) => x == r.LastPlayer));
             Assert.Equal(2, objs.Count());
-            Assert.Equal(2, objs.ElementAt(0).Characters.Count());
+            Assert.Equal(3, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
-            Assert.Empty(objs.ElementAt(0).LastCharacters);
+            Assert.Equal(2, objs.ElementAt(0).LastCharacters.Count());
             Assert.Equal(2, objs.ElementAt(1).LastCharacters.Count());
             Assert.Equal(1, objs.ElementAt(1).LastCharacters.ElementAt(0).Id);
             Assert.Equal(3, objs.ElementAt(1).LastCharacters.ElementAt(1).Id);
@@ -153,7 +156,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
             var objs = _repository.Load<Player>(_context, st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters));
             Assert.Equal(2, objs.Count());
-            Assert.Equal(2, objs.ElementAt(0).Characters.Count());
+            Assert.Equal(3, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
         }
 
@@ -164,9 +167,9 @@ namespace Meuzz.Persistence.Tests.Sqlite
                 .Joins(x => x.Characters)
                 .Joins(x => x.LastCharacters));
             Assert.Equal(2, objs.Count());
-            Assert.Equal(2, objs.ElementAt(0).Characters.Count());
+            Assert.Equal(3, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
-            Assert.Empty(objs.ElementAt(0).LastCharacters);
+            Assert.Equal(2, objs.ElementAt(0).LastCharacters.Count());
             Assert.Equal(2, objs.ElementAt(1).LastCharacters.Count());
             Assert.Equal(1, objs.ElementAt(1).LastCharacters.ElementAt(0).Id);
             Assert.Equal(3, objs.ElementAt(1).LastCharacters.ElementAt(1).Id);
@@ -178,7 +181,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
             var objs = _repository.Load<Models.AutoForeignKey.Player>(_context, st => st.Where(x => x.Age == 10)
                 .Joins(x => x.Characters));
             Assert.Equal(2, objs.Count());
-            Assert.Equal(2, objs.ElementAt(0).Characters.Count());
+            Assert.Equal(3, objs.ElementAt(0).Characters.Count());
             Assert.Empty(objs.ElementAt(1).Characters);
         }
 
@@ -242,7 +245,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
             Assert.Equal(1, r.Id);
 
             var rset2 = _context.Execute("SELECT * FROM Characters");
-            Assert.Equal(9, rset2.Results.Count());
+            Assert.Equal(12, rset2.Results.Count());
         }
 
         [Fact]
@@ -258,7 +261,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
             _context.Execute(sql + string.Join(", ", values));
 
             var rset = _context.Execute("SELECT * FROM Characters");
-            Assert.Equal(10003, rset.Results.Count());
+            Assert.Equal(10006, rset.Results.Count());
         }
 
         [Fact]
@@ -273,7 +276,7 @@ namespace Meuzz.Persistence.Tests.Sqlite
             _repository.Store(_context, characters.ToArray());
 
             var rset = _context.Execute("SELECT * FROM Characters");
-            Assert.Equal(10003, rset.Results.Count());
+            Assert.Equal(10006, rset.Results.Count());
         }
 
         [Fact]
