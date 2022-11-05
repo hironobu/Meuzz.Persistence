@@ -272,6 +272,18 @@ namespace Meuzz.Persistence
             }
         }
 
+        class Bracket
+        {
+            public Bracket(object? obj, IDictionary<string, object?> values)
+            {
+                Object = obj;
+                Values = values;
+            }
+
+            public object? Object { get; set; }
+            public IDictionary<string, object?> Values { get; }
+        }
+
         protected IEnumerable<object> PopulateObjects(IDatabaseContext context, Type t, ResultSet rset, SqlSelectStatement statement)
         {
             var rows = rset.Grouped();
@@ -280,35 +292,32 @@ namespace Meuzz.Persistence
                 return Array.Empty<object>();
             }
 
-            var resultRows = new List<IDictionary<string, IDictionary<string, object?>>>();
-            var resultDicts = new Dictionary<string, List<IDictionary<string, object?>>>();
-            var indexedResultDicts = new Dictionary<string, Dictionary<object, IDictionary<string, object?>>>();
+            var resultRows = new List<IDictionary<string, Bracket>>();
+            var resultDicts = new Dictionary<string, List<Bracket>>();
+            var indexedResultDicts = new Dictionary<string, Dictionary<object, Bracket>>();
 
             foreach (var row in rows)
             {
-                var rrow = new Dictionary<string, IDictionary<string, object?>>();
+                var rrow = new Dictionary<string, Bracket>();
 
                 foreach (var (k, v) in row)
                 {
-                    var d = (IDictionary<string, object?>)v!;
+                    // var d = (IDictionary<string, object?>)v!;
+                    var d = new Bracket(null, (IDictionary<string, object?>)v!);
                     var tt = statement.ParameterSetInfo.GetTypeByName(k) ?? statement.OutputType;
                     var pk = tt.GetPrimaryKey();
 
                     var dd = resultDicts.GetValueOrNew(k);
                     var idd = indexedResultDicts.GetValueOrNew(k);
 
-                    var pkval = pk != null && d.ContainsKey(pk) ? d[pk] : null;
+                    var pkval = pk != null && d.Values.ContainsKey(pk) ? d.Values[pk] : null;
                     if (pkval != null)
                     {
                         if (!idd.ContainsKey(pkval))
                         {
-                            d["__object"] = __PopulateObject(context, tt, d, statement);
+                            d.Object = __PopulateObject(context, tt, d.Values, statement);
                             idd.Add(pkval, d);
                         }
-                    }
-                    else
-                    {
-                        d["__object"] = null;
                     }
 
                     dd.Add(d);
@@ -322,7 +331,7 @@ namespace Meuzz.Persistence
 
             if (!t.IsTuple())
             {
-                IEnumerable<IDictionary<string, object?>> objects = indexedResultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Values;
+                IEnumerable<Bracket> objects = indexedResultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Values;
                 if (!objects.Any())
                 {
                     objects = resultDicts[statement.ParameterSetInfo.GetDefaultParamName()];
@@ -331,7 +340,7 @@ namespace Meuzz.Persistence
                 {
                     objects = indexedResultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Values;
                 }
-                return (IEnumerable<object>)objects.Select(x => x["__object"]).EnumerableUncast(t);
+                return (IEnumerable<object>)objects.Select(x => x.Object).EnumerableUncast(t);
             }
             else
             {
@@ -340,11 +349,11 @@ namespace Meuzz.Persistence
                     throw new NotImplementedException();
                 }
 
-                return resultRows.Select(row => TypedTuple.Make(statement.PackerFunc(row.ToDictionary(r => r.Key, r => r.Value["__object"]))));
+                return resultRows.Select(row => TypedTuple.Make(statement.PackerFunc(row.ToDictionary(r => r.Key, r => r.Value.Object))));
             }
         }
 
-        private void BuildBindings(SqlSelectStatement statement, Dictionary<string, Dictionary<object, IDictionary<string, object?>>> resultObjects)
+        private void BuildBindings(SqlSelectStatement statement, Dictionary<string, Dictionary<object, Bracket>> resultObjects)
         {
             foreach (var relationSpec in statement.RelationSpecs)
             {
@@ -357,15 +366,15 @@ namespace Meuzz.Persistence
 
                 foreach (var dx in resultObjects[relationSpec.Left.Name].Values)
                 {
-                    var targetToObjs = resultObjects[relationSpec.Right.Name].Values.Where(y => relationSpec.ConditionFunc(dx, y));
+                    var targetToObjs = resultObjects[relationSpec.Right.Name].Values.Where(y => relationSpec.ConditionFunc(dx.Values, y.Values));
                     if (targetToObjs.Any())
                     {
                         var inversePropertyName = relationSpec.ForeignKey.Replace("_id", "").ToCamel(true);
                         foreach (var o in targetToObjs)
                         {
-                            ReflectionHelpers.PropertySet(o, inversePropertyName, dx["__object"]);
+                            ReflectionHelpers.PropertySet(o, inversePropertyName, dx.Object);
                         }
-                        ReflectionHelpers.PropertySet(dx, relationSpec.MemberInfo.Name, targetToObjs.Select(y => y["__object"]).EnumerableUncast(memberType));
+                        ReflectionHelpers.PropertySet(dx, relationSpec.MemberInfo.Name, targetToObjs.Select(y => y.Object).EnumerableUncast(memberType));
                     }
                     else
                     {
