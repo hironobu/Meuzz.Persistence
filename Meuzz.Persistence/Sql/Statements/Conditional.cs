@@ -60,7 +60,7 @@ namespace Meuzz.Persistence.Sql
         [Obsolete]
         public ParameterSetInfo ParameterSetInfo { get; }
 
-        public Func<object, object>? PackerFunc => _packerFunc;
+        public Func<IDictionary<string, object>, object>? PackerFunc => _packerFunc;
 
         #region Source
         protected void BuildSource(SqlSelectStatement statement)
@@ -125,9 +125,6 @@ namespace Meuzz.Persistence.Sql
 
                         var spec = new ColumnSpec(parameterName, me.Member.Name, m.Name);
                         columnSpecs.Add(spec);
-
-                        //return exprdict.ToDictionary(x => x.Key, x => x.Value.ToArray());
-
                         break;
 
                     default:
@@ -182,29 +179,30 @@ namespace Meuzz.Persistence.Sql
 
         public void BuildRelationSpec(LambdaExpression condexp)
         {
-            var leftParamType = condexp.Parameters.First().Type;
-            var rightParamType = condexp.Parameters.Last().Type;
+            var px = condexp.Parameters.First();
+            var py = condexp.Parameters.Last();
+
+            var leftParamType = px.Type;
+            var rightParamType = py.Type;
 
             var leftParamName = ParameterSetInfo.GetDefaultParamName();
-            var rightParamName = ParameterSetInfo.RegisterParameter(condexp.Parameters.Skip(1).First().Name, rightParamType, false);
+            var rightParamName = ParameterSetInfo.RegisterParameter(py.Name, py.Type, false);
 
-            var relationSpec = RelationSpec.Build(leftParamName, leftParamType, rightParamName, rightParamType, null, null, condexp);
+            var relationSpec = RelationSpec.Build(leftParamName, px.Type, rightParamName, py.Type, null, null, condexp);
             AddRelationSpec(relationSpec);
 
             var oldf = _packerFunc;
             _packerFunc = o =>
             {
-                var d = (IDictionary<string, object?>)o;
-
-                var left = d[leftParamName];
-                var right = d[rightParamName];
+                var left = oldf != null ? oldf(o) : o[leftParamName];
+                var right = o[rightParamName];
 
                 if (left == null)
                 {
                     throw new NotImplementedException();
                 }
 
-                return (oldf(left), right);
+                return (left, right);
             };
         }
 
@@ -221,7 +219,7 @@ namespace Meuzz.Persistence.Sql
         private ColumnSpec[] _columnSpecs = new ColumnSpec[] { };
         private IList<RelationSpec> _relationSpecs = new List<RelationSpec>();
         private OutputSpec? _outputSpec = null;
-        private Func<object, object> _packerFunc = o => o;
+        private Func<IDictionary<string, object>, object>? _packerFunc;
     }
 
     public class ColumnSpec
