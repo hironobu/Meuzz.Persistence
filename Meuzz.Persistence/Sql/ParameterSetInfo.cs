@@ -12,14 +12,12 @@ namespace Meuzz.Persistence.Sql
         public ParameterSetInfo()
         {
             _parameters = new Dictionary<string, Type>();
-            _parameterKeys = new List<string>();
             _defaultParamKey = null;
         }
 
         public ParameterSetInfo(ParameterSetInfo parameterSetInfo)
         {
             _parameters = new Dictionary<string, Type>(parameterSetInfo._parameters);
-            _parameterKeys = new List<string>(parameterSetInfo._parameterKeys);
             _defaultParamKey = parameterSetInfo._defaultParamKey;
         }
 
@@ -44,7 +42,7 @@ namespace Meuzz.Persistence.Sql
                     k = $"{k0}{i++}";
                 }
                 _parameters.Add(k, t);
-                _parameterKeys.Add(k!);
+                //_parameterKeys.Add(k!);
             }
             else
             {
@@ -92,13 +90,15 @@ namespace Meuzz.Persistence.Sql
             {
                 throw new InvalidOperationException();
             }
-            return new[] { _defaultParamKey! }.Concat(_parameterKeys).Select(k => (k, _parameters[k]));
+            return _parameters.Select(x => (x.Key, x.Value));
         }
 
+        /*
         public Type? GetDefaultParamType()
         {
             return _defaultParamKey != null ? _parameters[_defaultParamKey] : null;
         }
+        */
 
         public string GetDefaultParamName()
         {
@@ -111,7 +111,7 @@ namespace Meuzz.Persistence.Sql
         }
 
         private IDictionary<string, Type> _parameters;
-        private IList<string> _parameterKeys;
+        //private IList<string> _parameterKeys;
         // private IDictionary<ExpressionComparer, MemberExpression[]> _parameterMemberExpressions;
         private string? _defaultParamKey;
     }
