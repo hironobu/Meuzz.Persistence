@@ -12,13 +12,13 @@ namespace Meuzz.Persistence.Sql
         public ParameterSetInfo()
         {
             _parameters = new Dictionary<string, Type>();
-            _defaultParamKey = null;
+            _defaultParamName = null;
         }
 
         public ParameterSetInfo(ParameterSetInfo parameterSetInfo)
         {
             _parameters = new Dictionary<string, Type>(parameterSetInfo._parameters);
-            _defaultParamKey = parameterSetInfo._defaultParamKey;
+            _defaultParamName = parameterSetInfo._defaultParamName;
         }
 
         public void ResetParameters()
@@ -42,7 +42,6 @@ namespace Meuzz.Persistence.Sql
                     k = $"{k0}{i++}";
                 }
                 _parameters.Add(k, t);
-                //_parameterKeys.Add(k!);
             }
             else
             {
@@ -54,7 +53,7 @@ namespace Meuzz.Persistence.Sql
                 }
 
                 _parameters[k] = t;
-                _defaultParamKey = k;
+                _defaultParamName = k;
             }
 
             return k;
@@ -62,7 +61,7 @@ namespace Meuzz.Persistence.Sql
 
         public Type? GetTypeByName(string name)
         {
-            return _defaultParamKey != name ? _parameters[name] : null;
+            return _defaultParamName != name ? _parameters[name] : null;
         }
 
         public string GetName(Expression expr)
@@ -85,34 +84,20 @@ namespace Meuzz.Persistence.Sql
 
         public IEnumerable<(string, Type)> GetAllParameters()
         {
-            //return _parameters.Select(x => (x.Key, x.Value)).OrderBy(x => x.Key == _defaultParamName ? -1 : 1);
-            if (_defaultParamKey == null)
-            {
-                throw new InvalidOperationException();
-            }
             return _parameters.Select(x => (x.Key, x.Value));
         }
 
-        /*
-        public Type? GetDefaultParamType()
-        {
-            return _defaultParamKey != null ? _parameters[_defaultParamKey] : null;
-        }
-        */
-
         public string GetDefaultParamName()
         {
-            if (_defaultParamKey == null)
+            if (_defaultParamName == null)
             {
                 throw new NotImplementedException();
             }
 
-            return _defaultParamKey;
+            return _defaultParamName;
         }
 
         private IDictionary<string, Type> _parameters;
-        //private IList<string> _parameterKeys;
-        // private IDictionary<ExpressionComparer, MemberExpression[]> _parameterMemberExpressions;
-        private string? _defaultParamKey;
+        private string? _defaultParamName;
     }
 }
