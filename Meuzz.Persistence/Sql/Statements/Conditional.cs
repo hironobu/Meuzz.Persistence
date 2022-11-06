@@ -140,7 +140,7 @@ namespace Meuzz.Persistence.Sql
         public void BuildRelationSpec(LambdaExpression propexp, LambdaExpression? condexp)
         {
             var propbodyexp = propexp.Body;
-            var leftparamexp = propexp.Parameters.Single();
+            var leftParam = propexp.Parameters.Single();
             var propertyInfo = ((MemberExpression)propbodyexp).Member as PropertyInfo;
             if (propertyInfo == null)
             {
@@ -156,7 +156,7 @@ namespace Meuzz.Persistence.Sql
             var leftParamName = ParameterSetInfo.GetDefaultParamName();
             var rightParamName = ParameterSetInfo.RegisterParameter(condexp != null ? condexp.Parameters.Last().Name : null, rightParamType, false);
 
-            var relationSpec = RelationSpec.Build(leftParamName, leftparamexp.Type, rightParamName, rightParamType, propertyInfo, condexp);
+            var relationSpec = RelationSpec.Build(leftParamName, leftParam.Type, rightParamName, rightParamType, propertyInfo, condexp);
             AddRelationSpec(relationSpec);
 
 #if false

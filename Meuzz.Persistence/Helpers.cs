@@ -62,6 +62,7 @@ namespace Meuzz.Persistence
             return null;
         }
 
+#if false
         [Obsolete("DO NOT USE", true)]
         public static object? MemberGet(IDictionary<string, object?> x, string memberName)
         {
@@ -71,5 +72,6 @@ namespace Meuzz.Persistence
             }
             return ReflectionHelpers.PropertyGet(x["__object"], memberName);
         }
+#endif
     }
 }

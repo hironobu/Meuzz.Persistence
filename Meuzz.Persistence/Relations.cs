@@ -11,22 +11,15 @@ namespace Meuzz.Persistence
 {
     public class RelationSpec
     {
-        private RelationSpec(string fk, string pk, Condition? condition, Parameter left, Parameter right, MemberInfo? memberInfo)
+        private RelationSpec(string fk, string pk, Parameter left, Parameter right, MemberInfo? memberInfo, Condition? condition)
         {
             ForeignKey = fk;
             PrimaryKey = pk ?? "id";
-            if (condition != null)
-            {
-                _conditionFunc = _conditionEvaluator.GetEvaluateFunc(condition);
-            }
-            else
-            {
-                _conditionFunc = MakeDefaultConditionFunc(ForeignKey, PrimaryKey);
-            }
-
             Left = left;
             Right = right;
             MemberInfo = memberInfo;
+
+            _conditionFunc = condition != null ? GetEvaluateFunc(condition) : MakeDefaultConditionFunc(ForeignKey, PrimaryKey);
         }
 
         public string PrimaryKey { get; }
@@ -39,9 +32,6 @@ namespace Meuzz.Persistence
         public Func<IDictionary<string, object?>, IDictionary<string, object?>, bool> ConditionFunc => _conditionFunc;
 
         private Func<object, object, bool> _conditionFunc;
-
-        [Obsolete]
-        private ConditionEvaluator _conditionEvaluator = new ConditionEvaluator();
 
         public static RelationSpec Build(string leftName, Type leftType, string rightName, Type rightType, PropertyInfo? relationPropertyInfo, LambdaExpression? condexp)
         {
@@ -122,7 +112,7 @@ namespace Meuzz.Persistence
             var leftParameter = new Parameter(leftType, leftName);
             var rightParameter = new Parameter(rightType, rightName);
 
-            return new RelationSpec(foreignKey, primaryKey, condition, leftParameter, rightParameter, relationPropertyInfo);
+            return new RelationSpec(foreignKey, primaryKey, leftParameter, rightParameter, relationPropertyInfo, condition);
         }
 
         private static Func<object, object, bool> MakeDefaultConditionFunc(string foreignKey, string primaryKey)
@@ -132,6 +122,52 @@ namespace Meuzz.Persistence
             Func<string, Func<object, object?>> memberAccessor = (string memb) => (object x) => x is IDictionary<string, object?> dx ? dx[memb] : ReflectionHelpers.PropertyGet(x, memb);
 
             return joiningConditionMaker((x, y) => x == y, memberAccessor(primaryKey), memberAccessor(foreignKey));
+        }
+
+        private static Func<object?, object?, bool> GetEvaluateFunc(Condition cond)
+        {
+            Func<Func<object?, object?, bool>, Condition.Node.Element?, Condition.Node.Element?, bool> evaluator = (f, xx, yy) =>
+            {
+                return f(Evaluate(xx), Evaluate(yy));
+            };
+
+            return (x, y) => evaluator(cond.Comparator, x != null ? cond.Left.Func(x) : null, y != null ? cond.Right.Func(y) : null);
+        }
+
+        private static object? Evaluate(Condition.Node.Element? el)
+        {
+            if (el == null)
+            {
+                return null;
+            }
+
+            var arr = el.Extend();
+            var obj = arr.First();
+            var propkeys = arr.Skip(1).Select(x => ((MemberInfo)x).Name);
+            if (!propkeys.Any())
+            {
+                propkeys = new[] { "id" };
+            }
+            var prokeyp = string.Join("_", propkeys);
+
+            return KeyPathGet(obj, prokeyp);
+        }
+
+        private static object? KeyPathGet(object? obj, string memb)
+        {
+            var dx = obj as IDictionary<string, object?>;
+            if (dx == null)
+            {
+                return null;
+            }
+
+            var value = ReflectionHelpers.DictionaryGet(dx, memb);
+            if (value != null)
+            {
+                return value;
+            }
+            var _obj = dx["__object"];
+            return _obj != null ? ReflectionHelpers.PropertyGet(obj, memb) : null;
         }
 
         public class Parameter
@@ -145,56 +181,6 @@ namespace Meuzz.Persistence
             public Type Type { get; }
 
             public string Name { get; }
-        }
-
-        [Obsolete]
-        public class ConditionEvaluator
-        {
-            public Func<object?, object?, bool> GetEvaluateFunc(Condition cond)
-            {
-                Func<Func<object?, object?, bool>, Condition.Node.Element?, Condition.Node.Element?, bool> evaluator = (f, xx, yy) =>
-                {
-                    return f(Evaluate(xx), Evaluate(yy));
-                };
-
-                return (x, y) => evaluator(cond.Comparator, x != null ? cond.Left.Func(x) : null, y != null ? cond.Right.Func(y) : null);
-            }
-
-            private static object? Evaluate(Condition.Node.Element? el)
-            {
-                if (el == null)
-                {
-                    return null;
-                }
-
-                var arr = el.Extend();
-                var obj = arr.First();
-                var propkeys = arr.Skip(1).Select(x => ((MemberInfo)x).Name);
-                if (!propkeys.Any())
-                {
-                    propkeys = new[] { "id" };
-                }
-                var prokeyp = string.Join("_", propkeys);
-
-                return KeyPathGet(obj, prokeyp);
-            }
-
-            private static object? KeyPathGet(object? obj, string memb)
-            {
-                var dx = obj as IDictionary<string, object?>;
-                if (dx == null)
-                {
-                    return null;
-                }
-
-                var value = ReflectionHelpers.DictionaryGet(dx, memb);
-                if (value != null)
-                {
-                    return value;
-                }
-                var _obj = dx["__object"];
-                return _obj != null ? ReflectionHelpers.PropertyGet(obj, memb) : null;
-            }
         }
 
         public class Condition
