@@ -272,7 +272,7 @@ namespace Meuzz.Persistence
             }
         }
 
-        class Bracket
+        public class Bracket
         {
             public Bracket(object? obj, IDictionary<string, object?> values)
             {
@@ -366,7 +366,7 @@ namespace Meuzz.Persistence
 
                 foreach (var dx in resultObjects[relationSpec.Left.Name].Values)
                 {
-                    var targetToObjs = resultObjects[relationSpec.Right.Name].Values.Where(y => relationSpec.ConditionFunc(dx.Values, y.Values));
+                    var targetToObjs = resultObjects[relationSpec.Right.Name].Values.Where(y => relationSpec.ConditionFunc(dx, y));
                     if (targetToObjs.Any())
                     {
                         var inversePropertyName = relationSpec.ForeignKey.Replace("_id", "").ToCamel(true);

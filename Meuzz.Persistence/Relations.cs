@@ -29,9 +29,9 @@ namespace Meuzz.Persistence
         public MemberInfo? MemberInfo { get; }
 
         public string ConditionSql => $"{Left.Name}.{PrimaryKey ?? Left.Type.GetPrimaryKey()} = {Right.Name}.{ForeignKey}";
-        public Func<IDictionary<string, object?>, IDictionary<string, object?>, bool> ConditionFunc => _conditionFunc;
+        public Func<object?, object?, bool> ConditionFunc => _conditionFunc;
 
-        private Func<object, object, bool> _conditionFunc;
+        private Func<object?, object?, bool> _conditionFunc;
 
         public static RelationSpec Build(string leftName, Type leftType, string rightName, Type rightType, PropertyInfo? relationPropertyInfo, LambdaExpression? condexp)
         {
@@ -115,10 +115,10 @@ namespace Meuzz.Persistence
             return new RelationSpec(foreignKey, primaryKey, leftParameter, rightParameter, relationPropertyInfo, condition);
         }
 
-        private static Func<object, object, bool> MakeDefaultConditionFunc(string foreignKey, string primaryKey)
+        private static Func<object?, object?, bool> MakeDefaultConditionFunc(string foreignKey, string primaryKey)
         {
-            Func<Func<object?, object?, bool>, Func<object, object?>, Func<object, object?>, Func<object, object, bool>> joiningConditionMaker
-                = (Func<object?, object?, bool> eval, Func<object, object?> f, Func<object, object?> g) => (object x, object y) => eval(f(x), g(y));
+            Func<Func<object?, object?, bool>, Func<object, object?>, Func<object, object?>, Func<object?, object?, bool>> joiningConditionMaker
+                = (Func<object?, object?, bool> eval, Func<object, object?> f, Func<object, object?> g) => (object? x, object? y) => eval(f(x), g(y));
             Func<string, Func<object, object?>> memberAccessor = (string memb) => (object x) => x is IDictionary<string, object?> dx ? dx[memb] : ReflectionHelpers.PropertyGet(x, memb);
 
             return joiningConditionMaker((x, y) => x == y, memberAccessor(primaryKey), memberAccessor(foreignKey));
@@ -155,7 +155,7 @@ namespace Meuzz.Persistence
 
         private static object? KeyPathGet(object? obj, string memb)
         {
-            var dx = obj as IDictionary<string, object?>;
+            var dx = obj as ObjectRepositoryBase.Bracket;
             if (dx == null)
             {
                 return null;
@@ -166,8 +166,8 @@ namespace Meuzz.Persistence
             {
                 return value;
             }
-            var _obj = dx["__object"];
-            return _obj != null ? ReflectionHelpers.PropertyGet(obj, memb) : null;
+            var _obj = dx.Object;
+            return _obj != null ? ReflectionHelpers.PropertyGet(_obj, memb) : null;
         }
 
         public class Parameter
