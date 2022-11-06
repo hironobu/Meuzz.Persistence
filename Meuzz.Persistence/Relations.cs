@@ -43,41 +43,7 @@ namespace Meuzz.Persistence
         [Obsolete]
         private ConditionEvaluator _conditionEvaluator = new ConditionEvaluator();
 
-        public static RelationSpec BuildByPropertyAndCondition(ParameterSetInfo parameterSetInfo, LambdaExpression propexp, LambdaExpression? condexp)
-        {
-            var propbodyexp = propexp.Body;
-            var leftparamexp = propexp.Parameters.Single();
-            var propertyInfo = ((MemberExpression)propbodyexp).Member as PropertyInfo;
-            if (propertyInfo == null)
-            {
-                throw new NotImplementedException();
-            }
-
-            var rightParamType = propertyInfo.PropertyType;
-            if (rightParamType.IsGenericType)
-            {
-                rightParamType = rightParamType.GetGenericArguments().First();
-            }
-
-            var leftParamName = parameterSetInfo.GetDefaultParamName();
-            var rightParamName = parameterSetInfo.RegisterParameter(condexp != null ? condexp.Parameters.Skip(1).First().Name : null, rightParamType, false);
-
-            return RelationSpec.Build(leftParamName, leftparamexp.Type, rightParamName, rightParamType, propertyInfo, null, condexp);
-        }
-
-        public static RelationSpec BuildByPropertyAndForeignKey(ParameterSetInfo parameterSetInfo, LambdaExpression? condexp, Type leftParamType, Type rightParamType, string? foreignKey)
-        {
-            if (rightParamType.IsGenericType)
-            {
-                rightParamType = rightParamType.GetGenericArguments().Single();
-            }
-
-            var leftParamName = parameterSetInfo.GetDefaultParamName();
-            var rightParamName = parameterSetInfo.RegisterParameter(condexp != null ? condexp.Parameters.Skip(1).First().Name : null, rightParamType, false);
-            return RelationSpec.Build(leftParamName, leftParamType, rightParamName, rightParamType, null, foreignKey, condexp);
-        }
-
-        public static RelationSpec Build(string leftName, Type leftType, string rightName, Type rightType, PropertyInfo? relationPropertyInfo, string? foreignKey_, LambdaExpression? condexp)
+        public static RelationSpec Build(string leftName, Type leftType, string rightName, Type rightType, PropertyInfo? relationPropertyInfo, LambdaExpression? condexp)
         {
             string primaryKey, foreignKey;
             Condition? condition = null;

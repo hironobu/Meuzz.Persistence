@@ -110,7 +110,7 @@ namespace Meuzz.Persistence.Tests
             statement = statement.Where(x => x.Id == 1);
             Assert.NotNull(statement.Condition);
 
-            statement = statement.Join<Member>(x => x.Players, (x, m) => (x.Id == m.TeamId));
+            statement = statement.GroupJoinBy<Member>(x => x.Players, (x, m) => (x.Id == m.TeamId));
 
             Assert.Equal("_t0 => (_t0.Id == 1)", statement.Condition.ToString());
         }

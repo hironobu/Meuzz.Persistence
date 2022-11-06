@@ -137,29 +137,75 @@ namespace Meuzz.Persistence.Sql
         #endregion
 
         #region Relations
-        private void AddRelationSpec(RelationSpec spec)
+        public void BuildRelationSpec(LambdaExpression propexp, LambdaExpression? condexp)
         {
-            if (_relationSpecs.SingleOrDefault(x => x.Left.Name == spec.Left.Name && x.Right.Name == spec.Right.Name) != null)
+            var propbodyexp = propexp.Body;
+            var leftparamexp = propexp.Parameters.Single();
+            var propertyInfo = ((MemberExpression)propbodyexp).Member as PropertyInfo;
+            if (propertyInfo == null)
             {
                 throw new NotImplementedException();
             }
 
-            _relationSpecs.Add(spec);
-        }
+            var rightParamType = propertyInfo.PropertyType;
+            if (rightParamType.IsGenericType)
+            {
+                rightParamType = rightParamType.GetGenericArguments().First();
+            }
 
-        public void BuildRelationSpec(LambdaExpression propexp, LambdaExpression? condexp)
-        {
-            var relationSpec = RelationSpec.BuildByPropertyAndCondition(ParameterSetInfo, propexp, condexp);
+            var leftParamName = ParameterSetInfo.GetDefaultParamName();
+            var rightParamName = ParameterSetInfo.RegisterParameter(condexp != null ? condexp.Parameters.Last().Name : null, rightParamType, false);
+
+            var relationSpec = RelationSpec.Build(leftParamName, leftparamexp.Type, rightParamName, rightParamType, propertyInfo, condexp);
             AddRelationSpec(relationSpec);
+
+#if false
+            var oldf = _packerFunc;
+            _packerFunc = o =>
+            {
+                var left = oldf != null ? oldf(o) : o[leftParamName];
+                var right = o[rightParamName];
+
+                if (left == null)
+                {
+                    throw new NotImplementedException();
+                }
+
+                return (left, right);
+            };
+#endif
         }
 
-        public void BuildRelationSpec(LambdaExpression? condexp, Type rightParamType, string foreignKey)
+        public void BuildRelationSpec(Type rightParamType, string foreignKey)
         {
-            var relationSpec = RelationSpec.BuildByPropertyAndForeignKey(ParameterSetInfo, condexp, Type, rightParamType, foreignKey);
+            if (rightParamType.IsGenericType)
+            {
+                rightParamType = rightParamType.GetGenericArguments().Single();
+            }
+
+            var leftParamName = ParameterSetInfo.GetDefaultParamName();
+            var rightParamName = ParameterSetInfo.RegisterParameter(null, rightParamType, false);
+            var relationSpec = RelationSpec.Build(leftParamName, Type, rightParamName, rightParamType, null, null);
             AddRelationSpec(relationSpec);
+
+#if false
+            var oldf = _packerFunc;
+            _packerFunc = o =>
+            {
+                var left = oldf != null ? oldf(o) : o[leftParamName];
+                var right = o[rightParamName];
+
+                if (left == null)
+                {
+                    throw new NotImplementedException();
+                }
+
+                return (left, right);
+            };
+#endif
         }
 
-        #if false
+#if false
         public void BuildRightJoinRelationSpec(Type rightParamType, string foreignKey)
         {
             var foreignKeyProperty = Type.GetPropertyInfoFromColumnName(foreignKey);
@@ -175,7 +221,7 @@ namespace Meuzz.Persistence.Sql
                 px, py);
             BuildRelationSpec(lambda);
         }
-        #endif
+#endif
 
         public void BuildRelationSpec(LambdaExpression condexp)
         {
@@ -188,7 +234,7 @@ namespace Meuzz.Persistence.Sql
             var leftParamName = ParameterSetInfo.GetDefaultParamName();
             var rightParamName = ParameterSetInfo.RegisterParameter(py.Name, py.Type, false);
 
-            var relationSpec = RelationSpec.Build(leftParamName, px.Type, rightParamName, py.Type, null, null, condexp);
+            var relationSpec = RelationSpec.Build(leftParamName, px.Type, rightParamName, py.Type, null, condexp);
             AddRelationSpec(relationSpec);
 
             var oldf = _packerFunc;
@@ -206,14 +252,24 @@ namespace Meuzz.Persistence.Sql
             };
         }
 
-        #endregion
+        private void AddRelationSpec(RelationSpec spec)
+        {
+            if (_relationSpecs.SingleOrDefault(x => x.Left.Name == spec.Left.Name && x.Right.Name == spec.Right.Name) != null)
+            {
+                throw new NotImplementedException();
+            }
 
-        #region Output
+            _relationSpecs.Add(spec);
+        }
+
+#endregion
+
+#region Output
         public void BuildOutputSpec(LambdaExpression outputexp)
         {
             _outputSpec = new OutputSpec(outputexp);
         }
-        #endregion
+#endregion
 
         private SqlSelectStatement? _source;
         private ColumnSpec[] _columnSpecs = new ColumnSpec[] { };
@@ -263,7 +319,7 @@ namespace Meuzz.Persistence.Sql
 
         private Expression _GetOutputExpression(Expression expr, ParameterExpression[] parameters)
         {
-            var mi = new Func<object, object>(x => Convert.ToUInt32(x)).GetMethodInfo();
+            //var mi = new Func<object, object>(x => Convert.ToUInt32(x)).GetMethodInfo();
 
             switch (expr)
             {
@@ -407,7 +463,7 @@ namespace Meuzz.Persistence.Sql
             return statement2;
         }
 
-        public SelectStatement<T> Join<T1>(Expression<Func<T, IEnumerable<T1>>> propexp, Expression<Func<T, T1, bool>>? cond = null)
+        public SelectStatement<T> GroupJoinBy<T1>(Expression<Func<T, IEnumerable<T1>>> propexp, Expression<Func<T, T1, bool>>? cond = null)
         {
             var statement2 = new SelectStatement<T>(this);
             statement2.BuildRelationSpec(propexp, cond);
@@ -417,7 +473,7 @@ namespace Meuzz.Persistence.Sql
         public SelectStatement<T> JoinBy<T1>(string foreignKey)
         {
             var statement2 = new SelectStatement<T>(this);
-            statement2.BuildRelationSpec(null, typeof(T1), foreignKey);
+            statement2.BuildRelationSpec(typeof(T1), foreignKey);
             return statement2;
         }
 
