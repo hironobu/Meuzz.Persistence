@@ -5,7 +5,6 @@ using System.Linq.Expressions;
 using System.Reflection;
 using Meuzz.Foundation;
 using Meuzz.Persistence.Core;
-using Meuzz.Persistence.Sql;
 
 namespace Meuzz.Persistence
 {
@@ -19,7 +18,7 @@ namespace Meuzz.Persistence
             Right = right;
             MemberInfo = memberInfo;
 
-            _conditionFunc = condition != null ? GetEvaluateFunc(condition) : MakeDefaultConditionFunc(ForeignKey, PrimaryKey);
+            _conditionFunc = condition?.GetEvaluateFunc() ?? MakeDefaultConditionFunc(ForeignKey, PrimaryKey);
         }
 
         public string PrimaryKey { get; }
@@ -29,9 +28,9 @@ namespace Meuzz.Persistence
         public MemberInfo? MemberInfo { get; }
 
         public string ConditionSql => $"{Left.Name}.{PrimaryKey ?? Left.Type.GetPrimaryKey()} = {Right.Name}.{ForeignKey}";
-        public Func<object?, object?, bool> ConditionFunc => _conditionFunc;
+        public Func<ValueObjectComposite, ValueObjectComposite, bool> ConditionFunc => _conditionFunc;
 
-        private Func<object?, object?, bool> _conditionFunc;
+        private Func<ValueObjectComposite, ValueObjectComposite, bool> _conditionFunc;
 
         public static RelationSpec Build(string leftName, Type leftType, string rightName, Type rightType, PropertyInfo? relationPropertyInfo, LambdaExpression? condexp)
         {
@@ -115,48 +114,13 @@ namespace Meuzz.Persistence
             return new RelationSpec(foreignKey, primaryKey, leftParameter, rightParameter, relationPropertyInfo, condition);
         }
 
-        private static Func<object?, object?, bool> MakeDefaultConditionFunc(string foreignKey, string primaryKey)
+        private static Func<ValueObjectComposite, ValueObjectComposite, bool> MakeDefaultConditionFunc(string foreignKey, string primaryKey)
         {
-            Func<Func<object?, object?, bool>, Func<object, object?>, Func<object, object?>, Func<object?, object?, bool>> joiningConditionMaker
-                = (Func<object?, object?, bool> eval, Func<object, object?> f, Func<object, object?> g) => (object? x, object? y) => eval(f(x), g(y));
-            Func<string, Func<object, object?>> memberAccessor = (string memb) => (object x) => x is IDictionary<string, object?> dx ? dx[memb] : ReflectionHelpers.PropertyGet(x, memb);
+            Func<Func<object?, object?, bool>, Func<ValueObjectComposite, object?>, Func<ValueObjectComposite, object?>, Func<ValueObjectComposite, ValueObjectComposite, bool>> joiningConditionMaker
+                = (Func<object?, object?, bool> eval, Func<ValueObjectComposite, object?> f, Func<ValueObjectComposite, object?> g) => (ValueObjectComposite x, ValueObjectComposite y) => eval(f(x), g(y));
+            Func<string, Func<ValueObjectComposite, object?>> memberAccessor = (string memb) => (ValueObjectComposite x) => x.KeyPathGet(memb);
 
             return joiningConditionMaker((x, y) => x == y, memberAccessor(primaryKey), memberAccessor(foreignKey));
-        }
-
-        private static Func<object?, object?, bool> GetEvaluateFunc(Condition cond)
-        {
-            Func<Func<object?, object?, bool>, Condition.Node.Element?, Condition.Node.Element?, bool> evaluator = (f, xx, yy) =>
-            {
-                return f(Evaluate(xx), Evaluate(yy));
-            };
-
-            return (x, y) => evaluator(cond.Comparator, x != null ? cond.Left.Func(x) : null, y != null ? cond.Right.Func(y) : null);
-        }
-
-        private static object? Evaluate(Condition.Node.Element? el)
-        {
-            if (el == null)
-            {
-                return null;
-            }
-
-            var arr = el.Extend();
-            var obj = arr.First();
-            var propkeys = arr.Skip(1).Select(x => ((MemberInfo)x).Name);
-            if (!propkeys.Any())
-            {
-                propkeys = new[] { "id" };
-            }
-            var prokeyp = string.Join("_", propkeys);
-
-            var dx = obj as ObjectRepositoryBase.ValueObjectComposite;
-            if (dx == null)
-            {
-                return null;
-            }
-
-            return dx.KeyPathGet(prokeyp);
         }
 
         public class Parameter
@@ -185,6 +149,33 @@ namespace Meuzz.Persistence
 
             public Node Left { get; }
             public Node Right { get; }
+
+            public Func<ValueObjectComposite, ValueObjectComposite, bool> GetEvaluateFunc() => (x, y) => Comparator(UnpackElement(Left.Func(x)), UnpackElement(Right.Func(y)));
+
+            private object? UnpackElement(Node.Element? el)
+            {
+                if (el == null)
+                {
+                    return null;
+                }
+
+                var arr = el.Extend();
+                var obj = arr.First();
+                var propkeys = arr.Skip(1).Select(x => ((MemberInfo)x).Name);
+                if (!propkeys.Any())
+                {
+                    propkeys = new[] { "id" };
+                }
+                var prokeyp = string.Join("_", propkeys);
+
+                var dx = obj as ValueObjectComposite;
+                if (dx == null)
+                {
+                    return null;
+                }
+
+                return dx.KeyPathGet(prokeyp);
+            }
 
             public static Condition New(Type t, Expression exp)
             {
@@ -246,14 +237,14 @@ namespace Meuzz.Persistence
 
             public class Node
             {
-                private Node(Func<object, Element> f, ParameterExpression pe, string[] comps)
+                private Node(Func<ValueObjectComposite, Element> f, ParameterExpression pe, string[] comps)
                 {
                     Func = f;
                     Parameter = pe;
                     KeyPath = comps;
                 }
 
-                public Func<object, Element> Func { get; }
+                public Func<ValueObjectComposite, Element> Func { get; }
                 public ParameterExpression Parameter { get; }
                 public string[] KeyPath { get; }
 
