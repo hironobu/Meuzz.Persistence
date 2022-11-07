@@ -14,6 +14,29 @@ using Meuzz.Persistence.Sql;
 
 namespace Meuzz.Persistence
 {
+    public class ValueObjectComposite
+    {
+        public ValueObjectComposite(object? obj, IDictionary<string, object?> values)
+        {
+            Object = obj;
+            Values = values;
+        }
+
+        public object? Object { get; set; }
+        public IDictionary<string, object?> Values { get; }
+
+        public object? KeyPathGet(string memb)
+        {
+            var value = ReflectionHelpers.DictionaryGet(Values, memb);
+            if (value != null)
+            {
+                return value;
+            }
+            var obj_ = Object;
+            return obj_ != null ? ReflectionHelpers.PropertyGet(obj_, memb) : null;
+        }
+    }
+
     public static class ObjectRepositoryBaseExpressionTreeExtensions
     {
         public static Expression MakePropertyOrFieldSetExpression(Expression exprObj, PropertyInfo propInfo, Func<object, object> valuefunc)
@@ -272,18 +295,6 @@ namespace Meuzz.Persistence
             }
         }
 
-        public class Bracket
-        {
-            public Bracket(object? obj, IDictionary<string, object?> values)
-            {
-                Object = obj;
-                Values = values;
-            }
-
-            public object? Object { get; set; }
-            public IDictionary<string, object?> Values { get; }
-        }
-
         protected IEnumerable<object> PopulateObjects(IDatabaseContext context, Type t, ResultSet rset, SqlSelectStatement statement)
         {
             var rows = rset.Grouped();
@@ -292,18 +303,18 @@ namespace Meuzz.Persistence
                 return Array.Empty<object>();
             }
 
-            var resultRows = new List<IDictionary<string, Bracket>>();
-            var resultDicts = new Dictionary<string, List<Bracket>>();
-            var indexedResultDicts = new Dictionary<string, Dictionary<object, Bracket>>();
+            var resultRows = new List<IDictionary<string, ValueObjectComposite>>();
+            var resultDicts = new Dictionary<string, List<ValueObjectComposite>>();
+            var indexedResultDicts = new Dictionary<string, Dictionary<object, ValueObjectComposite>>();
 
             foreach (var row in rows)
             {
-                var rrow = new Dictionary<string, Bracket>();
+                var rrow = new Dictionary<string, ValueObjectComposite>();
 
                 foreach (var (k, v) in row)
                 {
                     // var d = (IDictionary<string, object?>)v!;
-                    var d = new Bracket(null, (IDictionary<string, object?>)v!);
+                    var d = new ValueObjectComposite(null, (IDictionary<string, object?>)v!);
                     var tt = statement.ParameterSetInfo.GetTypeByName(k) ?? statement.OutputType;
                     var pk = tt.GetPrimaryKey();
 
@@ -331,7 +342,7 @@ namespace Meuzz.Persistence
 
             if (!t.IsTuple())
             {
-                IEnumerable<Bracket> objects = indexedResultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Values;
+                IEnumerable<ValueObjectComposite> objects = indexedResultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Values;
                 if (!objects.Any())
                 {
                     objects = resultDicts[statement.ParameterSetInfo.GetDefaultParamName()];
@@ -353,7 +364,7 @@ namespace Meuzz.Persistence
             }
         }
 
-        private void BuildBindings(SqlSelectStatement statement, Dictionary<string, Dictionary<object, Bracket>> resultObjects)
+        private void BuildBindings(SqlSelectStatement statement, Dictionary<string, Dictionary<object, ValueObjectComposite>> resultObjects)
         {
             foreach (var relationSpec in statement.RelationSpecs)
             {

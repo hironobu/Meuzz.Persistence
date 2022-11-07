@@ -150,24 +150,13 @@ namespace Meuzz.Persistence
             }
             var prokeyp = string.Join("_", propkeys);
 
-            return KeyPathGet(obj, prokeyp);
-        }
-
-        private static object? KeyPathGet(object? obj, string memb)
-        {
-            var dx = obj as ObjectRepositoryBase.Bracket;
+            var dx = obj as ObjectRepositoryBase.ValueObjectComposite;
             if (dx == null)
             {
                 return null;
             }
 
-            var value = ReflectionHelpers.DictionaryGet(dx, memb);
-            if (value != null)
-            {
-                return value;
-            }
-            var _obj = dx.Object;
-            return _obj != null ? ReflectionHelpers.PropertyGet(_obj, memb) : null;
+            return dx.KeyPathGet(prokeyp);
         }
 
         public class Parameter
