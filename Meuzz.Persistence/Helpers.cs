@@ -12,6 +12,16 @@ namespace Meuzz.Persistence
             return obj?.GetType()?.GetProperty(propertyName.ToCamel(true))?.GetValue(obj);
         }
 
+        public static object? PropertyOrFieldGet(object? obj, MemberInfo mi)
+        {
+            return mi switch
+            {
+                FieldInfo fi => fi.GetValue(obj),
+                PropertyInfo pi => pi.GetValue(obj),
+                _ => throw new NotImplementedException(),
+            };
+        }
+
         public static void PropertySet(object? obj, string propertyName, object? value)
         {
             if (obj == null) { return; }

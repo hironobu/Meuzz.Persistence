@@ -35,6 +35,11 @@ namespace Meuzz.Persistence
             var obj_ = Object;
             return obj_ != null ? ReflectionHelpers.PropertyGet(obj_, memb) : null;
         }
+
+        public object? MemberGet(MemberInfo memb)
+        {
+            return Object != null ? ReflectionHelpers.PropertyOrFieldGet(Object, memb) : null;
+        }
     }
 
     public static class ObjectRepositoryBaseExpressionTreeExtensions

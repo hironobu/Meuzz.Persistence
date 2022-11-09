@@ -46,8 +46,8 @@ namespace Meuzz.Persistence
             {
                 condition = Condition.New(leftType, condexp.Body);
 
-                primaryKey = string.Join("_", condition.Left.KeyPath).ToSnake();
-                foreignKey = string.Join("_", condition.Right.KeyPath).ToSnake();
+                primaryKey = string.Join("_", condition.LeftKeyPath).ToSnake();
+                foreignKey = string.Join("_", condition.RightKeyPath).ToSnake();
 
                 if (string.IsNullOrEmpty(primaryKey))
                 {
@@ -137,19 +137,19 @@ namespace Meuzz.Persistence
 
         public class Condition
         {
-            private Condition(Func<object?, object?, bool> comparator, Node left, Node right)
+            private Condition(Func<ValueObjectComposite, ValueObjectComposite, bool> comparator, string[] left, string[] right)
             {
                 Comparator = comparator;
-                Left = left;
-                Right = right;
+                LeftKeyPath = left.Any() ? left : new[] { "id" };
+                RightKeyPath = right.Any() ? right : new[] { "id" };
             }
 
-            public Func<object?, object?, bool> Comparator { get; }
+            public Func<ValueObjectComposite, ValueObjectComposite, bool> Comparator { get; }
 
-            public Node Left { get; }
-            public Node Right { get; }
+            public string[] LeftKeyPath { get; }
+            public string[] RightKeyPath { get; }
 
-            public Func<ValueObjectComposite, ValueObjectComposite, bool> GetEvaluateFunc() => (x, y) => Comparator(UnpackElement(Left.Func(x)), UnpackElement(Right.Func(y)));
+            public Func<ValueObjectComposite, ValueObjectComposite, bool> GetEvaluateFunc() => (x, y) => Comparator(x, y);
 
             private object? UnpackElement(Node.Element? el)
             {
@@ -181,54 +181,92 @@ namespace Meuzz.Persistence
                 switch (exp)
                 {
                     case BinaryExpression bine:
-                        var left = Node.New(bine.Left);
-                        var right = Node.New(bine.Right);
+                        var px = Expression.Parameter(typeof(ValueObjectComposite), "x");
+                        var py = Expression.Parameter(typeof(ValueObjectComposite), "y");
 
-                        if (left.Parameter.Type != t)
+                        var (left, leftKeyPath) = MakeExpression(bine.Left, px);
+                        var (right, rightKeyPath) = MakeExpression(bine.Right, py);
+
+                        if (left.Type != t)
                         {
                             var x = left;
                             left = right;
                             right = x;
                         }
 
-                        var px = Expression.Parameter(typeof(object), "x");
-                        var py = Expression.Parameter(typeof(object), "y");
+                        left = MakeUnpackComposite(left);
+                        right = MakeUnpackComposite(right);
 
                         BinaryExpression? bine2;
 
                         switch (bine.NodeType)
                         {
                             case ExpressionType.Equal:
-                                bine2 = Expression.Equal(px, py);
+                                bine2 = Expression.Equal(left, right);
                                 break;
 
                             case ExpressionType.NotEqual:
-                                bine2 = Expression.NotEqual(px, py);
+                                bine2 = Expression.NotEqual(left, right);
                                 break;
 
                             case ExpressionType.LessThan:
-                                bine2 = Expression.LessThan(px, py);
+                                bine2 = Expression.LessThan(left, right);
                                 break;
 
                             case ExpressionType.LessThanOrEqual:
-                                bine2 = Expression.LessThanOrEqual(px, py);
+                                bine2 = Expression.LessThanOrEqual(left, right);
                                 break;
 
                             case ExpressionType.GreaterThan:
-                                bine2 = Expression.GreaterThan(px, py);
+                                bine2 = Expression.GreaterThan(left, right);
                                 break;
 
                             case ExpressionType.GreaterThanOrEqual:
-                                bine2 = Expression.GreaterThanOrEqual(px, py);
+                                bine2 = Expression.GreaterThanOrEqual(left, right);
                                 break;
 
                             default:
                                 throw new NotImplementedException();
                         }
 
-                        Func<object?, object?, bool> comparator = (Func<object?, object?, bool>)Expression.Lambda(bine2, px, py).Compile();
-                        return new Condition(comparator, left, right);
+                        Func<ValueObjectComposite, ValueObjectComposite, bool> comparator = (Func<ValueObjectComposite, ValueObjectComposite, bool>)Expression.Lambda(bine2, px, py).Compile();
+                        return new Condition(comparator, leftKeyPath, rightKeyPath);
                         // break;
+                }
+
+                throw new NotImplementedException();
+            }
+
+            private static Expression MakeUnpackComposite(Expression expr)
+            {
+                if (expr.Type != typeof(ValueObjectComposite))
+                {
+                    return expr;
+                }
+
+                Func<ValueObjectComposite, object?> f = x => x.Object;
+                return Expression.Invoke(Expression.Constant(f), expr);
+            }
+
+            private static (Expression, string[]) MakeExpression(Expression exp, ParameterExpression pep)
+            {
+                switch (exp)
+                {
+                    case MemberExpression me:
+                        var (expr, keypath) = MakeExpression(me.Expression, pep);
+                        // var newPathComponents = expr.KeyPath.Concat(new[] { me.Member.Name });
+                        if (expr.Type == typeof(ValueObjectComposite))
+                        {
+                            Func<ValueObjectComposite, object?> memberfunc = (ValueObjectComposite voc) => voc.MemberGet(me.Member);
+                            return (Expression.Convert(Expression.Invoke(Expression.Constant(memberfunc), expr), me.Member.GetMemberType()), keypath.Append(me.Member.Name.ToSnake()).ToArray());
+                        }
+                        else
+                        {
+                            return (Expression.MakeMemberAccess(expr, me.Member), keypath.Append(me.Member.Name.ToSnake()).ToArray());
+                        }
+
+                    case ParameterExpression pe:
+                        return (pep, Array.Empty<string>());
                 }
 
                 throw new NotImplementedException();
