@@ -118,9 +118,8 @@ namespace Meuzz.Persistence
         {
             Func<Func<object?, object?, bool>, Func<ValueObjectComposite, object?>, Func<ValueObjectComposite, object?>, Func<ValueObjectComposite, ValueObjectComposite, bool>> joiningConditionMaker
                 = (Func<object?, object?, bool> eval, Func<ValueObjectComposite, object?> f, Func<ValueObjectComposite, object?> g) => (ValueObjectComposite x, ValueObjectComposite y) => eval(f(x), g(y));
-            Func<string, Func<ValueObjectComposite, object?>> memberAccessor = (string memb) => (ValueObjectComposite x) => x.KeyPathGet(memb);
 
-            return joiningConditionMaker((x, y) => x == y, memberAccessor(primaryKey), memberAccessor(foreignKey));
+            return joiningConditionMaker((x, y) => x == y, x => x.KeyPathGet(primaryKey), y => y.KeyPathGet(foreignKey));
         }
 
         public class Parameter
@@ -138,7 +137,7 @@ namespace Meuzz.Persistence
 
         public class Condition
         {
-            public Condition(Func<object?, object?, bool> comparator, Node left, Node right)
+            private Condition(Func<object?, object?, bool> comparator, Node left, Node right)
             {
                 Comparator = comparator;
                 Left = left;
@@ -246,6 +245,8 @@ namespace Meuzz.Persistence
 
                 public Func<ValueObjectComposite, Element> Func { get; }
                 public ParameterExpression Parameter { get; }
+                public MemberExpression? Member { get; }
+                public Node? Parent { get; }
                 public string[] KeyPath { get; }
 
                 public static Node New(Expression exp)
