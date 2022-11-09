@@ -18,7 +18,7 @@ namespace Meuzz.Persistence
             MemberInfo = memberInfo;
 
             Func<ValueObjectComposite, ValueObjectComposite, bool> defaultConditionFunc = (ValueObjectComposite x, ValueObjectComposite y) => x.KeyPathGet(PrimaryKey) == y.KeyPathGet(ForeignKey);
-            _conditionFunc = condition?.GetEvaluateFunc() ?? defaultConditionFunc;
+            ConditionFunc = condition?.GetEvaluateFunc() ?? defaultConditionFunc;
         }
 
         public string PrimaryKey { get; }
@@ -28,9 +28,7 @@ namespace Meuzz.Persistence
         public MemberInfo? MemberInfo { get; }
 
         public string ConditionSql => $"{Left.Name}.{PrimaryKey ?? Left.Type.GetPrimaryKey()} = {Right.Name}.{ForeignKey}";
-        public Func<ValueObjectComposite, ValueObjectComposite, bool> ConditionFunc => _conditionFunc;
-
-        private Func<ValueObjectComposite, ValueObjectComposite, bool> _conditionFunc;
+        public Func<ValueObjectComposite, ValueObjectComposite, bool> ConditionFunc { get; }
 
         public static RelationSpec Build(string leftName, Type leftType, string rightName, Type rightType, PropertyInfo? relationPropertyInfo, LambdaExpression? condexp)
         {
