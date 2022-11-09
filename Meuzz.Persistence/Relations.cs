@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -18,7 +17,8 @@ namespace Meuzz.Persistence
             Right = right;
             MemberInfo = memberInfo;
 
-            _conditionFunc = condition?.GetEvaluateFunc() ?? MakeDefaultConditionFunc(ForeignKey, PrimaryKey);
+            Func<ValueObjectComposite, ValueObjectComposite, bool> defaultConditionFunc = (ValueObjectComposite x, ValueObjectComposite y) => x.KeyPathGet(PrimaryKey) == y.KeyPathGet(ForeignKey);
+            _conditionFunc = condition?.GetEvaluateFunc() ?? defaultConditionFunc;
         }
 
         public string PrimaryKey { get; }
@@ -114,14 +114,6 @@ namespace Meuzz.Persistence
             return new RelationSpec(foreignKey, primaryKey, leftParameter, rightParameter, relationPropertyInfo, condition);
         }
 
-        private static Func<ValueObjectComposite, ValueObjectComposite, bool> MakeDefaultConditionFunc(string foreignKey, string primaryKey)
-        {
-            Func<Func<object?, object?, bool>, Func<ValueObjectComposite, object?>, Func<ValueObjectComposite, object?>, Func<ValueObjectComposite, ValueObjectComposite, bool>> joiningConditionMaker
-                = (Func<object?, object?, bool> eval, Func<ValueObjectComposite, object?> f, Func<ValueObjectComposite, object?> g) => (ValueObjectComposite x, ValueObjectComposite y) => eval(f(x), g(y));
-
-            return joiningConditionMaker((x, y) => x == y, x => x.KeyPathGet(primaryKey), y => y.KeyPathGet(foreignKey));
-        }
-
         public class Parameter
         {
             public Parameter(Type type, string name)
@@ -150,6 +142,12 @@ namespace Meuzz.Persistence
             public string[] RightKeyPath { get; }
 
             public Func<ValueObjectComposite, ValueObjectComposite, bool> GetEvaluateFunc() => (x, y) => Comparator(x, y);
+
+            public static Condition New(string foreignKey, string primaryKey)
+            {
+                Func<ValueObjectComposite, ValueObjectComposite, bool> condfunc = (ValueObjectComposite x, ValueObjectComposite y) => x.KeyPathGet(primaryKey) == y.KeyPathGet(foreignKey);
+                return new Condition(condfunc, new[] { primaryKey }, new[] { foreignKey });
+            }
 
             public static Condition New(Type t, Expression exp)
             {
@@ -206,7 +204,6 @@ namespace Meuzz.Persistence
 
                         Func<ValueObjectComposite, ValueObjectComposite, bool> comparator = (Func<ValueObjectComposite, ValueObjectComposite, bool>)Expression.Lambda(bine2, px, py).Compile();
                         return new Condition(comparator, leftKeyPath, rightKeyPath);
-                        // break;
                 }
 
                 throw new NotImplementedException();
