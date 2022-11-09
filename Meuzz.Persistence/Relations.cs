@@ -151,31 +151,6 @@ namespace Meuzz.Persistence
 
             public Func<ValueObjectComposite, ValueObjectComposite, bool> GetEvaluateFunc() => (x, y) => Comparator(x, y);
 
-            private object? UnpackElement(Node.Element? el)
-            {
-                if (el == null)
-                {
-                    return null;
-                }
-
-                var arr = el.Extend();
-                var obj = arr.First();
-                var propkeys = arr.Skip(1).Select(x => ((MemberInfo)x).Name);
-                if (!propkeys.Any())
-                {
-                    propkeys = new[] { "id" };
-                }
-                var prokeyp = string.Join("_", propkeys);
-
-                var dx = obj as ValueObjectComposite;
-                if (dx == null)
-                {
-                    return null;
-                }
-
-                return dx.KeyPathGet(prokeyp);
-            }
-
             public static Condition New(Type t, Expression exp)
             {
                 switch (exp)
@@ -254,7 +229,6 @@ namespace Meuzz.Persistence
                 {
                     case MemberExpression me:
                         var (expr, keypath) = MakeExpression(me.Expression, pep);
-                        // var newPathComponents = expr.KeyPath.Concat(new[] { me.Member.Name });
                         if (expr.Type == typeof(ValueObjectComposite))
                         {
                             Func<ValueObjectComposite, object?> memberfunc = (ValueObjectComposite voc) => voc.MemberGet(me.Member);
@@ -270,75 +244,6 @@ namespace Meuzz.Persistence
                 }
 
                 throw new NotImplementedException();
-            }
-
-            public class Node
-            {
-                private Node(Func<ValueObjectComposite, Element> f, ParameterExpression pe, string[] comps)
-                {
-                    Func = f;
-                    Parameter = pe;
-                    KeyPath = comps;
-                }
-
-                public Func<ValueObjectComposite, Element> Func { get; }
-                public ParameterExpression Parameter { get; }
-                public MemberExpression? Member { get; }
-                public Node? Parent { get; }
-                public string[] KeyPath { get; }
-
-                public static Node New(Expression exp)
-                {
-                    switch (exp)
-                    {
-                        case MemberExpression me:
-                            var entry = New(me.Expression);
-                            var newPathComponents = entry.KeyPath.Concat(new[] { me.Member.Name });
-                            return new Node(x => new Element(entry.Func(x), me.Member), entry.Parameter, newPathComponents.ToArray());
-
-                        case ParameterExpression pe:
-                            return new Node(x => new Element(x, null), pe, Array.Empty<string>());
-                    }
-
-                    throw new NotImplementedException();
-                }
-
-                public class Element
-                {
-                    public Element(object? l, object? r)
-                    {
-                        Left = l;
-                        Right = r;
-                    }
-
-                    public object? Left { get; }
-                    public object? Right { get; }
-
-                    public object[] Extend()
-                    {
-                        var ret = new List<object>();
-
-                        if (Left is Element le)
-                        {
-                            ret.AddRange(le.Extend());
-                        }
-                        else if (Left != null)
-                        {
-                            ret.Add(Left);
-                        }
-
-                        if (Right is Element re)
-                        {
-                            ret.AddRange(re.Extend());
-                        }
-                        else if (Right != null)
-                        {
-                            ret.Add(Right);
-                        }
-
-                        return ret.ToArray();
-                    }
-                }
             }
         }
     }
