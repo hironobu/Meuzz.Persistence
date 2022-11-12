@@ -318,26 +318,25 @@ namespace Meuzz.Persistence
 
                 foreach (var (k, v) in row)
                 {
-                    // var d = (IDictionary<string, object?>)v!;
-                    var d = new ValueObjectComposite(null, (IDictionary<string, object?>)v!);
+                    var voc = new ValueObjectComposite(null, (IDictionary<string, object?>)v!);
                     var tt = statement.ParameterSetInfo.GetTypeByName(k) ?? statement.OutputType;
                     var pk = tt.GetPrimaryKey();
 
                     var dd = resultDicts.GetValueOrNew(k);
                     var idd = indexedResultDicts.GetValueOrNew(k);
 
-                    var pkval = pk != null && d.Values.ContainsKey(pk) ? d.Values[pk] : null;
+                    var pkval = pk != null && voc.Values.ContainsKey(pk) ? voc.Values[pk] : null;
                     if (pkval != null)
                     {
                         if (!idd.ContainsKey(pkval))
                         {
-                            d.Object = __PopulateObject(context, tt, d.Values, statement);
-                            idd.Add(pkval, d);
+                            voc.Object = __PopulateObject(context, tt, voc.Values, statement);
+                            idd.Add(pkval, voc);
                         }
                     }
 
-                    dd.Add(d);
-                    rrow[k] = d;
+                    dd.Add(voc);
+                    rrow[k] = voc;
                 }
 
                 resultRows.Add(rrow);
