@@ -59,7 +59,7 @@ namespace Meuzz.Persistence.Sql
             return k;
         }
 
-        public Type? GetTypeByName(string name)
+        public Type? GetTypeByName_(string name)
         {
             return _defaultParamName != name ? _parameters[name] : null;
         }

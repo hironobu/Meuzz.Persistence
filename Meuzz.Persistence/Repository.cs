@@ -319,7 +319,7 @@ namespace Meuzz.Persistence
                 foreach (var (k, v) in row)
                 {
                     var voc = new ValueObjectComposite(null, (IDictionary<string, object?>)v!);
-                    var tt = statement.ParameterSetInfo.GetTypeByName(k) ?? statement.OutputType;
+                    var tt = statement.ParameterSetInfo.GetTypeByName_(k) ?? statement.OutputType;
                     var pk = tt.GetPrimaryKey();
 
                     var dd = resultDicts.GetValueOrNew(k);
