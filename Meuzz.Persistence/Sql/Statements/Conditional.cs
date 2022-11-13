@@ -223,19 +223,19 @@ namespace Meuzz.Persistence.Sql
         }
 #endif
 
-        public void BuildRelationSpec(LambdaExpression condexp)
+        public void BuildRelationSpec2(LambdaExpression condexp, LambdaExpression? packexp)
         {
             var px = condexp.Parameters.First();
             var py = condexp.Parameters.Last();
-
-            var leftParamType = px.Type;
-            var rightParamType = py.Type;
 
             var leftParamName = ParameterSetInfo.GetDefaultParamName();
             var rightParamName = ParameterSetInfo.RegisterParameter(py.Name, py.Type, false);
 
             var relationSpec = RelationSpec.Build(leftParamName, px.Type, rightParamName, py.Type, null, condexp);
             AddRelationSpec(relationSpec);
+
+            var outputfunc = ExpressionHelpers.MakeTupleFunc(new[] { px.Type, py.Type });
+            Func<object?, object?, object> packfunc = packexp != null ? (Func<object?, object?, object>)packexp.Compile() : (x, y) => TypedTuple.Make((x, y));
 
             var oldf = _relationPackageFunc;
             _relationPackageFunc = o =>
@@ -248,7 +248,7 @@ namespace Meuzz.Persistence.Sql
                     throw new NotImplementedException();
                 }
 
-                return (left, right);
+                return packfunc(left, right);
             };
         }
 
@@ -480,7 +480,7 @@ namespace Meuzz.Persistence.Sql
         public SelectStatement<(T, T1)> Joins<T1>(Expression<Func<T, T1, bool>> cond)
         {
             var statement2 = new SelectStatement<(T, T1)>(this);
-            statement2.BuildRelationSpec(cond);
+            statement2.BuildRelationSpec2(cond, null);
             return statement2;
         }
 

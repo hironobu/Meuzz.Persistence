@@ -4,6 +4,7 @@ using System;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using Meuzz.Foundation;
 
 namespace Meuzz.Persistence.Core
 {
@@ -83,6 +84,14 @@ namespace Meuzz.Persistence.Core
         {
             var methodInfo = pe.Type.GetMethod("get_Item");
             return Expression.Call(pe, methodInfo, Expression.Constant(key));
+        }
+
+        public static LambdaExpression MakeTupleFunc(Type[] types)
+        {
+            var parameters = types.Select(t => Expression.Parameter(t));
+            var tupleType = TupleHelpers.MakeTupleType(types);
+
+            return Expression.Lambda(Expression.New(tupleType.GetConstructors().First(), parameters), parameters);
         }
 
         public static LambdaExpression MakeUntupleAndFirstFunc(Type tupleType)

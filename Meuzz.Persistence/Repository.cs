@@ -126,11 +126,9 @@ namespace Meuzz.Persistence
                 var targetPrimaryMemberInfo = reli.TargetType.GetPropertyInfoFromColumnName(reli.TargetType.GetPrimaryKey() ?? "id");
                 if (targetPrimaryMemberInfo == null) { throw new NotImplementedException(); }
                 var cond = ExpressionHelpers.MakeEqualityConditionFunc(throughMemberInfo, targetPrimaryMemberInfo);
-                statement.BuildRelationSpec(cond);
 
-                var tupleType = typeof(Tuple<,>).MakeGenericType(reli.ThroughType, reli.TargetType);
-                var outputfunc = ExpressionHelpers.MakeUntupleAndLastFunc(tupleType);
-                statement.BuildOutputSpec(outputfunc);
+                Expression<Func<object?, object?, object?>> outputfunc = (object? l, object? r) => r;
+                statement.BuildRelationSpec2(cond, outputfunc);
             }
             else
             {
@@ -348,7 +346,7 @@ namespace Meuzz.Persistence
             BuildBindings(statement, indexedResultDicts);
 
             // BELOW TO BE MOVED
-            if (!t.IsTuple())
+            if (statement.RelationPackageFunc == null)
             {
                 IEnumerable<ValueObjectComposite> objects = indexedResultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Values;
                 if (!objects.Any())
@@ -359,16 +357,12 @@ namespace Meuzz.Persistence
                 {
                     objects = indexedResultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Values;
                 }
+
                 return (IEnumerable<object>)objects.Select(x => x.Object).EnumerableUncast(t);
             }
             else
             {
-                if (statement.RelationPackageFunc == null)
-                {
-                    throw new NotImplementedException();
-                }
-
-                return resultRows.Select(row => TypedTuple.Make(statement.RelationPackageFunc(row.ToDictionary(r => r.Key, r => r.Value.Object))));
+                return resultRows.Select(row => statement.RelationPackageFunc(row.ToDictionary(r => r.Key, r => r.Value.Object)));
             }
         }
 
