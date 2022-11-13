@@ -287,7 +287,7 @@ namespace Meuzz.Persistence
             return true;
         }
 
-        private object? __PopulateObject(IDatabaseContext context, Type tt, IDictionary<string, object?> d, SqlSelectStatement statement)
+        private object? __PopulateObject(IDatabaseContext context, Type tt, string paramName, IDictionary<string, object?> d, SqlSelectStatement statement)
         {
             if (tt != null || statement.OutputSpec == null)
             {
@@ -319,7 +319,7 @@ namespace Meuzz.Persistence
                 foreach (var (k, v) in row)
                 {
                     var voc = new ValueObjectComposite(null, (IDictionary<string, object?>)v!);
-                    var tt = statement.ParameterSetInfo.GetTypeByName_(k) ?? statement.OutputType;
+                    var tt = statement.ParameterSetInfo.GetTypeByName_(k);
                     var pk = tt.GetPrimaryKey();
 
                     var dd = resultDicts.GetValueOrNew(k);
@@ -330,7 +330,7 @@ namespace Meuzz.Persistence
                     {
                         if (!idd.ContainsKey(pkval))
                         {
-                            voc.Object = __PopulateObject(context, tt, voc.Values, statement);
+                            voc.Object = __PopulateObject(context, tt, k, voc.Values, statement);
                             idd.Add(pkval, voc);
                         }
                     }
@@ -344,6 +344,7 @@ namespace Meuzz.Persistence
 
             BuildBindings(statement, indexedResultDicts);
 
+            // BELOW TO BE MOVED
             if (!t.IsTuple())
             {
                 IEnumerable<ValueObjectComposite> objects = indexedResultDicts[statement.ParameterSetInfo.GetDefaultParamName()].Values;
@@ -359,12 +360,12 @@ namespace Meuzz.Persistence
             }
             else
             {
-                if (statement.PackerFunc == null)
+                if (statement.RelationPackageFunc == null)
                 {
                     throw new NotImplementedException();
                 }
 
-                return resultRows.Select(row => TypedTuple.Make(statement.PackerFunc(row.ToDictionary(r => r.Key, r => r.Value.Object))));
+                return resultRows.Select(row => TypedTuple.Make(statement.RelationPackageFunc(row.ToDictionary(r => r.Key, r => r.Value.Object))));
             }
         }
 

@@ -55,12 +55,12 @@ namespace Meuzz.Persistence.Sql
 
         public OutputSpec? OutputSpec { get => _outputSpec; }
 
-        public Type OutputType { get => _outputSpec?.OutputExpression.ReturnType ?? Type; }
+        // public Type OutputType { get => _outputSpec?.OutputExpression.ReturnType ?? Type; }
 
         [Obsolete]
         public ParameterSetInfo ParameterSetInfo { get; }
 
-        public Func<IDictionary<string, object>, object>? PackerFunc => _packerFunc;
+        public Func<IDictionary<string, object>, object>? RelationPackageFunc => _relationPackageFunc;
 
         #region Source
         protected void BuildSource(SqlSelectStatement statement)
@@ -237,8 +237,8 @@ namespace Meuzz.Persistence.Sql
             var relationSpec = RelationSpec.Build(leftParamName, px.Type, rightParamName, py.Type, null, condexp);
             AddRelationSpec(relationSpec);
 
-            var oldf = _packerFunc;
-            _packerFunc = o =>
+            var oldf = _relationPackageFunc;
+            _relationPackageFunc = o =>
             {
                 var left = oldf != null ? oldf(o) : o[leftParamName];
                 var right = o[rightParamName];
@@ -275,7 +275,7 @@ namespace Meuzz.Persistence.Sql
         private ColumnSpec[] _columnSpecs = new ColumnSpec[] { };
         private IList<RelationSpec> _relationSpecs = new List<RelationSpec>();
         private OutputSpec? _outputSpec = null;
-        private Func<IDictionary<string, object>, object>? _packerFunc;
+        private Func<IDictionary<string, object>, object>? _relationPackageFunc;
     }
 
     public class ColumnSpec

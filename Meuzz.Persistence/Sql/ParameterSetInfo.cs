@@ -61,7 +61,8 @@ namespace Meuzz.Persistence.Sql
 
         public Type? GetTypeByName_(string name)
         {
-            return _defaultParamName != name ? _parameters[name] : null;
+            //return _defaultParamName != name ? _parameters[name] : null;
+            return _parameters.TryGetValue(name, out var value) ? value : null;
         }
 
         public string GetName(Expression expr)
