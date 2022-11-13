@@ -129,7 +129,7 @@ namespace Meuzz.Persistence
                 statement.BuildRelationSpec(cond);
 
                 var tupleType = typeof(Tuple<,>).MakeGenericType(reli.ThroughType, reli.TargetType);
-                var outputfunc = ExpressionHelpers.MakeUntupleByLastMemberAccessFunc(tupleType);
+                var outputfunc = ExpressionHelpers.MakeUntupleAndLastFunc(tupleType);
                 statement.BuildOutputSpec(outputfunc);
             }
             else
@@ -287,6 +287,7 @@ namespace Meuzz.Persistence
             return true;
         }
 
+#if false
         private object? __PopulateObject(IDatabaseContext context, Type tt, string paramName, IDictionary<string, object?> d, SqlSelectStatement statement)
         {
             if (tt != null || statement.OutputSpec == null)
@@ -299,6 +300,7 @@ namespace Meuzz.Persistence
                 return f(d);
             }
         }
+#endif
 
         protected IEnumerable<object> PopulateObjects(IDatabaseContext context, Type t, ResultSet rset, SqlSelectStatement statement)
         {
@@ -320,7 +322,7 @@ namespace Meuzz.Persistence
                 {
                     var voc = new ValueObjectComposite(null, (IDictionary<string, object?>)v!);
                     var tt = statement.ParameterSetInfo.GetTypeByName_(k);
-                    var pk = tt.GetPrimaryKey();
+                    var pk = tt?.GetPrimaryKey();
 
                     var dd = resultDicts.GetValueOrNew(k);
                     var idd = indexedResultDicts.GetValueOrNew(k);
@@ -330,7 +332,8 @@ namespace Meuzz.Persistence
                     {
                         if (!idd.ContainsKey(pkval))
                         {
-                            voc.Object = __PopulateObject(context, tt, k, voc.Values, statement);
+                            // voc.Object = __PopulateObject(context, tt, k, voc.Values, statement);
+                            voc.Object = PopulateObject(context, tt, voc.Values);
                             idd.Add(pkval, voc);
                         }
                     }
