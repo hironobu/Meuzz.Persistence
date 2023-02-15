@@ -137,7 +137,7 @@ namespace Meuzz.Persistence.Sql
         #endregion
 
         #region Relations
-        public void BuildRelationSpec(LambdaExpression propexp, LambdaExpression? condexp)
+        public void BuildRelationSpec1(LambdaExpression? condexp, LambdaExpression propexp)
         {
             var propbodyexp = propexp.Body;
             var leftParam = propexp.Parameters.Single();
@@ -176,7 +176,7 @@ namespace Meuzz.Persistence.Sql
 #endif
         }
 
-        public void BuildRelationSpec(Type rightParamType, string foreignKey)
+        public void BuildRelationSpec0(Type rightParamType, string foreignKey)
         {
             if (rightParamType.IsGenericType)
             {
@@ -466,14 +466,14 @@ namespace Meuzz.Persistence.Sql
         public SelectStatement<T> GroupJoinBy<T1>(Expression<Func<T, IEnumerable<T1>>> propexp, Expression<Func<T, T1, bool>>? cond = null)
         {
             var statement2 = new SelectStatement<T>(this);
-            statement2.BuildRelationSpec(propexp, cond);
+            statement2.BuildRelationSpec1(cond, propexp);
             return statement2;
         }
 
         public SelectStatement<T> JoinBy<T1>(string foreignKey)
         {
             var statement2 = new SelectStatement<T>(this);
-            statement2.BuildRelationSpec(typeof(T1), foreignKey);
+            statement2.BuildRelationSpec0(typeof(T1), foreignKey);
             return statement2;
         }
 
